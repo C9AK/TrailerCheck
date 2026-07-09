@@ -1,0 +1,60 @@
+# 03 Backend API & Business Logic
+
+Implement these routes in FastAPI. All routes (except login) require JWT authentication.
+
+## 1. Authentication & Users
+* `POST /api/auth/login`: Accepts username/password, returns JWT token with `role` payload.
+* `GET /api/users/me`: Returns current logged-in user profile.
+* `POST /api/admin/users`: (Manager only) Create new employees.
+
+## 2. Telemetry Proxy
+* `GET /api/telemetry/truck/{mc_id}/{truck_number}`: 
+  * Looks up the MC API key from the DB.
+  * Makes a server-to-server request to the external fleet API.
+  * Returns JSON: `{ driver_name, location, model, fuel_percentage }`.
+  * *Constraint:* Mock this external API call with dummy data if the real API isn't available yet.
+
+## 3. Ticket CRUD
+* `POST /api/tickets`: Create a new pickup ticket.
+  * *Logic:* If `Standard Pickup`, `pti_verified` MUST be true.
+  * *Logic:* If `LOT Trailer`, backend checks `Trailers.last_pti_date`. If < 7 days, `pti_verified` is optional. If >= 7 days, block creation unless `pti_verified` is true.
+* `PATCH /api/tickets/{id}`: Update specific fields (used for inline editing in Carryover).
+  * *Logic:* If updating `scale_ticket_received` to True, and all other required fields are true, automatically change `state` to `PENDING_QC`.
+* `GET /api/tickets/carryover`: Returns tickets where state = `AWAITING_DRIVER`.
+* `GET /api/tickets/qc`: Returns tickets where state = `PENDING_QC` or `RESOLVED`.
+
+## 4. QC Actions
+* `POST /api/tickets/{id}/approve`: (QC/Manager only) Changes state to `APPROVED`. Adds +10 points to the `created_by` user's performance score.
+* `POST /api/tickets/{id}/flag`: (QC/Manager only) Requires `error_category`. Changes state to `FLAGGED`. Deducts points from `created_by` user based on severity. Writes to `QC_Audit_Flags` table.
+---
+
+## Revision R2 (2026-07-09)
+
+* **PTI logic change:** `POST /api/tickets` no longer rejects missing PTI — the ticket saves as AWAITING_DRIVER. The PTI gate applies at the transition to PENDING_QC: `pti_verified` true, OR LOT trailer whose `last_pti_date` is < 7 days old at transition time. `sticker_verified` is also required for readiness.
+* `POST /api/tickets/{id}/flag`: accepts `error_categories[]`, `notes`, `severity` (1-10, required iff Didnt_Text_In_Group), `media[] {url, media_type}`. One audit row + one penalty per category.
+* `POST /api/tickets/{id}/resolve`: employee sends FLAGGED -> RESOLVED explicitly.
+* `GET /api/tickets/flagged`: FLAGGED tickets for the employee dashboard.
+* `GET /api/tickets/qc?include_awaiting=true`: QC early review of AWAITING_DRIVER tickets.
+* `POST /api/uploads` (qc/manager): multipart image/video, served at `/media/*`.
+* `GET /api/tickets/archive` (manager): all tickets; filters start_date, end_date, state, created_by; paginated.
+* `GET /api/stats/employees` (manager): completed (= APPROVED) pickups daily/monthly/all-time per employee, from TICKET_APPROVED audit events.
+* Telemetry response: adds `latitude`/`longitude`; `model` includes the year; `location` is the full formatted address. Unknown truck -> 404.
+
+## Revision R3 (2026-07-09)
+* `GET /api/tickets/my-history?on_date=` (employee/manager): every ticket created by the caller, any state, newest first.
+* `GET /api/tickets/qc-history?outcome=approved|flagged&on_date=` (qc/manager): tickets the caller approved/flagged, dated by the QC action timestamp; returns {processed_at, ticket}.
+* `GET /api/feed/live?limit=` (manager): newest-first immutable activity feed entries with rendered messages.
+* Every lifecycle action now writes BOTH audit_logs and live_activity_feed. New event TICKET_SENT_TO_QC fires when a Carryover ticket completes via PATCH.
+
+## Revision R4 (2026-07-09) — Data Export
+* `GET /api/export/pickups?date=YYYY-MM-DD` (manager only): returns a `.csv` attachment (`pickups_<date>.csv`, UTF-8 with BOM for Excel) of all pickups created that day. All relational data resolved to human-readable strings: MC name, creating employee, approving QC + approval timestamp, flag category labels, flaggers — no UUIDs.
+
+## Revision R5 (2026-07-09) — Employee visibility & post-submission editing
+* `GET /api/tickets/carryover` now returns AWAITING_DRIVER + PENDING_QC + RESOLVED (the employee "active board"); tickets leave it only when APPROVED. FLAGGED remains served by /api/tickets/flagged.
+* `PATCH /api/tickets/{id}` is permitted while PENDING_QC/RESOLVED — fields update live for QC, state unchanged. Only APPROVED is locked (409).
+* `GET /api/tickets/all` (any authenticated role): the Global Sheet — every ticket in the system, newest first (cap 500).
+
+## Revision R6 (2026-07-09) — Shift Handover Notes
+* `GET /api/notes/drafts` (employee/manager): live auto-notes from the caller's AWAITING_DRIVER tickets — one per missing checklist item, format "Truck N - MC: Waiting on Item" — plus their manual DRAFT notes.
+* `POST /api/notes`: create a manual draft. `POST /api/notes/publish`: persist auto-notes + flip drafts to PUBLISHED, deduping identical open auto-notes.
+* `GET /api/notes/global` (all roles): PUBLISHED, unresolved notes. `PATCH /api/notes/{id}/resolve`: -> RESOLVED with resolved_by/resolved_at. `PATCH /api/notes/{id}`: edit content (drafts author-only; published notes team-editable; resolved locked).

@@ -1,0 +1,40 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Fira Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, SFMono-Regular, monospace;
+
+  /* Brand crimson from the UGL Trailer Check logo (#C2272D) — primary actions */
+  --color-brand-50: #fbf0f0;
+  --color-brand-100: #f5d9da;
+  --color-brand-300: #e08a8e;
+  --color-brand-500: #cf4046;
+  --color-brand-600: #c2272d;
+  --color-brand-700: #a02024;
+  --color-brand-800: #83191d;
+
+  /* Remap the blue scale to the logo crimson so ALL existing chrome (borders,
+     focus rings, active nav, notices, stats) carries the brand color. */
+  --color-blue-50: #fcf3f3;
+  --color-blue-100: #f3dedf;
+  --color-blue-200: #eac6c7;
+  --color-blue-300: #dd9c9f;
+  --color-blue-400: #d0696e;
+  --color-blue-500: #c94046;
+  --color-blue-600: #c2272d;
+  --color-blue-700: #a02024;
+  --color-blue-800: #8a1c20;
+  --color-blue-900: #701519;
+  --color-blue-950: #4a0d10;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
