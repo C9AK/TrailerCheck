@@ -15,10 +15,10 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.security import hash_password
 from app.models import MotorCarrier, Trailer, User, UserRole
 
+# Single bootstrap manager — all other accounts are created in-app via
+# the Admin page (/dashboard/admin).
 SEED_USERS = [
-    ("laith", "laith123!", UserRole.employee),
-    ("qc_test", "qctest123!", UserRole.qc),
-    ("manager_test", "manager123!", UserRole.manager),
+    ("laith", "laith123!", UserRole.manager),
 ]
 
 SAMSARA_ENDPOINT = "https://api.samsara.com"
