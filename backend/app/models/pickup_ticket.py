@@ -47,9 +47,9 @@ class PickupTicket(Base):
     inspection_paper_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sticker_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_ca_fl_destination: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    tires_inspected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     bol_present: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    weight: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # R7: free-text — scale tickets sometimes carry annotations, not just numbers
+    weight: Mapped[str | None] = mapped_column(String(100), nullable=True)
     trailer_condition: Mapped[TrailerCondition | None] = mapped_column(
         Enum(TrailerCondition, name="trailer_condition"), nullable=True
     )
@@ -84,6 +84,8 @@ class PickupTicket(Base):
         back_populates="ticket", cascade="all, delete-orphan"
     )
     trailer: Mapped["Trailer | None"] = relationship()  # noqa: F821
+    # No delete cascade: audit logs must SURVIVE ticket deletion (ticket_id is
+    # detached to NULL instead) so the deletion itself stays on record.
     audit_logs: Mapped[list["AuditLog"]] = relationship(  # noqa: F821
-        back_populates="ticket", cascade="all, delete-orphan"
+        back_populates="ticket"
     )

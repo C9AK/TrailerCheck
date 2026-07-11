@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Flag, RotateCcw, Send, Truck } from "lucide-react";
+import { CheckCircle2, Flag, RotateCcw, Send, Trash2, Truck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -19,6 +19,7 @@ const EVENT_STYLE: Record<
   TICKET_FLAGGED: { icon: Flag, cls: "text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/40" },
   TICKET_RESOLVED: { icon: RotateCcw, cls: "text-violet-700 bg-violet-100 dark:text-violet-300 dark:bg-violet-900/40" },
   TICKET_APPROVED: { icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40" },
+  TICKET_DELETED: { icon: Trash2, cls: "text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/40" },
 };
 
 export default function LiveFeedPage() {

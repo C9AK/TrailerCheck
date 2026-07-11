@@ -116,9 +116,8 @@ export interface Ticket {
   inspection_paper_verified: boolean;
   sticker_verified: boolean;
   is_ca_fl_destination: boolean;
-  tires_inspected: boolean;
   bol_present: boolean;
-  weight: number | null;
+  weight: string | null;
   trailer_condition: TrailerCondition | null;
   condition_notes: string | null;
   needs_scale: boolean;
@@ -135,7 +134,8 @@ export type AuditEventType =
   | "TICKET_SENT_TO_QC"
   | "TICKET_FLAGGED"
   | "TICKET_RESOLVED"
-  | "TICKET_APPROVED";
+  | "TICKET_APPROVED"
+  | "TICKET_DELETED";
 
 export interface FeedEntry {
   id: string;

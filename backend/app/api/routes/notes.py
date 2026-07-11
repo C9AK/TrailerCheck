@@ -28,7 +28,6 @@ MISSING_ITEMS: list[tuple[str, str]] = [
     ("inspection_paper_verified", "Inspection Paper"),
     ("sticker_verified", "Sticker"),
     ("bol_present", "BOL"),
-    ("tires_inspected", "Tires Inspection"),
 ]
 
 _note_query = select(ShiftNote).options(

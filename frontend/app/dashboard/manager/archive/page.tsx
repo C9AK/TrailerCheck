@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDown, RefreshCw } from "lucide-react";
+import { FileDown, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -44,6 +44,17 @@ function ArchiveTable() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  async function deleteTicket(t: Ticket) {
+    if (!window.confirm(`Delete the pickup for truck ${t.truck_number} permanently?`)) return;
+    setError(null);
+    try {
+      await api<void>(`/api/tickets/${t.id}`, { method: "DELETE" });
+      setTickets((prev) => prev.filter((x) => x.id !== t.id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed.");
+    }
+  }
 
   async function exportDay() {
     if (!startDate) return;
@@ -232,6 +243,7 @@ function ArchiveTable() {
                 <th className="px-3 py-2.5 text-right">Weight</th>
                 <th className="px-3 py-2.5 text-center">Flags</th>
                 <th className="px-3 py-2.5">Created by</th>
+                <th className="px-3 py-2.5 text-center">Del</th>
               </tr>
             </thead>
             <tbody>
@@ -250,7 +262,7 @@ function ArchiveTable() {
                     <StateBadge state={t.state} />
                   </td>
                   <td className="px-3 py-2.5 text-right font-mono text-xs">
-                    {t.weight != null ? t.weight.toLocaleString() : "—"}
+                    {t.weight || "—"}
                   </td>
                   <td className="px-3 py-2.5 text-center font-mono text-xs">
                     {t.audit_flags.length > 0 ? (
@@ -263,6 +275,16 @@ function ArchiveTable() {
                   </td>
                   <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">
                     {t.creator.username}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <button
+                      type="button"
+                      aria-label={`Delete truck ${t.truck_number}`}
+                      onClick={() => deleteTicket(t)}
+                      className="cursor-pointer rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
                   </td>
                 </tr>
               ))}

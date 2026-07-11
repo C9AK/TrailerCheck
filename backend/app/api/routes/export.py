@@ -42,9 +42,9 @@ CATEGORY_LABELS: dict[ErrorCategory, str] = {
 
 HEADERS = [
     "Created At (UTC)", "Truck #", "Motor Carrier", "Created By", "Driver",
-    "Truck Model", "Location", "Fuel %", "Weight (lbs)", "Trailer Condition",
+    "Truck Model", "Location", "Fuel %", "Weight", "Trailer Condition",
     "Condition Notes", "LOT Trailer", "CA/FL Destination", "Registration",
-    "Inspection Paper", "Sticker", "Tires Inspected", "BOL", "PTI Verified",
+    "Inspection Paper", "Sticker", "BOL", "PTI Verified",
     "Needs Scale", "Scale Ticket Received", "State", "Flag Categories",
     "Flag Notes", "Flagged By", "Approved By", "Approved At (UTC)",
 ]
@@ -122,7 +122,7 @@ def export_pickups(
             t.truck_model or "",
             t.truck_location or "",
             f"{t.fuel_percentage:.0f}" if t.fuel_percentage is not None else "",
-            t.weight if t.weight is not None else "",
+            t.weight or "",
             t.trailer_condition.value if t.trailer_condition else "",
             t.condition_notes or "",
             _yn(t.is_lot_trailer),
@@ -130,7 +130,6 @@ def export_pickups(
             _yn(t.registration_verified),
             _yn(t.inspection_paper_verified),
             _yn(t.sticker_verified),
-            _yn(t.tires_inspected),
             _yn(t.bol_present),
             _yn(t.pti_verified),
             _yn(t.needs_scale),

@@ -16,7 +16,6 @@ const SHEET_CHECKS: { key: keyof Ticket & string; label: string }[] = [
   { key: "inspection_paper_verified", label: "Insp" },
   { key: "sticker_verified", label: "Stkr" },
   { key: "bol_present", label: "BOL" },
-  { key: "tires_inspected", label: "Tires" },
   { key: "pti_verified", label: "PTI" },
   { key: "scale_ticket_received", label: "Scale" },
 ];
@@ -151,7 +150,7 @@ function GlobalSheet() {
                     );
                   })}
                   <td className="px-3 py-1.5 text-right font-mono text-xs">
-                    {t.weight != null ? t.weight.toLocaleString() : "—"}
+                    {t.weight || "—"}
                   </td>
                 </tr>
               ))}

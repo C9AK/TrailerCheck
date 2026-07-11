@@ -31,6 +31,8 @@ def _render_message(ticket: PickupTicket, actor: User, event: AuditEvent) -> str
         return f"{actor.username} resolved flagged errors for truck {truck} ({mc}) and returned it to QC"
     if event == AuditEvent.TICKET_APPROVED:
         return f"{actor.username} approved ticket for truck {truck} ({mc})"
+    if event == AuditEvent.TICKET_DELETED:
+        return f"{actor.username} deleted pickup ticket for truck {truck} ({mc})"
     return f"{actor.username} updated ticket for truck {truck} ({mc})"
 
 

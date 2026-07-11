@@ -1,9 +1,9 @@
 import uuid
 from datetime import date, datetime, time, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func as sa_func
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.deps import get_current_user, require_roles
@@ -88,10 +88,20 @@ def update_ticket(
 ):
     ticket = _get_ticket_or_404(db, ticket_id)
 
-    if ticket.state == TicketState.APPROVED:
+    # R7 RBAC: employees may only edit their OWN tickets; managers edit any
+    # ticket in any state (including APPROVED).
+    if (
+        current_user.role == UserRole.employee
+        and ticket.created_by != current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only edit tickets you created.",
+        )
+    if ticket.state == TicketState.APPROVED and current_user.role != UserRole.manager:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="APPROVED is a terminal state — this ticket can no longer be edited.",
+            detail="APPROVED is a terminal state — only a manager can edit this ticket.",
         )
 
     updates = payload.model_dump(exclude_unset=True)
@@ -113,6 +123,38 @@ def update_ticket(
     db.commit()
     db.refresh(ticket)
     return ticket
+
+
+@router.delete("/api/tickets/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_ticket(
+    ticket_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+):
+    """R7 RBAC: managers delete any pickup; employees only their own.
+    The deletion is recorded in both the audit log and the immutable feed;
+    existing audit-log rows are detached (ticket_id -> NULL), never destroyed."""
+    ticket = _get_ticket_or_404(db, ticket_id)
+    if (
+        current_user.role == UserRole.employee
+        and ticket.created_by != current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete tickets you created.",
+        )
+
+    record_event(db, ticket, current_user, AuditEvent.TICKET_DELETED)
+    db.flush()
+    # Detach ALL audit logs (incl. the deletion event) before removing the
+    # ticket so history survives; QC flags + media go with the ticket.
+    db.execute(
+        update(AuditLog).where(AuditLog.ticket_id == ticket.id).values(ticket_id=None)
+    )
+    db.expire(ticket, ["audit_logs"])
+    db.delete(ticket)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/api/tickets/{ticket_id}/resolve", response_model=TicketOut)

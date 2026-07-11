@@ -81,3 +81,8 @@ Implement this relational structure in PostgreSQL. Enforce foreign keys and time
 
 ## Revision R6 (2026-07-09) — Shift_Notes (NEW)
 * `id` (UUID, PK), `created_by` (FK -> Users), `content` (Text), `truck_number` (String, nullable), `mc_name` (String, nullable), `is_auto_generated` (Boolean), `status` (Enum: DRAFT/PUBLISHED/RESOLVED), `resolved_by` (FK -> Users, nullable), `created_at`/`updated_at`/`resolved_at`.
+
+## Revision R7 (2026-07-11)
+* Pickup_Tickets: `tires_inspected` REMOVED; `weight` is now String(100) (free text, e.g. "34,500 lbs (light)").
+* Audit_Logs: `ticket_id` now nullable — on ticket deletion, log rows are detached (ticket_id -> NULL), never destroyed. New AuditEvent value: TICKET_DELETED.
+* Migration for existing SQLite DBs: `python -m app.scripts.migrate_r7` (in-place, writes dev.db.bak-r7 backup).

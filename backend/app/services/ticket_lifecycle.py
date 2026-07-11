@@ -35,14 +35,22 @@ def resolve_lot_trailer(db: Session, payload: TicketCreate) -> Trailer | None:
             detail="LOT Trailer tickets require a trailer_number.",
         )
 
-    trailer = db.scalar(
-        select(Trailer).where(Trailer.trailer_number == payload.trailer_number)
-    )
+    number = payload.trailer_number.strip()
+    trailer = db.scalar(select(Trailer).where(Trailer.trailer_number == number))
     if trailer is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Trailer '{payload.trailer_number}' not found.",
+        # R7: LOT trailers bypass fleet validation entirely — unknown trailers
+        # are registered on the fly from manual entry. Without a PTI date the
+        # trailer starts "stale" so the PTI gate still applies.
+        trailer = Trailer(
+            trailer_number=number,
+            last_pti_date=_as_utc(payload.last_pti_date_override)
+            if payload.last_pti_date_override
+            else datetime.now(timezone.utc) - LOT_PTI_WINDOW,
+            is_lot_trailer=True,
         )
+        db.add(trailer)
+        db.flush()
+        return trailer
 
     if payload.last_pti_date_override is not None:
         trailer.last_pti_date = _as_utc(payload.last_pti_date_override)

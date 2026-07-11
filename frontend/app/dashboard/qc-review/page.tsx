@@ -210,10 +210,7 @@ function QCQueue() {
                 label="Fuel"
                 value={t.fuel_percentage != null ? `${t.fuel_percentage.toFixed(0)}%` : "—"}
               />
-              <Detail
-                label="Weight"
-                value={t.weight != null ? `${t.weight.toLocaleString()} lbs` : "—"}
-              />
+              <Detail label="Weight" value={t.weight || "—"} />
               <Detail label="Condition" value={t.trailer_condition ?? "—"} />
             </dl>
 
@@ -222,7 +219,6 @@ function QCQueue() {
               <CheckPill ok={t.inspection_paper_verified} label="Inspection" />
               <CheckPill ok={t.sticker_verified} label="Sticker" />
               <CheckPill ok={t.bol_present} label="BOL" />
-              <CheckPill ok={t.tires_inspected} label="Tires" />
               <CheckPill ok={t.pti_verified} label="PTI" />
               {t.needs_scale && <CheckPill ok={t.scale_ticket_received} label="Scale ticket" />}
               {t.is_ca_fl_destination && (

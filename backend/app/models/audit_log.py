@@ -18,8 +18,10 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    ticket_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("pickup_tickets.id"), nullable=False, index=True
+    # Nullable: when a ticket is deleted its logs are detached (ticket_id=NULL)
+    # rather than destroyed — the deletion event itself must remain on record.
+    ticket_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("pickup_tickets.id"), nullable=True, index=True
     )
     actor_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id"), nullable=False, index=True
@@ -33,6 +35,6 @@ class AuditLog(Base):
         DateTime(timezone=True), nullable=False, default=_utcnow, index=True
     )
 
-    ticket: Mapped["PickupTicket"] = relationship(  # noqa: F821
+    ticket: Mapped["PickupTicket | None"] = relationship(  # noqa: F821
         back_populates="audit_logs"
     )

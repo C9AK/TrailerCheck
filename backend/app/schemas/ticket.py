@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.enums import ErrorCategory, MediaType, TicketState, TrailerCondition
 from app.schemas.motor_carrier import MCBrief
@@ -30,9 +30,8 @@ class TicketCreate(BaseModel):
     inspection_paper_verified: bool = False
     sticker_verified: bool = False
     is_ca_fl_destination: bool = False
-    tires_inspected: bool = False
     bol_present: bool = False
-    weight: float | None = None
+    weight: str | None = Field(default=None, max_length=100)  # R7: free text
     trailer_condition: TrailerCondition | None = None
     condition_notes: str | None = None
     needs_scale: bool = False
@@ -40,10 +39,16 @@ class TicketCreate(BaseModel):
     # R2: optional at save time; gates the -> PENDING_QC transition instead
     pti_verified: bool = False
 
+    @field_validator("weight", mode="before")
+    @classmethod
+    def _weight_to_str(cls, v):
+        return None if v is None else str(v)
+
 
 class TicketUpdate(BaseModel):
     """PATCH payload for inline edits — every field optional; state is server-controlled."""
 
+    truck_number: str | None = Field(default=None, min_length=1, max_length=100)
     driver_name: str | None = None
     truck_location: str | None = None
     truck_latitude: float | None = None
@@ -54,14 +59,18 @@ class TicketUpdate(BaseModel):
     inspection_paper_verified: bool | None = None
     sticker_verified: bool | None = None
     is_ca_fl_destination: bool | None = None
-    tires_inspected: bool | None = None
     bol_present: bool | None = None
-    weight: float | None = None
+    weight: str | None = Field(default=None, max_length=100)
     trailer_condition: TrailerCondition | None = None
     condition_notes: str | None = None
     needs_scale: bool | None = None
     scale_ticket_received: bool | None = None
     pti_verified: bool | None = None
+
+    @field_validator("weight", mode="before")
+    @classmethod
+    def _weight_to_str(cls, v):
+        return None if v is None else str(v)
 
 
 class MediaOut(BaseModel):
@@ -110,9 +119,13 @@ class TicketOut(BaseModel):
     inspection_paper_verified: bool
     sticker_verified: bool
     is_ca_fl_destination: bool
-    tires_inspected: bool
     bol_present: bool
-    weight: float | None
+    weight: str | None
+
+    @field_validator("weight", mode="before")
+    @classmethod
+    def _weight_to_str(cls, v):
+        return None if v is None else str(v)
     trailer_condition: TrailerCondition | None
     condition_notes: str | None
     needs_scale: bool

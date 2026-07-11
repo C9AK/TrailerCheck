@@ -28,3 +28,4 @@ frontend/next-env.d.ts
 
 # Local tool settings
 .claude/
+backend/*.db.bak*

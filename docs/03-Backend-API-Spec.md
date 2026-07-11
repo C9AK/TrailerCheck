@@ -58,3 +58,10 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 * `GET /api/notes/drafts` (employee/manager): live auto-notes from the caller's AWAITING_DRIVER tickets — one per missing checklist item, format "Truck N - MC: Waiting on Item" — plus their manual DRAFT notes.
 * `POST /api/notes`: create a manual draft. `POST /api/notes/publish`: persist auto-notes + flip drafts to PUBLISHED, deduping identical open auto-notes.
 * `GET /api/notes/global` (all roles): PUBLISHED, unresolved notes. `PATCH /api/notes/{id}/resolve`: -> RESOLVED with resolved_by/resolved_at. `PATCH /api/notes/{id}`: edit content (drafts author-only; published notes team-editable; resolved locked).
+
+## Revision R7 (2026-07-11) — RBAC expansion & form logic
+* Truck numbers are free strings (Samsara matching normalizes whitespace; "1319 A" works). Weight is free text.
+* LOT trailers bypass fleet validation: unknown trailer numbers are auto-registered (stale PTI unless a date is provided) — no 404.
+* `PATCH /api/tickets/{id}`: employees only for tickets they created (403 otherwise); managers edit ANY ticket in ANY state, including APPROVED. Accepts truck_number.
+* `DELETE /api/tickets/{id}` (NEW): manager any / employee own-only. Logged to audit_logs + live_activity_feed ("X deleted pickup ticket for truck N (MC)"); flags+media delete with the ticket, audit logs and feed entries survive.
+* Admin (manager): `PATCH /api/admin/users/{id}` (username/password/role/is_active; self-demote/deactivate blocked), `DELETE /api/admin/users/{id}` (hard delete only when the user has zero recorded activity; otherwise 409 -> deactivate), `PATCH /api/admin/mcs/{id}` (name/endpoint/api_key).

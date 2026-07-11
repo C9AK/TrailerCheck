@@ -1,12 +1,13 @@
 "use client";
 
-import { KeyRound, Loader2, UserPlus } from "lucide-react";
+import { Check, KeyRound, Loader2, Pencil, Trash2, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, SuccessBanner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { MCAdmin, Role, User } from "@/lib/types";
+import { useAuthStore } from "@/store/authStore";
 
 const ROLES: Role[] = ["employee", "qc", "manager"];
 
@@ -26,6 +27,7 @@ export default function AdminPage() {
 }
 
 function UsersSection() {
+  const myUsername = useAuthStore((s) => s.username);
   const [users, setUsers] = useState<User[]>([]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +35,47 @@ function UsersSection() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Inline user editor
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRole, setEditRole] = useState<Role>("employee");
+  const [editPassword, setEditPassword] = useState("");
+  const [editActive, setEditActive] = useState(true);
+
+  async function saveUser(u: User) {
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const body: Record<string, unknown> = { role: editRole, is_active: editActive };
+      if (editPassword.trim()) body.password = editPassword.trim();
+      await api<User>(`/api/admin/users/${u.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      setSuccess(`User "${u.username}" updated.`);
+      setEditingId(null);
+      setEditPassword("");
+      load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Update failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteUser(u: User) {
+    if (!window.confirm(`Delete user "${u.username}" permanently?`)) return;
+    setError(null);
+    setSuccess(null);
+    try {
+      await api<void>(`/api/admin/users/${u.id}`, { method: "DELETE" });
+      setSuccess(`User "${u.username}" deleted.`);
+      load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed.");
+    }
+  }
 
   const load = useCallback(() => {
     api<User[]>("/api/admin/users")
@@ -142,13 +185,36 @@ function UsersSection() {
               <th className="px-3 py-2">Role</th>
               <th className="px-3 py-2 text-right">Performance Score</th>
               <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                <td className="px-3 py-2 font-medium">{u.username}</td>
-                <td className="px-3 py-2 font-mono text-xs uppercase">{u.role}</td>
+                <td className="px-3 py-2 font-medium">
+                  {u.username}
+                  {u.username === myUsername && (
+                    <span className="ml-1.5 text-xs text-slate-400">(you)</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs uppercase">
+                  {editingId === u.id ? (
+                    <select
+                      aria-label={`Role for ${u.username}`}
+                      value={editRole}
+                      onChange={(e) => setEditRole(e.target.value as Role)}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      {ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    u.role
+                  )}
+                </td>
                 <td
                   className={`px-3 py-2 text-right font-mono font-semibold ${
                     u.performance_score < 70
@@ -161,7 +227,77 @@ function UsersSection() {
                   {u.performance_score}
                 </td>
                 <td className="px-3 py-2 text-xs">
-                  {u.is_active ? "Active" : "Inactive"}
+                  {editingId === u.id ? (
+                    <label className="flex cursor-pointer items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={editActive}
+                        onChange={(e) => setEditActive(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-brand-600"
+                      />
+                      Active
+                    </label>
+                  ) : u.is_active ? (
+                    "Active"
+                  ) : (
+                    <span className="font-semibold text-red-600 dark:text-red-400">Inactive</span>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  {editingId === u.id ? (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <input
+                        type="password"
+                        placeholder="New password (optional)"
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        className="w-40 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Save user"
+                        disabled={busy}
+                        onClick={() => saveUser(u)}
+                        className="cursor-pointer rounded p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                      >
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Cancel edit"
+                        onClick={() => setEditingId(null)}
+                        className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Edit ${u.username}`}
+                        onClick={() => {
+                          setEditingId(u.id);
+                          setEditRole(u.role);
+                          setEditActive(u.is_active);
+                          setEditPassword("");
+                        }}
+                        className="cursor-pointer rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      {u.username !== myUsername && (
+                        <button
+                          type="button"
+                          aria-label={`Delete ${u.username}`}
+                          onClick={() => deleteUser(u)}
+                          className="cursor-pointer rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -180,6 +316,38 @@ function MCSection() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Inline MC editor
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editEndpoint, setEditEndpoint] = useState("");
+  const [editKey, setEditKey] = useState("");
+
+  async function saveMC(mc: MCAdmin) {
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const body: Record<string, unknown> = {};
+      if (editEndpoint.trim() && editEndpoint.trim() !== mc.api_endpoint) {
+        body.api_endpoint = editEndpoint.trim();
+      }
+      if (editKey.trim()) body.api_key = editKey.trim();
+      if (Object.keys(body).length > 0) {
+        await api<MCAdmin>(`/api/admin/mcs/${mc.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+        setSuccess(`Motor Carrier "${mc.name}" updated.`);
+        load();
+      }
+      setEditingId(null);
+      setEditKey("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Update failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const load = useCallback(() => {
     api<MCAdmin[]>("/api/admin/mcs")
@@ -288,14 +456,76 @@ function MCSection() {
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Endpoint</th>
               <th className="px-3 py-2">API Key</th>
+              <th className="px-3 py-2 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             {mcs.map((mc) => (
               <tr key={mc.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                 <td className="px-3 py-2 font-medium">{mc.name}</td>
-                <td className="px-3 py-2 font-mono text-xs">{mc.api_endpoint}</td>
-                <td className="px-3 py-2 font-mono text-xs">{mc.api_key_masked}</td>
+                <td className="px-3 py-2 font-mono text-xs">
+                  {editingId === mc.id ? (
+                    <input
+                      aria-label={`Endpoint for ${mc.name}`}
+                      value={editEndpoint}
+                      onChange={(e) => setEditEndpoint(e.target.value)}
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  ) : (
+                    mc.api_endpoint
+                  )}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs">
+                  {editingId === mc.id ? (
+                    <input
+                      type="password"
+                      placeholder="New token (blank = keep current)"
+                      value={editKey}
+                      onChange={(e) => setEditKey(e.target.value)}
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
+                    />
+                  ) : (
+                    mc.api_key_masked
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  {editingId === mc.id ? (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        aria-label="Save MC"
+                        disabled={busy}
+                        onClick={() => saveMC(mc)}
+                        className="cursor-pointer rounded p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                      >
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Cancel edit"
+                        onClick={() => setEditingId(null)}
+                        className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="flex justify-center">
+                      <button
+                        type="button"
+                        aria-label={`Edit ${mc.name}`}
+                        onClick={() => {
+                          setEditingId(mc.id);
+                          setEditEndpoint(mc.api_endpoint);
+                          setEditKey("");
+                        }}
+                        className="cursor-pointer rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

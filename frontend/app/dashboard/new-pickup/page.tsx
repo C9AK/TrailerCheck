@@ -59,7 +59,6 @@ function NewPickupForm() {
   const [registrationVerified, setRegistrationVerified] = useState(false);
   const [inspectionVerified, setInspectionVerified] = useState(false);
   const [stickerVerified, setStickerVerified] = useState(false);
-  const [tiresInspected, setTiresInspected] = useState(false);
   const [caFlDestination, setCaFlDestination] = useState(false);
   const [bolPresent, setBolPresent] = useState(false);
   const [weight, setWeight] = useState("");
@@ -80,9 +79,15 @@ function NewPickupForm() {
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load MCs."));
   }, []);
 
-  // Debounced telemetry auto-fill: fires once an MC is selected and a truck number typed.
-  const scheduleTelemetry = useCallback((mc: string, truck: string) => {
+  // Debounced telemetry auto-fill: fires once an MC is selected and a truck
+  // number typed. LOT trailers bypass the fleet lookup entirely (R7).
+  const scheduleTelemetry = useCallback((mc: string, truck: string, lot: boolean) => {
     if (telemetryTimer.current) clearTimeout(telemetryTimer.current);
+    if (lot) {
+      setTelemetryError(null);
+      setTelemetryLoading(false);
+      return;
+    }
     if (!mc || truck.trim().length < 2) return;
     telemetryTimer.current = setTimeout(async () => {
       setTelemetryLoading(true);
@@ -113,7 +118,14 @@ function NewPickupForm() {
       const trailer = await api<Trailer>(`/api/trailers/${encodeURIComponent(num)}`);
       setLastPtiDate(toDateInputValue(trailer.last_pti_date));
     } catch (e) {
-      setTrailerError(e instanceof ApiError ? e.message : "Trailer lookup failed.");
+      // R7: unknown trailers are fine — they get registered on submit.
+      if (e instanceof ApiError && e.status === 404) {
+        setTrailerError(
+          "New trailer — it will be registered when you create the ticket. Set its last PTI date below."
+        );
+      } else {
+        setTrailerError(e instanceof ApiError ? e.message : "Trailer lookup failed.");
+      }
       setLastPtiDate("");
     } finally {
       setTrailerLoading(false);
@@ -150,9 +162,8 @@ function NewPickupForm() {
           inspection_paper_verified: inspectionVerified,
           sticker_verified: stickerVerified,
           is_ca_fl_destination: caFlDestination,
-          tires_inspected: tiresInspected,
           bol_present: bolPresent,
-          weight: weight ? Number(weight) : null,
+          weight: weight.trim() || null,
           trailer_condition: condition,
           condition_notes: conditionNotes || null,
           needs_scale: needsScale,
@@ -175,7 +186,6 @@ function NewPickupForm() {
       setRegistrationVerified(false);
       setInspectionVerified(false);
       setStickerVerified(false);
-      setTiresInspected(false);
       setCaFlDestination(false);
       setBolPresent(false);
       setWeight("");
@@ -214,7 +224,7 @@ function NewPickupForm() {
                 value={mcId}
                 onChange={(e) => {
                   setMcId(e.target.value);
-                  scheduleTelemetry(e.target.value, truckNumber);
+                  scheduleTelemetry(e.target.value, truckNumber, isLot);
                 }}
                 className={inputCls}
               >
@@ -236,9 +246,9 @@ function NewPickupForm() {
                 value={truckNumber}
                 onChange={(e) => {
                   setTruckNumber(e.target.value);
-                  scheduleTelemetry(mcId, e.target.value);
+                  scheduleTelemetry(mcId, e.target.value, isLot);
                 }}
-                placeholder="e.g. TRK-4021"
+                placeholder="e.g. 1319 A"
                 className={`${inputCls} font-mono`}
               />
             </div>
@@ -295,7 +305,16 @@ function NewPickupForm() {
                 LOT trailers with a PTI newer than 7 days may skip re-verification.
               </p>
             </div>
-            <Toggle id="lot-toggle" checked={isLot} onChange={setIsLot} label="LOT Trailer" />
+            <Toggle
+              id="lot-toggle"
+              checked={isLot}
+              onChange={(v) => {
+                setIsLot(v);
+                // LOT bypasses the fleet lookup — clear any pending fetch/error
+                scheduleTelemetry(mcId, truckNumber, v);
+              }}
+              label="LOT Trailer"
+            />
           </div>
 
           {isLot && (
@@ -440,30 +459,19 @@ function NewPickupForm() {
               />
               BOL present
             </label>
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={tiresInspected}
-                onChange={(e) => setTiresInspected(e.target.checked)}
-                className="h-4 w-4 accent-brand-600"
-              />
-              Tires inspected
-            </label>
           </div>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <div>
               <label htmlFor="weight" className="mb-1 block text-sm font-medium">
-                Weight (lbs)
+                Weight
               </label>
               <input
                 id="weight"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="any"
+                type="text"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
+                placeholder="e.g. 34,500 lbs (light)"
                 className={`${inputCls} font-mono`}
               />
             </div>

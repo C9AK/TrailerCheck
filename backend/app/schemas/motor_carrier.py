@@ -16,6 +16,14 @@ class MCCreate(BaseModel):
     api_key: str
 
 
+class MCUpdate(BaseModel):
+    """Manager-only MC modification; omit api_key to keep the existing token."""
+
+    name: str | None = None
+    api_endpoint: str | None = None
+    api_key: str | None = None
+
+
 class MCAdminOut(BaseModel):
     """Manager view — the raw API key is never returned, only a masked suffix."""
 

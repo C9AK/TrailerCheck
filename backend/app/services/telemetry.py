@@ -44,8 +44,10 @@ def _mock_telemetry(truck_number: str) -> dict:
 
 
 async def _find_samsara_vehicle(client: httpx.AsyncClient, truck_number: str) -> dict | None:
-    """Page through /fleet/vehicles matching name to the truck number."""
-    wanted = truck_number.strip().lower()
+    """Page through /fleet/vehicles matching name to the truck number.
+    Alphanumeric names with spaces (e.g. "1319 A") are matched with whitespace
+    normalized on both sides."""
+    wanted = " ".join(truck_number.split()).lower()
     after: str | None = None
     for _ in range(10):  # safety cap: 10 pages x 512 vehicles
         params: dict = {"limit": 512}
@@ -55,7 +57,7 @@ async def _find_samsara_vehicle(client: httpx.AsyncClient, truck_number: str) ->
         resp.raise_for_status()
         body = resp.json()
         for vehicle in body.get("data", []):
-            if str(vehicle.get("name", "")).strip().lower() == wanted:
+            if " ".join(str(vehicle.get("name", "")).split()).lower() == wanted:
                 return vehicle
         pagination = body.get("pagination", {})
         if not pagination.get("hasNextPage"):

@@ -1,7 +1,9 @@
 "use client";
 
-import { AlertCircle, Flag, RefreshCw, Send } from "lucide-react";
+import { AlertCircle, Check, Flag, Pencil, RefreshCw, Send, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+
+import { useAuthStore } from "@/store/authStore";
 
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner } from "@/components/ui";
@@ -31,18 +33,9 @@ const INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
   { key: "inspection_paper_verified", label: "Insp." },
   { key: "sticker_verified", label: "Sticker" },
   { key: "bol_present", label: "BOL" },
-  { key: "tires_inspected", label: "Tires" },
   { key: "pti_verified", label: "PTI" },
   { key: "scale_ticket_received", label: "Scale Tkt" },
 ];
-
-/** R2: hourly reminder while tires are not inspected. */
-function tireReminderHours(ticket: Ticket, nowMs: number): number {
-  if (ticket.tires_inspected) return 0;
-  const created = new Date(ticket.created_at).getTime();
-  if (Number.isNaN(created)) return 0;
-  return Math.floor((nowMs - created) / 3_600_000);
-}
 
 export default function CarryoverPage() {
   return (
@@ -60,6 +53,19 @@ function CarryoverTable() {
   const [notice, setNotice] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const now = useNow();
+  const { role, username } = useAuthStore();
+
+  // R7 RBAC: employees may edit/delete only their OWN tickets; managers any.
+  const canModify = useCallback(
+    (t: Ticket) => role === "manager" || t.creator.username === username,
+    [role, username]
+  );
+
+  // Inline row editor (truck #, weight, notes)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTruck, setEditTruck] = useState("");
+  const [editWeight, setEditWeight] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,6 +136,52 @@ function CarryoverTable() {
       setFlagged((prev) => prev.map((t) => (t.id === ticket.id ? updated : t)));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Update failed.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function deleteTicket(ticket: Ticket) {
+    if (!window.confirm(`Delete the pickup for truck ${ticket.truck_number}? This cannot be undone.`)) {
+      return;
+    }
+    setSavingId(ticket.id);
+    setError(null);
+    try {
+      await api<void>(`/api/tickets/${ticket.id}`, { method: "DELETE" });
+      setTickets((prev) => prev.filter((t) => t.id !== ticket.id));
+      setFlagged((prev) => prev.filter((t) => t.id !== ticket.id));
+      setNotice(`Truck ${ticket.truck_number}: pickup deleted.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  function startEdit(t: Ticket) {
+    setEditingId(t.id);
+    setEditTruck(t.truck_number);
+    setEditWeight(t.weight ?? "");
+    setEditNotes(t.condition_notes ?? "");
+  }
+
+  async function saveEdit(ticket: Ticket) {
+    setSavingId(ticket.id);
+    setError(null);
+    try {
+      const updated = await api<Ticket>(`/api/tickets/${ticket.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          truck_number: editTruck.trim() || ticket.truck_number,
+          weight: editWeight.trim() || null,
+          condition_notes: editNotes.trim() || null,
+        }),
+      });
+      setTickets((prev) => prev.map((t) => (t.id === ticket.id ? updated : t)));
+      setEditingId(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Edit failed.");
     } finally {
       setSavingId(null);
     }
@@ -275,7 +327,7 @@ function CarryoverTable() {
                           <input
                             type="checkbox"
                             checked={Boolean(t[f.key])}
-                            disabled={savingId === t.id}
+                            disabled={savingId === t.id || !canModify(t)}
                             onChange={(e) => patchFlagged(t, f.key, e.target.checked)}
                             className="h-4 w-4 cursor-pointer accent-brand-600 disabled:opacity-40"
                           />
@@ -322,6 +374,7 @@ function CarryoverTable() {
                   </th>
                 ))}
                 <th className="px-3 py-2.5">Created by</th>
+                <th className="px-3 py-2.5 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -375,29 +428,21 @@ function CarryoverTable() {
                       const checked = Boolean(t[f.key]);
                       const scaleField = f.key === "scale_ticket_received";
                       const disabled =
-                        savingId === t.id || (scaleField && !t.needs_scale);
-                      // Hourly tire reminder: highlight the Tires cell while unchecked
-                      const tireOverdue =
-                        f.key === "tires_inspected" && tireReminderHours(t, now) >= 1;
+                        savingId === t.id ||
+                        (scaleField && !t.needs_scale) ||
+                        !canModify(t);
                       return (
-                        <td
-                          key={f.key}
-                          className={`px-3 py-2.5 text-center ${
-                            tireOverdue
-                              ? "animate-pulse bg-amber-200 dark:bg-amber-800/60"
-                              : ""
-                          }`}
-                          title={
-                            tireOverdue
-                              ? `Tires not inspected for ${tireReminderHours(t, now)}h — check them!`
-                              : undefined
-                          }
-                        >
+                        <td key={f.key} className="px-3 py-2.5 text-center">
                           <input
                             type="checkbox"
                             aria-label={`${f.label} for truck ${t.truck_number}`}
                             checked={checked}
                             disabled={disabled}
+                            title={
+                              !canModify(t)
+                                ? "Only the creator (or a manager) can edit this ticket"
+                                : undefined
+                            }
                             onChange={(e) => patchField(t, f.key, e.target.checked)}
                             className="h-4 w-4 cursor-pointer accent-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
                           />
@@ -407,6 +452,31 @@ function CarryoverTable() {
                     <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">
                       {t.creator.username}
                     </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {canModify(t) && (
+                        <span className="flex justify-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Edit truck ${t.truck_number}`}
+                            onClick={() =>
+                              editingId === t.id ? setEditingId(null) : startEdit(t)
+                            }
+                            className="cursor-pointer rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          >
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete truck ${t.truck_number}`}
+                            disabled={savingId === t.id}
+                            onClick={() => deleteTicket(t)}
+                            className="cursor-pointer rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -414,6 +484,75 @@ function CarryoverTable() {
           </table>
         </div>
       )}
+
+      {/* Inline ticket editor (R7: post-submission edits, ownership-gated) */}
+      {editingId &&
+        (() => {
+          const t = tickets.find((x) => x.id === editingId);
+          if (!t) return null;
+          return (
+            <div className="mt-4 rounded-lg border-2 border-brand-300 bg-white p-4 dark:border-brand-700 dark:bg-slate-900">
+              <h3 className="mb-3 font-mono text-sm font-semibold">
+                Editing truck {t.truck_number} ({t.motor_carrier.name})
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label htmlFor="edit-truck" className="mb-1 block text-xs font-medium">
+                    Truck Number
+                  </label>
+                  <input
+                    id="edit-truck"
+                    value={editTruck}
+                    onChange={(e) => setEditTruck(e.target.value)}
+                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="edit-weight" className="mb-1 block text-xs font-medium">
+                    Weight
+                  </label>
+                  <input
+                    id="edit-weight"
+                    value={editWeight}
+                    onChange={(e) => setEditWeight(e.target.value)}
+                    placeholder="e.g. 34,500 lbs (light)"
+                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="edit-notes" className="mb-1 block text-xs font-medium">
+                    Condition Notes
+                  </label>
+                  <input
+                    id="edit-notes"
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  disabled={savingId === t.id}
+                  onClick={() => saveEdit(t)}
+                  className="flex cursor-pointer items-center gap-1.5 rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 hover:bg-brand-700 disabled:opacity-50"
+                >
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                  Save changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Cancel
+                </button>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

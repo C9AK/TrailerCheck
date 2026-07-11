@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -41,6 +41,17 @@ function MyHistoryTable() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function deleteTicket(t: Ticket) {
+    if (!window.confirm(`Delete the pickup for truck ${t.truck_number} permanently?`)) return;
+    setError(null);
+    try {
+      await api<void>(`/api/tickets/${t.id}`, { method: "DELETE" });
+      setTickets((prev) => prev.filter((x) => x.id !== t.id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed.");
+    }
+  }
 
   return (
     <div>
@@ -106,6 +117,7 @@ function MyHistoryTable() {
                 <th className="px-3 py-2.5">State</th>
                 <th className="px-3 py-2.5 text-center">Flags</th>
                 <th className="px-3 py-2.5 text-center">PTI</th>
+                <th className="px-3 py-2.5 text-center">Del</th>
               </tr>
             </thead>
             <tbody>
@@ -134,6 +146,16 @@ function MyHistoryTable() {
                   </td>
                   <td className="px-3 py-2.5 text-center text-xs">
                     {t.pti_verified ? "✓" : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <button
+                      type="button"
+                      aria-label={`Delete truck ${t.truck_number}`}
+                      onClick={() => deleteTicket(t)}
+                      className="cursor-pointer rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
                   </td>
                 </tr>
               ))}
