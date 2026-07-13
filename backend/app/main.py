@@ -24,14 +24,44 @@ from app.core.database import Base, engine
 async def lifespan(app: FastAPI):
     # Dev convenience; replace with Alembic migrations for production.
     Base.metadata.create_all(bind=engine)
+    _bootstrap_admin()
     yield
+
+
+def _bootstrap_admin() -> None:
+    """Fresh database (e.g. first cloud deploy): create the bootstrap manager
+    so the Admin page is reachable. No-op once any user exists."""
+    from sqlalchemy import func, select
+
+    from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.core.security import hash_password
+    from app.models import User, UserRole
+
+    with SessionLocal() as db:
+        if (db.scalar(select(func.count()).select_from(User)) or 0) == 0:
+            db.add(
+                User(
+                    username=settings.BOOTSTRAP_ADMIN_USERNAME,
+                    password_hash=hash_password(settings.BOOTSTRAP_ADMIN_PASSWORD),
+                    role=UserRole.manager,
+                )
+            )
+            db.commit()
+            print(
+                f"Bootstrapped manager account '{settings.BOOTSTRAP_ADMIN_USERNAME}' "
+                "(set BOOTSTRAP_ADMIN_PASSWORD in production!)"
+            )
 
 
 app = FastAPI(title="Dispatch Trailer Check & QC Platform", lifespan=lifespan)
 
+from app.core.config import settings  # noqa: E402
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    # Cloud frontend origins (e.g. the Vercel URL) come from FRONTEND_ORIGINS
+    allow_origins=["http://localhost:3000", *settings.frontend_origins],
     # Allow the frontend when served over the LAN (private address ranges)
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?",
     allow_credentials=True,

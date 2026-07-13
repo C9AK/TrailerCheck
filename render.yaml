@@ -1,0 +1,29 @@
+# Render Blueprint — deploys the FastAPI backend + a managed Postgres database.
+# In Render: New + -> Blueprint -> connect this repo. See DEPLOYMENT.md.
+
+services:
+  - type: web
+    name: trailercheck-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trailercheck-db
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_ORIGINS
+        value: https://REPLACE-WITH-YOUR-APP.vercel.app
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false # set a strong value in the Render dashboard
+
+databases:
+  - name: trailercheck-db
+    plan: free

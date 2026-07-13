@@ -12,6 +12,7 @@ Specs live in [`docs/`](docs/) — the four numbered documents (plus their revis
 - [Quick Start (Automated)](#quick-start-automated)
 - [Manual Setup](#manual-setup)
 - [Environment Variables & Secrets](#environment-variables--secrets)
+- [Cloud Deployment](#cloud-deployment)
 
 ## Core Features
 
@@ -47,7 +48,7 @@ TrailerCheck/
 **Prerequisites**: You must be on a Windows machine with [Git](https://git-scm.com/) installed.
 
 ```PowerShell
-git clone [https://github.com/xlaithx/TrailerCheck.git](https://github.com/xlaithx/TrailerCheck.git)
+git clone https://github.com/LAEK-Soft/TrailerCheck.git
 cd TrailerCheck
 .\run.bat
 ```
@@ -102,3 +103,9 @@ For production deployment, ensure the following are configured in your server en
 
 - `DATABASE_URL`: Connection string for your production PostgreSQL instance.
 - `JWT_SECRET_KEY`: A secure, randomly generated string for signing auth tokens.
+
+## Cloud Deployment
+
+The frontend deploys to **Vercel** and the backend + PostgreSQL to **Render**
+(via the included `render.yaml` blueprint). Full step-by-step instructions:
+[DEPLOYMENT.md](DEPLOYMENT.md).
