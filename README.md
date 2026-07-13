@@ -14,7 +14,25 @@ addenda) are the source of truth for business rules.
 - **Frontend:** Next.js 15 (App Router), Tailwind CSS v4, Zustand, Lucide — `frontend/`
 - **Database:** PostgreSQL in production; SQLite for local dev (auto-created)
 
-## Local development
+## Quick start (one command)
+
+```powershell
+git clone https://github.com/xlaithx/TrailerCheck.git
+cd TrailerCheck
+.\run.bat
+```
+
+`run.bat` handles everything: installs Python/Node via winget if missing, sets up
+the venv and npm packages, seeds the database (manager login `laith / laith123!`),
+detects this machine's LAN IP and builds the frontend against it, adds firewall
+rules (when run as admin), and launches both servers in their own windows. It
+prints the URL teammates on the same Wi-Fi can open. Re-running it restarts the
+app cleanly and picks up code or IP changes.
+
+Optional: copy `backend\mc_tokens.json` from an existing machine for live Samsara
+telemetry (never committed — without it the app runs with mock truck data).
+
+## Manual setup (what run.bat automates)
 
 ### Backend (port 8000)
 
