@@ -85,6 +85,8 @@ def create_ticket(
     ticket.state = (
         TicketState.PENDING_QC if is_ready_for_qc(ticket) else TicketState.AWAITING_DRIVER
     )
+    if ticket.state == TicketState.PENDING_QC:
+        ticket.submitted_to_qc_at = datetime.now(timezone.utc)
     record_event(db, ticket, current_user, AuditEvent.TICKET_CREATED)
 
     db.commit()
@@ -137,6 +139,8 @@ def update_ticket(
         ticket
     ):
         ticket.state = TicketState.PENDING_QC
+        if ticket.submitted_to_qc_at is None:  # first submission only
+            ticket.submitted_to_qc_at = datetime.now(timezone.utc)
         record_event(db, ticket, current_user, AuditEvent.TICKET_SENT_TO_QC)
 
     db.commit()

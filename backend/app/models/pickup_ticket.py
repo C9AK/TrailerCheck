@@ -60,6 +60,11 @@ class PickupTicket(Base):
     scale_requested_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # R9: first transition to PENDING_QC — powers the Efficiency component of
+    # the leaderboard composite score (avg created_at -> submitted_to_qc_at).
+    submitted_to_qc_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # PTI verification - strictly checkboxes, no file uploads.
     # R8: structured checklist (JSON dict of item -> bool) is the source of

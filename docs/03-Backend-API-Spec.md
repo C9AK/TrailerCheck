@@ -75,3 +75,12 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 * /api/tickets/flagged: employees see OWN + URGENT only (Mistake Privacy); managers all; urgent sorted first.
 * PATCH: employees may also edit urgent-FLAGGED tickets of others (team triage exception).
 * Resolve: standard flags creator-only (403 otherwise); urgent by anyone. resolved_by stamped; non-creator fixer of an urgent flag earns TEAMWORK_BONUS (+5) immediately; creator keeps +10 at approval. Feed logs both distinctly ("resolved URGENT flag ... for X (teamwork bonus)"; "approved ... — approval credit to X").
+
+## Revision R9 (2026-07-13) — Weighted Composite Score
+* `services/scoring.py` gains `calculate_qc_score(total, flagged, avg_time_mins)`:
+  Final = (0.70*A + 0.30*E) * min(1, log10(N+1)/log10(T+1)); A = (N - flagged_tickets)/N*100 clamped >=0 (flagged = DISTINCT tickets ever flagged); E = 100 at avg <= 15 min, -10/min over, clamped >=0, defaults 100 with no submissions; T = 50 (TARGET_VOLUME).
+* `GET /api/leaderboard` (any authenticated role): active employees ranked descending; returns rank, id, name, score, volume, accuracy (+ efficiency, avg_time_mins). Ties break by volume then name.
+
+## Revision R10 (2026-07-13)
+* Leaderboard includes active QC accounts: volume = verdicts processed (approve + flag audit events), efficiency = avg QC turnaround (submitted_to_qc_at -> verdict), accuracy fixed at 100 (no counter-signal yet); same composite formula and volume multiplier. Entries carry `role`.
+* `python -m app.scripts.reset_data`: wipes operational data (tickets, flags, media, audit logs, feed, notes, uploads) while KEEPING users (scores reset to 100), MCs, and trailers.

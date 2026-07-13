@@ -4,7 +4,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import admin, auth, export, feed, lookups, notes, telemetry, tickets, uploads
+from app.api.routes import (
+    admin,
+    auth,
+    export,
+    feed,
+    leaderboard,
+    lookups,
+    notes,
+    telemetry,
+    tickets,
+    uploads,
+)
 from app.api.routes.uploads import MEDIA_DIR
 from app.core.database import Base, engine
 
@@ -37,6 +48,7 @@ app.include_router(uploads.router)
 app.include_router(feed.router)
 app.include_router(export.router)
 app.include_router(notes.router)
+app.include_router(leaderboard.router)
 
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")

@@ -72,3 +72,6 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 * QC flag form: "Urgent Flag (Global Visibility)" toggle. QC cards show persistent flag history (categories, severity, notes, media) — highlighted on RESOLVED tickets for fix verification.
 * Flagged section renamed "Action Required": urgent tickets badge "URGENT — anyone can fix" + sorted first + "Open full form" button.
 * Layout polls the flagged queue (15s): red count badge on the Carryover nav item + toast when QC flags YOUR ticket (or an urgent flag appears).
+
+## Revision R9 (2026-07-13)
+* `/dashboard/leaderboard` (all roles, Trophy nav item): ranked table with medal emoji for top 3, accuracy color-coded (>=95 emerald, >=85 amber, else rose), bold composite score, efficiency/volume/avg-time columns, current user's row highlighted, 30s auto-refresh, formula explainer footnote.

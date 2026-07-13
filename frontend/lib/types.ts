@@ -123,6 +123,7 @@ export interface Ticket {
   needs_scale: boolean;
   scale_ticket_received: boolean;
   scale_requested_at: string | null;
+  submitted_to_qc_at: string | null;
   pti_checklist: Record<string, boolean> | null;
   pti_verified: boolean;
   is_urgent_flag: boolean;
@@ -180,6 +181,18 @@ export interface AutoNote {
   mc_name: string;
   missing_item: string;
   content: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  id: string;
+  name: string;
+  role: "employee" | "qc";
+  score: number;
+  volume: number;
+  accuracy: number;
+  efficiency: number;
+  avg_time_mins: number | null;
 }
 
 export interface EmployeeStats {

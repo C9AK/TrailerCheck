@@ -32,6 +32,256 @@ export default function NewPickupPage() {
   );
 }
 
+function ScaleTicketBox({ truckFuelPct }: { truckFuelPct: number | null }) {
+  const [weights, setWeights] = useState({ steer: 0, drive: 0, trailer: 0 });
+  // Fuel follows the truck's live Samsara reading until the dispatcher types
+  // their own value; a re-sync button restores the live feed.
+  const [fuelPct, setFuelPct] = useState<number>(
+    truckFuelPct != null ? Math.round(truckFuelPct) : 50
+  );
+  const [fuelManuallySet, setFuelManuallySet] = useState(false);
+  const [kpraLocked, setKpraLocked] = useState(false);
+  const [fwHoles, setFwHoles] = useState(0);
+  const [tdHoles, setTdHoles] = useState(0);
+
+  const fuelSynced = !fuelManuallySet && truckFuelPct != null;
+
+  useEffect(() => {
+    if (!fuelManuallySet && truckFuelPct != null) {
+      setFuelPct(Math.round(truckFuelPct));
+    }
+  }, [truckFuelPct, fuelManuallySet]);
+
+  const steerShift = fwHoles * 500;
+  const trailerShift = tdHoles * 250;
+  const driveShift = (fwHoles * -500) + (tdHoles * -250);
+
+  const finalSteer = weights.steer + steerShift;
+  const finalDrive = weights.drive + driveShift;
+  const finalTrailer = weights.trailer + trailerShift;
+
+  const limits = { steer: 12000, drive: 34000, trailer: 34000 };
+  const MAX_FUEL_WEIGHT = 1400; 
+
+  const getStatusColor = (weight: number, limit: number) => {
+    if (weight === 0) return "text-white/20 border-white/10";
+    if (weight > limit) return "text-[#FF0000] border-[#FF0000] animate-pulse";
+    if (weight > limit - 1000) return "text-yellow-500 border-yellow-500";
+    return "text-green-500 border-white/10";
+  };
+
+  const getActionPlan = () => {
+      const { steer, drive, trailer } = weights;
+      if (steer === 0 && drive === 0 && trailer === 0) return "Awaiting scale ticket data...";
+      const total = steer + drive + trailer;
+      if (total > 80000) return "🚨 GROSS OVERWEIGHT (>80k). Return to shipper to rework cargo.";
+      
+      const currentFuelWeight = (fuelPct / 100) * MAX_FUEL_WEIGHT;
+      const missingFuelWeight = MAX_FUEL_WEIGHT - currentFuelWeight;
+      let projectedDriveFullFuel = drive + missingFuelWeight;
+
+      let plan = [];
+      let curSteer = steer;
+      let curDrive = drive;
+      let curTrailer = trailer;
+
+      if (curTrailer > limits.trailer) {
+          if (kpraLocked) {
+              return "🚨 KPRA LOCKED (California Hole #2 Limit): Cannot slide tandems backward to fix trailer weight. Cargo must be reworked.";
+          }
+          const over = curTrailer - limits.trailer;
+          const holes = Math.ceil(over / 250);
+          plan.push(`Slide Tandems BACKWARD ${holes} hole(s) (Shifts ~${holes*250}lbs to Drive)`);
+          curTrailer -= (holes * 250);
+          curDrive += (holes * 250);
+          projectedDriveFullFuel += (holes * 250);
+      }
+
+      if (curSteer > limits.steer) {
+          const over = curSteer - limits.steer;
+          const holes = Math.ceil(over / 500);
+          plan.push(`Slide 5th Wheel BACKWARD ${holes} hole(s) (Shifts ~${holes*500}lbs to Drive)`);
+          curSteer -= (holes * 500);
+          curDrive += (holes * 500);
+          projectedDriveFullFuel += (holes * 500);
+      }
+
+      if (projectedDriveFullFuel > limits.drive) {
+          let driveOver = projectedDriveFullFuel - limits.drive;
+          let tandemHolesSlidForward = 0;
+
+          if (curTrailer < limits.trailer && driveOver > 0) {
+              const room = limits.trailer - curTrailer;
+              const maxHoles = Math.floor(room / 250);
+              const neededHoles = Math.ceil(driveOver / 250);
+
+              if (maxHoles > 0) {
+                  const holesToSlide = Math.min(neededHoles, maxHoles);
+                  tandemHolesSlidForward = holesToSlide;
+                  plan.push(`Slide Tandems FORWARD ${holesToSlide} hole(s) (Shifts ~${holesToSlide*250}lbs to Trailer)`);
+                  curDrive -= (holesToSlide * 250);
+                  curTrailer += (holesToSlide * 250);
+                  projectedDriveFullFuel -= (holesToSlide * 250);
+                  driveOver = projectedDriveFullFuel - limits.drive;
+              }
+          }
+
+          if (curSteer < limits.steer && driveOver > 0) {
+              const room = limits.steer - curSteer;
+              const maxHoles = Math.floor(room / 500);
+              const neededHoles = Math.ceil(driveOver / 500);
+
+              if (maxHoles > 0) {
+                  const holesToSlide = Math.min(neededHoles, maxHoles);
+                  plan.push(`Slide 5th Wheel FORWARD ${holesToSlide} hole(s) (Shifts ~${holesToSlide*500}lbs to Steer)`);
+                  curDrive -= (holesToSlide * 500);
+                  curSteer += (holesToSlide * 500);
+                  projectedDriveFullFuel -= (holesToSlide * 500);
+              }
+          }
+
+          if (projectedDriveFullFuel > limits.drive) {
+              if (curDrive > limits.drive) {
+                  return plan.length > 0
+                      ? plan.join("\n➔ ") + "\n\n🚨 FATAL: Even with slides, Drive is overweight at current fuel. Rework cargo."
+                      : "🚨 FATAL: Drive is overweight and no safe slides are available. Rework cargo.";
+              } else {
+                  const maxAvailableFuelLbs = limits.drive - curDrive; 
+                  const maxAllowedFuelLbsTotal = currentFuelWeight + maxAvailableFuelLbs;
+                  const maxSafeFuelPct = Math.floor((maxAllowedFuelLbsTotal / MAX_FUEL_WEIGHT) * 100);
+
+                  let reason = kpraLocked && tandemHolesSlidForward === 0
+                      ? "Due to KPRA Lock,"
+                      : "Adjacent axles are too tight to accept weight;";
+
+                  return plan.join("\n➔ ") + `\n\n⛽️ ${reason} Restrict fuel to MAX ${maxSafeFuelPct}% to stay under 34k on Drive.`;
+              }
+          }
+      }
+
+      if (curDrive > limits.drive || curTrailer > limits.trailer || curSteer > limits.steer) {
+          return plan.length > 0 ? plan.join("\n➔ ") + "\n\n🚨 WARNING: Still overweight after max safe slides. Rework required." : "🚨 Axles are overweight but adjacent axles cannot accept shifts. Rework cargo.";
+      }
+
+      let response = "✅ SOLUTION:\n";
+      if (plan.length === 0) {
+          response += "All axles legal as scaled.\n";
+      } else {
+          response += plan.join("\n➔ ") + "\n";
+      }
+      return response + "\n⛽️ Fuel Status: Safe to fill tanks to 100%.";
+  };
+
+  return (
+    <div
+      onKeyDown={(e) => {
+        // The balancer lives inside the ticket <form> — Enter in its inputs
+        // must not submit the whole pickup.
+        if (e.key === "Enter") e.preventDefault();
+      }}
+      className="bg-[#0a0a0a]/90 backdrop-blur-sm p-6 border border-white/10 hover:border-blue-500 transition-all group relative overflow-hidden flex flex-col justify-between min-h-[480px] shadow-2xl rounded-lg mt-4"
+    >
+      <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 scale-y-0 group-hover:scale-y-100 transition-transform origin-top"></div>
+      <div className="flex justify-between items-start mb-4">
+        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">DOT Predictive Balancer</p>
+        <div className="text-right">
+           <span className={`text-[9px] font-black tracking-widest uppercase ${(finalSteer > limits.steer || finalDrive > limits.drive || finalTrailer > limits.trailer) ? 'text-[#FF0000] animate-pulse' : 'text-green-500'}`}>
+             {(finalSteer > limits.steer || finalDrive > limits.drive || finalTrailer > limits.trailer) ? 'OVERWEIGHT' : 'LEGAL TO ROLL'}
+           </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-[9px] text-white/50 uppercase font-black tracking-widest">Steer (&lt;12k)</span>
+          <input type="number" value={weights.steer || ""} placeholder="LBS" onChange={e => setWeights({...weights, steer: Number(e.target.value) || 0})} className="bg-[#111] border border-white/20 p-2 text-white text-xs outline-none focus:border-blue-500 text-center font-mono placeholder:text-white/20" />
+          <div className={`p-2 border font-mono text-center text-sm font-black ${getStatusColor(finalSteer, limits.steer)}`}>{finalSteer.toLocaleString()}</div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[9px] text-white/50 uppercase font-black tracking-widest">Drive (&lt;34k)</span>
+          <input type="number" value={weights.drive || ""} placeholder="LBS" onChange={e => setWeights({...weights, drive: Number(e.target.value) || 0})} className="bg-[#111] border border-white/20 p-2 text-white text-xs outline-none focus:border-blue-500 text-center font-mono placeholder:text-white/20" />
+          <div className={`p-2 border font-mono text-center text-sm font-black ${getStatusColor(finalDrive, limits.drive)}`}>{finalDrive.toLocaleString()}</div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[9px] text-white/50 uppercase font-black tracking-widest">Trailer (&lt;34k)</span>
+          <input type="number" value={weights.trailer || ""} placeholder="LBS" onChange={e => setWeights({...weights, trailer: Number(e.target.value) || 0})} className="bg-[#111] border border-white/20 p-2 text-white text-xs outline-none focus:border-blue-500 text-center font-mono placeholder:text-white/20" />
+          <div className={`p-2 border font-mono text-center text-sm font-black ${getStatusColor(finalTrailer, limits.trailer)}`}>{finalTrailer.toLocaleString()}</div>
+        </div>
+      </div>
+
+      <div className="flex gap-4 mb-3 border-b border-white/5 pb-3">
+         <div className="flex-1 flex flex-col gap-1">
+            <span className="flex items-center justify-between text-[9px] text-white/50 uppercase font-black tracking-widest">
+              Current Fuel %
+              {fuelSynced ? (
+                <span className="flex items-center gap-1 text-green-500" title="Live from Samsara telemetry">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" aria-hidden="true" />
+                  Truck
+                </span>
+              ) : truckFuelPct != null ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFuelManuallySet(false);
+                    setFuelPct(Math.round(truckFuelPct));
+                  }}
+                  title={`Re-sync with the truck (${Math.round(truckFuelPct)}%)`}
+                  className="cursor-pointer text-blue-500 underline hover:text-blue-400"
+                >
+                  Sync {Math.round(truckFuelPct)}%
+                </button>
+              ) : (
+                <span className="text-white/30">Manual</span>
+              )}
+            </span>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={fuelPct}
+              onChange={(e) => {
+                setFuelPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)));
+                setFuelManuallySet(true);
+              }}
+              className={`bg-[#111] border p-2 text-white text-xs outline-none focus:border-blue-500 font-mono text-center ${
+                fuelSynced ? "border-green-500/50" : "border-white/20"
+              }`}
+            />
+         </div>
+         <div className="flex-1 flex flex-col justify-center bg-[#111] border border-white/20 cursor-pointer hover:border-blue-500 transition-colors p-2" onClick={() => setKpraLocked(!kpraLocked)}>
+             <span className={`text-[10px] font-black uppercase tracking-widest text-center leading-tight ${kpraLocked ? 'text-blue-500' : 'text-white/30'}`}>
+                {kpraLocked ? '🔒 KPRA 40ft Maxed' : '🔓 KPRA Unlocked'}
+             </span>
+             <span className="text-[8px] text-center text-white/40 mt-1">California Hole #2</span>
+         </div>
+      </div>
+
+      <div className="flex-grow flex flex-col justify-end gap-3">
+         <div className="bg-[#111] p-3 border border-white/5">
+            <div className="flex justify-between text-[9px] font-black uppercase text-white/40 mb-2">
+               <span>5th Wheel Vis.</span>
+               <span className="text-blue-500">{fwHoles > 0 ? `+${fwHoles} FWD` : fwHoles < 0 ? `${fwHoles} BCK` : '0'}</span>
+            </div>
+            <input type="range" min="-14" max="14" value={fwHoles} onChange={e => setFwHoles(Number(e.target.value))} className="w-full accent-blue-500" />
+         </div>
+         <div className="bg-[#111] p-3 border border-white/5">
+            <div className="flex justify-between text-[9px] font-black uppercase text-white/40 mb-2">
+               <span>Tandems Vis.</span>
+               <span className="text-blue-500">{tdHoles > 0 ? `+${tdHoles} FWD` : tdHoles < 0 ? `${tdHoles} BCK` : '0'}</span>
+            </div>
+            <input type="range" min="-16" max="16" value={tdHoles} onChange={e => setTdHoles(Number(e.target.value))} className="w-full accent-blue-500" />
+         </div>
+         <div className="mt-2 bg-yellow-500/10 border border-yellow-500/50 p-4 min-h-[120px] overflow-y-auto">
+            <p className="text-[9px] font-black text-yellow-500 uppercase tracking-widest mb-2 border-b border-yellow-500/20 pb-1">Dispatcher Action Plan</p>
+            <p className="text-[11px] text-white font-mono leading-relaxed whitespace-pre-line">{getActionPlan()}</p>
+         </div>
+         <button type="button" onClick={() => { setWeights({steer: 0, drive: 0, trailer: 0}); setFwHoles(0); setTdHoles(0); setKpraLocked(false); setFuelManuallySet(false); setFuelPct(truckFuelPct != null ? Math.round(truckFuelPct) : 50); }} className="text-[9px] text-white/30 hover:text-white uppercase tracking-widest font-black underline mt-2 text-center transition-colors">
+            Reset Data
+         </button>
+      </div>
+    </div>
+  );
+}
 function NewPickupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -674,7 +924,18 @@ function NewPickupForm() {
               Ticket will be saved to Carryover until the scale ticket arrives.
             </p>
           )}
+
+          {/* DOT Predictive Balancer — fuel auto-synced from the truck */}
+          {needsScale && (
+            <ScaleTicketBox
+              truckFuelPct={
+                Number.isFinite(parseFloat(fuelPct)) ? parseFloat(fuelPct) : null
+              }
+            />
+          )}
         </section>
+       
+        
 
         <ErrorBanner message={error} />
         <SuccessBanner message={success} />

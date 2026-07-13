@@ -134,6 +134,7 @@ class TicketOut(BaseModel):
     needs_scale: bool
     scale_ticket_received: bool
     scale_requested_at: datetime | None
+    submitted_to_qc_at: datetime | None
     pti_checklist: dict[str, bool] | None
     pti_verified: bool
     is_urgent_flag: bool

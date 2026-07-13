@@ -12,6 +12,7 @@ import {
   StickyNote,
   Table2,
   Timer,
+  Trophy,
   Truck,
   Users,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[
   { href: "/dashboard/carryover", label: "Carryover", icon: Timer, roles: ["employee", "manager"] },
   { href: "/dashboard/all-pickups", label: "All Pickups", icon: Table2, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/notes", label: "Notes", icon: StickyNote, roles: ["employee", "qc", "manager"] },
+  { href: "/dashboard/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/my-history", label: "My History", icon: History, roles: ["employee", "manager"] },
   { href: "/dashboard/qc-review", label: "QC Review", icon: ShieldCheck, roles: ["qc", "manager"] },
   { href: "/dashboard/qc-history", label: "My Audits", icon: ClipboardCheck, roles: ["qc", "manager"] },

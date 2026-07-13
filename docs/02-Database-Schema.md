@@ -90,3 +90,6 @@ Implement this relational structure in PostgreSQL. Enforce foreign keys and time
 ## Revision R8 (2026-07-12)
 * Pickup_Tickets: + `pti_checklist` (JSON dict item->bool — source of truth; `pti_verified` is DERIVED server-side from it), + `is_urgent_flag` (Boolean, default False), + `resolved_by` (UUID FK -> Users, nullable; who fixed the flag, reset on each new flag).
 * Migration: `python -m app.scripts.migrate_r8` (additive).
+
+## Revision R9 (2026-07-13)
+* Pickup_Tickets: + `submitted_to_qc_at` (DateTime, nullable) — stamped on the FIRST transition to PENDING_QC (directly at creation or via PATCH promotion); never overwritten. Powers leaderboard Efficiency. Migration: `python -m app.scripts.migrate_r9` (additive, backfills from audit logs).
