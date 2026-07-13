@@ -35,7 +35,18 @@ def _render_message(ticket: PickupTicket, actor: User, event: AuditEvent) -> str
             )
         return f"{actor.username} resolved flagged errors for truck {truck} ({mc}) and returned it to QC"
     if event == AuditEvent.TICKET_APPROVED:
+        if ticket.is_unresolvable:
+            return (
+                f"{actor.username} FORCE-approved ticket for truck {truck} ({mc}) despite an "
+                f"unresolvable exception ({ticket.unresolvable_reason or 'no reason recorded'}) "
+                f"— approval credit to {employee}"
+            )
         return f"{actor.username} approved ticket for truck {truck} ({mc}) — approval credit to {employee}"
+    if event == AuditEvent.TICKET_UNRESOLVABLE:
+        return (
+            f"{actor.username} marked truck {truck} ({mc}) UNRESOLVABLE and escalated it to QC "
+            f"— reason: {ticket.unresolvable_reason or ''}"
+        )
     if event == AuditEvent.TICKET_DELETED:
         return f"{actor.username} deleted pickup ticket for truck {truck} ({mc})"
     return f"{actor.username} updated ticket for truck {truck} ({mc})"

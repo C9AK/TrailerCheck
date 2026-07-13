@@ -128,6 +128,9 @@ export interface Ticket {
   pti_verified: boolean;
   is_urgent_flag: boolean;
   resolved_by: string | null;
+  is_unresolvable: boolean;
+  unresolvable_reason: string | null;
+  is_chassis: boolean;
   created_at: string;
   updated_at: string;
   audit_flags: AuditFlag[];
@@ -139,7 +142,8 @@ export type AuditEventType =
   | "TICKET_FLAGGED"
   | "TICKET_RESOLVED"
   | "TICKET_APPROVED"
-  | "TICKET_DELETED";
+  | "TICKET_DELETED"
+  | "TICKET_UNRESOLVABLE";
 
 export interface FeedEntry {
   id: string;

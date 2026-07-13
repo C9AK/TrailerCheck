@@ -75,3 +75,11 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 
 ## Revision R9 (2026-07-13)
 * `/dashboard/leaderboard` (all roles, Trophy nav item): ranked table with medal emoji for top 3, accuracy color-coded (>=95 emerald, >=85 amber, else rose), bold composite score, efficiency/volume/avg-time columns, current user's row highlighted, 30s auto-refresh, formula explainer footnote.
+
+## Revision R11 (2026-07-13)
+* Action Required cards gain "Mark Unresolvable / Can't Fix" (amber, ownership-gated). Opens an intentional-friction modal with a MANDATORY explanation (min 10 chars, submit disabled until met) and an "Escalate to QC" action.
+* QC queue: unresolvable tickets get a red border + pulsing "EXCEPTION REVIEW" badge, the employee's reason displayed prominently in red, and the approve button becomes a red "Force Approve" (same 3-checkbox confirmation modal).
+* Live feed renders TICKET_UNRESOLVABLE entries with an amber warning icon.
+
+## Revision R12 (2026-07-13)
+* PTI section: prominent "Is this a Chassis?" toggle at the top. The Chassis section (locks + zip ties) is HIDDEN and excluded from validation when off; pti_verified is re-derived server-side whenever the checklist or the toggle changes (toggling chassis off can auto-promote a waiting ticket). Select All operates on visible items.

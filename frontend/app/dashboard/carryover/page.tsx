@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Flag, Pencil, RefreshCw, Send, Siren, Trash2 } from "lucide-react";
+import { AlertCircle, Ban, Flag, Loader2, Pencil, RefreshCw, Send, Siren, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -155,6 +155,33 @@ function CarryoverTable() {
       setError(e instanceof ApiError ? e.message : "Delete failed.");
     } finally {
       setSavingId(null);
+    }
+  }
+
+  // R11 escape hatch: mandatory-reason modal for unfixable flagged tickets
+  const [unresolvableTicket, setUnresolvableTicket] = useState<Ticket | null>(null);
+  const [unresolvableReason, setUnresolvableReason] = useState("");
+  const [unresolvableBusy, setUnresolvableBusy] = useState(false);
+
+  async function submitUnresolvable() {
+    if (!unresolvableTicket || unresolvableReason.trim().length < 10) return;
+    setUnresolvableBusy(true);
+    setError(null);
+    try {
+      const t = await api<Ticket>(`/api/tickets/${unresolvableTicket.id}/unresolvable`, {
+        method: "POST",
+        body: JSON.stringify({ reason: unresolvableReason.trim() }),
+      });
+      setFlagged((prev) => prev.filter((x) => x.id !== t.id));
+      setNotice(
+        `Truck ${t.truck_number}: escalated to QC as UNRESOLVABLE — it's off your board.`
+      );
+      setUnresolvableTicket(null);
+      setUnresolvableReason("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Escalation failed.");
+    } finally {
+      setUnresolvableBusy(false);
     }
   }
 
@@ -335,6 +362,19 @@ function CarryoverTable() {
                         Open full form
                       </button>
                     )}
+                    {canModify(t) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUnresolvableTicket(t);
+                          setUnresolvableReason("");
+                        }}
+                        className="flex cursor-pointer items-center gap-1.5 rounded border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                      >
+                        <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                        Mark Unresolvable / Can&apos;t Fix
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -486,6 +526,78 @@ function CarryoverTable() {
         </div>
       )}
 
+      {/* R11 escape hatch: intentional-friction modal with a MANDATORY reason */}
+      {unresolvableTicket && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="unresolvable-title"
+          onClick={() => !unresolvableBusy && setUnresolvableTicket(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border-2 border-amber-400 bg-white p-5 shadow-xl dark:border-amber-700 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between">
+              <h2 id="unresolvable-title" className="flex items-center gap-2 font-mono text-base font-semibold">
+                <Ban className="h-4 w-4 text-amber-600" aria-hidden="true" />
+                Mark Unresolvable — {unresolvableTicket.truck_number}
+              </h2>
+              <button
+                type="button"
+                aria-label="Cancel"
+                onClick={() => setUnresolvableTicket(null)}
+                disabled={unresolvableBusy}
+                className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
+              This escalates the ticket back to QC as an exception and removes it
+              from your board. QC will decide whether to force-approve it — your
+              explanation goes on permanent record.
+            </p>
+
+            <label htmlFor="unresolvable-reason" className="mb-1 block text-sm font-medium">
+              Why can&apos;t this be fixed? <span className="text-red-600">*</span>
+            </label>
+            <textarea
+              id="unresolvable-reason"
+              rows={3}
+              value={unresolvableReason}
+              onChange={(e) => setUnresolvableReason(e.target.value)}
+              placeholder='e.g. "Driver refused to send PTI and is ignoring calls"'
+              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-800"
+            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Minimum 10 characters — be specific, management will read this.
+            </p>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setUnresolvableTicket(null)}
+                disabled={unresolvableBusy}
+                className="cursor-pointer rounded border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitUnresolvable}
+                disabled={unresolvableBusy || unresolvableReason.trim().length < 10}
+                className="flex cursor-pointer items-center gap-2 rounded bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {unresolvableBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                Escalate to QC
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

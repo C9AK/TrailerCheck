@@ -196,12 +196,39 @@ function QCQueue() {
         {tickets.map((t) => (
           <div
             key={t.id}
-            className="rounded-lg border border-blue-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+            className={`rounded-lg border bg-white p-4 dark:bg-slate-900 ${
+              t.is_unresolvable
+                ? "border-2 border-red-500 dark:border-red-600"
+                : "border-blue-100 dark:border-slate-800"
+            }`}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <span className="font-mono text-base font-semibold">{t.truck_number}</span>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 font-mono text-base font-semibold">
+                {t.truck_number}
+                {t.is_unresolvable && (
+                  <span className="animate-pulse rounded bg-red-600 px-2 py-0.5 text-[11px] font-bold uppercase text-white">
+                    Exception Review
+                  </span>
+                )}
+              </span>
               <StateBadge state={t.state} />
             </div>
+
+            {/* R11: the employee's mandatory explanation, front and center */}
+            {t.is_unresolvable && t.unresolvable_reason && (
+              <div className="mb-3 rounded border-2 border-red-300 bg-red-50 p-2.5 dark:border-red-800 dark:bg-red-950/40">
+                <p className="mb-0.5 text-xs font-bold uppercase text-red-700 dark:text-red-300">
+                  Employee reports this cannot be fixed:
+                </p>
+                <p className="text-sm text-red-900 dark:text-red-200">
+                  “{t.unresolvable_reason}”
+                </p>
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  Force Approve closes it with this exception on permanent record —
+                  or Flag it again to reject the escalation.
+                </p>
+              </div>
+            )}
 
             <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
               <Detail label="MC" value={t.motor_carrier.name} />
@@ -312,10 +339,14 @@ function QCQueue() {
               <button
                 type="button"
                 onClick={() => setApproving(t)}
-                className="flex cursor-pointer items-center gap-1.5 rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition-colors duration-150 hover:bg-emerald-700"
+                className={`flex cursor-pointer items-center gap-1.5 rounded px-3 py-2 text-sm font-semibold text-white transition-colors duration-150 ${
+                  t.is_unresolvable
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
               >
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                Approve Ticket
+                {t.is_unresolvable ? "Force Approve" : "Approve Ticket"}
               </button>
               <button
                 type="button"

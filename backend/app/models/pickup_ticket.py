@@ -72,6 +72,8 @@ class PickupTicket(Base):
     # LOT window logic, and display).
     pti_checklist: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     pti_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # R12: chassis tickets require the Chassis PTI section (locks + zip ties)
+    is_chassis: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # R8 triage: urgent flags bypass Mistake Privacy (visible/fixable by all
     # employees); resolved_by records exactly who fixed the flag.
@@ -79,6 +81,12 @@ class PickupTicket(Base):
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id"), nullable=True
     )
+
+    # R11 escape hatch: flagged tickets the employee physically cannot fix are
+    # escalated back to QC with a mandatory written reason; the exception data
+    # is permanent, even after a Force Approve.
+    is_unresolvable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    unresolvable_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

@@ -26,6 +26,7 @@ from app.schemas.ticket import (
     TicketCreate,
     TicketOut,
     TicketUpdate,
+    UnresolvableRequest,
 )
 from app.services.activity import record_event
 from app.services.pti import compute_pti_verified
@@ -72,8 +73,9 @@ def create_ticket(
     )
 
     # R8: structured checklist drives the derived pti_verified gate
+    # (R12: chassis-only items count only when is_chassis)
     if payload.pti_checklist is not None:
-        ticket.pti_verified = compute_pti_verified(payload.pti_checklist)
+        ticket.pti_verified = compute_pti_verified(payload.pti_checklist, ticket.is_chassis)
     _apply_crvr_rule(ticket)
 
     # Start the Carryover timer the moment a scale is needed but not yet received.
@@ -125,8 +127,11 @@ def update_ticket(
     for field, value in updates.items():
         setattr(ticket, field, value)
 
-    if "pti_checklist" in updates:
-        ticket.pti_verified = compute_pti_verified(updates["pti_checklist"])
+    # Re-derive the PTI gate when the checklist OR the chassis toggle changes
+    if "pti_checklist" in updates or "is_chassis" in updates:
+        ticket.pti_verified = compute_pti_verified(
+            ticket.pti_checklist or {}, ticket.is_chassis
+        )
     _apply_crvr_rule(ticket)
 
     # If a scale becomes required and no timer is running, start one.
@@ -212,6 +217,41 @@ def resolve_ticket(
     if ticket.is_urgent_flag and current_user.id != ticket.created_by:
         apply_teamwork_bonus(current_user)
     record_event(db, ticket, current_user, AuditEvent.TICKET_RESOLVED)
+    db.commit()
+    db.refresh(ticket)
+    return ticket
+
+
+@router.post("/api/tickets/{ticket_id}/unresolvable", response_model=TicketOut)
+def mark_unresolvable(
+    ticket_id: uuid.UUID,
+    payload: UnresolvableRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+):
+    """R11 escape hatch: a FLAGGED ticket the employee cannot physically fix is
+    escalated back to QC (-> PENDING_QC) with a mandatory reason, clearing it
+    from the employee's active board. Same permission rules as resolve."""
+    ticket = _get_ticket_or_404(db, ticket_id)
+    if ticket.state != TicketState.FLAGGED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Only FLAGGED tickets can be marked unresolvable (current: {ticket.state.value}).",
+        )
+    if (
+        current_user.role == UserRole.employee
+        and ticket.created_by != current_user.id
+        and not ticket.is_urgent_flag
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the ticket's creator can mark a standard flag unresolvable.",
+        )
+
+    ticket.is_unresolvable = True
+    ticket.unresolvable_reason = payload.reason.strip()
+    ticket.state = TicketState.PENDING_QC
+    record_event(db, ticket, current_user, AuditEvent.TICKET_UNRESOLVABLE)
     db.commit()
     db.refresh(ticket)
     return ticket
@@ -468,6 +508,9 @@ def flag_ticket(
     ticket.state = TicketState.FLAGGED
     ticket.is_urgent_flag = payload.is_urgent
     ticket.resolved_by = None  # new flag cycle — nobody has fixed it yet
+    # QC re-flagging an escalated exception rejects it back into the normal
+    # fix loop (the reason and feed history remain on record).
+    ticket.is_unresolvable = False
     first_flag: QCAuditFlag | None = None
     for category in payload.error_categories:
         severity = (

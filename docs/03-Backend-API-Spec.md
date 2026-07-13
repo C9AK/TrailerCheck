@@ -84,3 +84,8 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 ## Revision R10 (2026-07-13)
 * Leaderboard includes active QC accounts: volume = verdicts processed (approve + flag audit events), efficiency = avg QC turnaround (submitted_to_qc_at -> verdict), accuracy fixed at 100 (no counter-signal yet); same composite formula and volume multiplier. Entries carry `role`.
 * `python -m app.scripts.reset_data`: wipes operational data (tickets, flags, media, audit logs, feed, notes, uploads) while KEEPING users (scores reset to 100), MCs, and trailers.
+
+## Revision R11 (2026-07-13) — Unresolvable Exception escape hatch
+* `POST /api/tickets/{id}/unresolvable` (employee/manager): FLAGGED only (409 otherwise); mandatory reason (min 5 chars); same permission rules as resolve (creator-only for standard flags, anyone for urgent). Sets is_unresolvable + reason, transitions FLAGGED -> PENDING_QC (leaves the employee board), logs TICKET_UNRESOLVABLE to audit log + feed with the reason.
+* Flagging again REJECTS the escalation: is_unresolvable resets to False and the normal fix loop resumes.
+* Approving an unresolvable ticket = Force Approve: normal approve endpoint; feed message records "FORCE-approved ... despite an unresolvable exception (<reason>)"; exception data stays on the ticket permanently.

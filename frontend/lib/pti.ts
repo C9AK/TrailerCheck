@@ -14,6 +14,8 @@ export interface PtiRow {
 export interface PtiSection {
   title: string;
   rows: PtiRow[];
+  /** R12: section only applies (and is only required) when is_chassis */
+  chassisOnly?: boolean;
 }
 
 export const PTI_SECTIONS: PtiSection[] = [
@@ -49,6 +51,7 @@ export const PTI_SECTIONS: PtiSection[] = [
   },
   {
     title: "Chassis",
+    chassisOnly: true,
     rows: [
       { label: 'Locks are in "Lock" Position (Horizontal)', key: "locks_horizontal" },
       { label: "Zip Ties on Locks", key: "zip_ties_on_locks" },
@@ -72,9 +75,11 @@ export function emptyChecklist(): PtiChecklist {
 }
 
 /** Mirrors backend compute_pti_verified: all required checked; the optional
- * corner-lights pair must be both-or-none. */
-export function isPtiComplete(checklist: PtiChecklist): boolean {
+ * corner-lights pair must be both-or-none; chassis-only sections count only
+ * when isChassis (R12). */
+export function isPtiComplete(checklist: PtiChecklist, isChassis: boolean): boolean {
   for (const section of PTI_SECTIONS) {
+    if (section.chassisOnly && !isChassis) continue;
     for (const row of section.rows) {
       if (row.key && !row.optional && !checklist[row.key]) return false;
       if (row.pair) {

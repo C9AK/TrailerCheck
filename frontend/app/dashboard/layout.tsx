@@ -127,7 +127,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh">
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900 md:flex">
+      {/* Sticky sidebar: stays pinned to the viewport while the page scrolls,
+          so the logout footer is always visible; the nav list scrolls
+          internally if it ever outgrows the screen. */}
+      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900 md:flex">
         <div className="flex items-center justify-center border-b border-blue-100 px-4 py-3 dark:border-slate-800">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -138,7 +141,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="h-28 w-auto"
           />
         </div>
-        <nav className="flex-1 space-y-1 p-2" aria-label="Main navigation">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="Main navigation">
           {items.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             const showBadge = href === "/dashboard/carryover" && flagCount > 0;

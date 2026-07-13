@@ -31,15 +31,21 @@ REQUIRED_PAIRS = [
 
 OPTIONAL_PAIRS = ["two_corner_rear_id_lights"]
 
+# R12: chassis-only items — mandatory ONLY when the ticket is a chassis
+CHASSIS_KEYS = ["locks_horizontal", "zip_ties_on_locks"]
 
-def compute_pti_verified(checklist: dict | None) -> bool:
+
+def compute_pti_verified(checklist: dict | None, is_chassis: bool = True) -> bool:
     if not checklist:
         return False
 
     def checked(key: str) -> bool:
         return bool(checklist.get(key))
 
-    if not all(checked(k) for k in REQUIRED_SINGLES):
+    required_singles = [
+        k for k in REQUIRED_SINGLES if is_chassis or k not in CHASSIS_KEYS
+    ]
+    if not all(checked(k) for k in required_singles):
         return False
     for pair in REQUIRED_PAIRS:
         if not (checked(f"{pair}_left") and checked(f"{pair}_right")):

@@ -40,6 +40,7 @@ class TicketCreate(BaseModel):
     # it server-side when provided (kept as a legacy fallback otherwise).
     pti_checklist: dict[str, bool] | None = None
     pti_verified: bool = False
+    is_chassis: bool = False
 
     @field_validator("weight", mode="before")
     @classmethod
@@ -69,6 +70,7 @@ class TicketUpdate(BaseModel):
     scale_ticket_received: bool | None = None
     pti_checklist: dict[str, bool] | None = None
     pti_verified: bool | None = None
+    is_chassis: bool | None = None
 
     @field_validator("weight", mode="before")
     @classmethod
@@ -137,8 +139,11 @@ class TicketOut(BaseModel):
     submitted_to_qc_at: datetime | None
     pti_checklist: dict[str, bool] | None
     pti_verified: bool
+    is_chassis: bool
     is_urgent_flag: bool
     resolved_by: uuid.UUID | None
+    is_unresolvable: bool
+    unresolvable_reason: str | None
 
     created_at: datetime
     updated_at: datetime
@@ -171,6 +176,12 @@ class FlagRequest(BaseModel):
                 "A severity rating (1-10) is required for 'Didn't text in the group'."
             )
         return self
+
+
+class UnresolvableRequest(BaseModel):
+    """Escape hatch: the written explanation is mandatory."""
+
+    reason: str = Field(min_length=5, max_length=2000)
 
 
 class QCHistoryOut(BaseModel):

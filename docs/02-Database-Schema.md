@@ -93,3 +93,9 @@ Implement this relational structure in PostgreSQL. Enforce foreign keys and time
 
 ## Revision R9 (2026-07-13)
 * Pickup_Tickets: + `submitted_to_qc_at` (DateTime, nullable) — stamped on the FIRST transition to PENDING_QC (directly at creation or via PATCH promotion); never overwritten. Powers leaderboard Efficiency. Migration: `python -m app.scripts.migrate_r9` (additive, backfills from audit logs).
+
+## Revision R11 (2026-07-13)
+* Pickup_Tickets: + `is_unresolvable` (Boolean, default False), + `unresolvable_reason` (Text, nullable) — the exception data is permanent, surviving Force Approve. New AuditEvent: TICKET_UNRESOLVABLE. Migration: `python -m app.scripts.migrate_r10` (adds columns + rebuilds event tables for the new enum value).
+
+## Revision R12 (2026-07-13)
+* Pickup_Tickets: + `is_chassis` (Boolean, default False). Chassis PTI items (locks_horizontal, zip_ties_on_locks) are mandatory ONLY when true. Migration: `python -m app.scripts.migrate_r11` (additive).

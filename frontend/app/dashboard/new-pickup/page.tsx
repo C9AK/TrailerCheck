@@ -315,6 +315,7 @@ function NewPickupForm() {
 
   // Checklist
   const [pti, setPti] = useState<PtiChecklist>(emptyChecklist());
+  const [isChassis, setIsChassis] = useState(false);
   const [registrationVerified, setRegistrationVerified] = useState(false);
   const [inspectionVerified, setInspectionVerified] = useState(false);
   const [stickerVerified, setStickerVerified] = useState(false);
@@ -330,8 +331,12 @@ function NewPickupForm() {
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const ptiComplete = isPtiComplete(pti);
-  const allChecked = Object.values(pti).every(Boolean);
+  const ptiComplete = isPtiComplete(pti, isChassis);
+  const visibleSections = PTI_SECTIONS.filter((s) => !s.chassisOnly || isChassis);
+  const visibleKeys = visibleSections.flatMap((s) =>
+    s.rows.flatMap((r) => (r.key ? [r.key] : [`${r.pair}_left`, `${r.pair}_right`]))
+  );
+  const allChecked = visibleKeys.every((k) => pti[k]);
 
   useEffect(() => {
     api<MotorCarrier[]>("/api/mcs")
@@ -352,6 +357,7 @@ function NewPickupForm() {
         setFuelPct(t.fuel_percentage != null ? String(t.fuel_percentage) : "");
         setCoords({ lat: t.truck_latitude, lon: t.truck_longitude });
         setIsLot(t.is_lot_trailer);
+        setIsChassis(t.is_chassis);
         setPti({ ...emptyChecklist(), ...(t.pti_checklist ?? {}) });
         setRegistrationVerified(t.registration_verified);
         setInspectionVerified(t.inspection_paper_verified);
@@ -462,6 +468,7 @@ function NewPickupForm() {
       needs_scale: needsScale,
       scale_ticket_received: needsScale ? scaleReceived : false,
       pti_checklist: pti,
+      is_chassis: isChassis,
     };
     try {
       if (editId) {
@@ -498,6 +505,7 @@ function NewPickupForm() {
       setTrailerNumber("");
       setLastPtiDate("");
       setPti(emptyChecklist());
+      setIsChassis(false);
       setRegistrationVerified(false);
       setInspectionVerified(false);
       setStickerVerified(false);
@@ -719,8 +727,25 @@ function NewPickupForm() {
             checklist gates QC review.
           </p>
 
+          {/* R12: chassis toggle — the Chassis section only applies (and is only
+              required) when this is on */}
+          <label className="mb-4 flex cursor-pointer items-center justify-between gap-3 rounded border-2 border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">
+            <span className="text-sm font-semibold">
+              Is this a Chassis?
+              <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                Adds the lock &amp; zip-tie checks to the required list
+              </span>
+            </span>
+            <Toggle
+              id="chassis-toggle"
+              checked={isChassis}
+              onChange={setIsChassis}
+              label="Is this a Chassis?"
+            />
+          </label>
+
           <div className="space-y-4">
-            {PTI_SECTIONS.map((section) => (
+            {visibleSections.map((section) => (
               <div key={section.title}>
                 <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-300">
                   {section.title}
