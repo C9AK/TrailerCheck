@@ -1,7 +1,7 @@
 ﻿import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, String, Text, Uuid, func
+from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -61,8 +61,19 @@ class PickupTicket(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    # PTI verification - strictly a checkbox, no file uploads
+    # PTI verification - strictly checkboxes, no file uploads.
+    # R8: structured checklist (JSON dict of item -> bool) is the source of
+    # truth; pti_verified is DERIVED server-side from it (kept for the QC gate,
+    # LOT window logic, and display).
+    pti_checklist: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     pti_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # R8 triage: urgent flags bypass Mistake Privacy (visible/fixable by all
+    # employees); resolved_by records exactly who fixed the flag.
+    is_urgent_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id"), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

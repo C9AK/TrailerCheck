@@ -1,12 +1,12 @@
 "use client";
 
-import { CheckCircle2, Flag, Paperclip, RefreshCw, X } from "lucide-react";
+import { CheckCircle2, Flag, History, Paperclip, RefreshCw, Siren, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import ConfirmationModal from "@/components/qc/ConfirmationModal";
 import { ErrorBanner, StateBadge, Toggle } from "@/components/ui";
-import { api, ApiError, uploadMedia } from "@/lib/api";
+import { api, ApiError, mediaUrl, uploadMedia } from "@/lib/api";
 import {
   CATEGORY_LABELS,
   ERROR_CATEGORIES,
@@ -39,6 +39,7 @@ function QCQueue() {
   const [flagCategories, setFlagCategories] = useState<ErrorCategory[]>([]);
   const [flagNotes, setFlagNotes] = useState("");
   const [flagSeverity, setFlagSeverity] = useState(5);
+  const [flagUrgent, setFlagUrgent] = useState(false);
   const [flagMedia, setFlagMedia] = useState<{ url: string; media_type: MediaType }[]>([]);
   const [mediaUrlInput, setMediaUrlInput] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -50,6 +51,7 @@ function QCQueue() {
     setFlagCategories([]);
     setFlagNotes("");
     setFlagSeverity(5);
+    setFlagUrgent(false);
     setFlagMedia([]);
     setMediaUrlInput("");
   }
@@ -123,6 +125,7 @@ function QCQueue() {
           notes: flagNotes.trim() || null,
           severity: needsSeverity ? flagSeverity : null,
           media: flagMedia,
+          is_urgent: flagUrgent,
         }),
       });
       setTickets((prev) => prev.filter((x) => x.id !== t.id));
@@ -241,6 +244,70 @@ function QCQueue() {
               </p>
             )}
 
+            {/* R8: persistent flag context — QC sees exactly what was flagged
+                before, especially when verifying a RESOLVED fix. */}
+            {t.audit_flags.length > 0 && (
+              <div
+                className={`mb-3 rounded border p-2.5 ${
+                  t.state === "RESOLVED"
+                    ? "border-violet-300 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/30"
+                    : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+                }`}
+              >
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold">
+                  <History className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t.state === "RESOLVED"
+                    ? "Previously flagged for — verify these fixes:"
+                    : "Flag history:"}
+                  {t.is_urgent_flag && (
+                    <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
+                      urgent
+                    </span>
+                  )}
+                </p>
+                <div className="mb-1 flex flex-wrap gap-1">
+                  {[...new Set(t.audit_flags.map((f) => f.error_category))].map((c) => {
+                    const sev = t.audit_flags.find(
+                      (f) => f.error_category === c && f.severity != null
+                    )?.severity;
+                    return (
+                      <span
+                        key={c}
+                        className="rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                      >
+                        {CATEGORY_LABELS[c]}
+                        {sev != null && ` — ${sev}/10`}
+                      </span>
+                    );
+                  })}
+                </div>
+                {[...new Set(
+                  t.audit_flags.map((f) => f.notes?.trim()).filter((n): n is string => !!n)
+                ).values()].map((n) => (
+                  <p key={n} className="text-xs text-slate-600 dark:text-slate-300">
+                    “{n}”
+                  </p>
+                ))}
+                {t.audit_flags.some((f) => f.media.length > 0) && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {t.audit_flags.flatMap((f) =>
+                      f.media.map((m) => (
+                        <a
+                          key={m.id}
+                          href={mediaUrl(m.media_url)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] uppercase text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200"
+                        >
+                          {m.media_type} proof
+                        </a>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -347,6 +414,29 @@ function QCQueue() {
                     className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
                   />
                 </div>
+                {/* R8 triage: urgent flags bypass Mistake Privacy */}
+                <label
+                  className={`flex cursor-pointer items-center justify-between gap-3 rounded border-2 px-3 py-2.5 text-sm font-semibold transition-colors duration-150 ${
+                    flagUrgent
+                      ? "border-red-500 bg-red-100 text-red-800 dark:border-red-600 dark:bg-red-950/60 dark:text-red-200"
+                      : "border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Siren className="h-4 w-4" aria-hidden="true" />
+                    Urgent Flag (Global Visibility)
+                    <span className="text-xs font-normal">
+                      — visible &amp; fixable by ALL employees
+                    </span>
+                  </span>
+                  <Toggle
+                    id={`flag-urgent-${t.id}`}
+                    checked={flagUrgent}
+                    onChange={setFlagUrgent}
+                    label="Urgent Flag (Global Visibility)"
+                  />
+                </label>
+
                 {/* Proof media: upload or paste URL */}
                 <div className="rounded border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-800">
                   <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium">

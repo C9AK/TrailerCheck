@@ -17,11 +17,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
-import type { Role, User } from "@/lib/types";
+import type { Role, Ticket, User } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
+
+const FLAG_POLL_MS = 15_000;
 
 const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[] }[] = [
   { href: "/dashboard/new-pickup", label: "New Pickup", icon: Truck, roles: ["employee", "manager"] },
@@ -61,6 +63,50 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { token, role, username, hasHydrated, logout } = useAuthStore();
   const [score, setScore] = useState<number | null>(null);
 
+  // R8: flag notifications — poll the Action Required queue, badge the nav,
+  // and toast the creator the moment QC flags one of THEIR tickets.
+  const [flagCount, setFlagCount] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
+  const knownFlagIds = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!token || (role !== "employee" && role !== "manager")) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const flaggedTickets = await api<Ticket[]>("/api/tickets/flagged");
+        if (cancelled) return;
+        setFlagCount(flaggedTickets.length);
+        const ids = new Set(flaggedTickets.map((t) => t.id));
+        if (knownFlagIds.current !== null) {
+          const fresh = flaggedTickets.filter((t) => !knownFlagIds.current!.has(t.id));
+          const mine = fresh.find((t) => t.creator.username === username);
+          const urgent = fresh.find((t) => t.is_urgent_flag);
+          if (mine) {
+            setToast(`QC flagged your ticket for truck ${mine.truck_number} — see Action Required.`);
+          } else if (urgent && role === "employee") {
+            setToast(`URGENT flag on truck ${urgent.truck_number} — anyone available can fix it.`);
+          }
+        }
+        knownFlagIds.current = ids;
+      } catch {
+        /* transient — keep last known state */
+      }
+    };
+    poll();
+    const id = setInterval(poll, FLAG_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [token, role, username]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 10_000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
   useEffect(() => {
     if (hasHydrated && !token) router.replace("/login");
   }, [hasHydrated, token, router]);
@@ -93,6 +139,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 space-y-1 p-2" aria-label="Main navigation">
           {items.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
+            const showBadge = href === "/dashboard/carryover" && flagCount > 0;
             return (
               <Link
                 key={href}
@@ -106,6 +153,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 {label}
+                {showBadge && (
+                  <span
+                    className="ml-auto flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-red-600 px-1.5 font-mono text-xs font-bold text-white"
+                    title={`${flagCount} flagged ticket(s) need action`}
+                  >
+                    {flagCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -176,6 +231,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
 
         <main className="min-w-0 flex-1 p-4 md:p-6 md:pt-3">{children}</main>
+
+        {/* R8: flag notification toast */}
+        {toast && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="fixed bottom-4 right-4 z-50 flex max-w-sm items-start gap-2 rounded-lg border-2 border-red-500 bg-white p-3 text-sm font-medium shadow-xl dark:bg-slate-900"
+          >
+            <span className="mt-0.5 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
+            <span className="min-w-0">{toast}</span>
+            <button
+              type="button"
+              aria-label="Dismiss notification"
+              onClick={() => setToast(null)}
+              className="ml-1 shrink-0 cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

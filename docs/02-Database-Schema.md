@@ -86,3 +86,7 @@ Implement this relational structure in PostgreSQL. Enforce foreign keys and time
 * Pickup_Tickets: `tires_inspected` REMOVED; `weight` is now String(100) (free text, e.g. "34,500 lbs (light)").
 * Audit_Logs: `ticket_id` now nullable — on ticket deletion, log rows are detached (ticket_id -> NULL), never destroyed. New AuditEvent value: TICKET_DELETED.
 * Migration for existing SQLite DBs: `python -m app.scripts.migrate_r7` (in-place, writes dev.db.bak-r7 backup).
+
+## Revision R8 (2026-07-12)
+* Pickup_Tickets: + `pti_checklist` (JSON dict item->bool — source of truth; `pti_verified` is DERIVED server-side from it), + `is_urgent_flag` (Boolean, default False), + `resolved_by` (UUID FK -> Users, nullable; who fixed the flag, reset on each new flag).
+* Migration: `python -m app.scripts.migrate_r8` (additive).

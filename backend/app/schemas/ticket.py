@@ -36,7 +36,9 @@ class TicketCreate(BaseModel):
     condition_notes: str | None = None
     needs_scale: bool = False
     scale_ticket_received: bool = False
-    # R2: optional at save time; gates the -> PENDING_QC transition instead
+    # R8: structured checklist is authoritative; pti_verified is derived from
+    # it server-side when provided (kept as a legacy fallback otherwise).
+    pti_checklist: dict[str, bool] | None = None
     pti_verified: bool = False
 
     @field_validator("weight", mode="before")
@@ -65,6 +67,7 @@ class TicketUpdate(BaseModel):
     condition_notes: str | None = None
     needs_scale: bool | None = None
     scale_ticket_received: bool | None = None
+    pti_checklist: dict[str, bool] | None = None
     pti_verified: bool | None = None
 
     @field_validator("weight", mode="before")
@@ -131,7 +134,10 @@ class TicketOut(BaseModel):
     needs_scale: bool
     scale_ticket_received: bool
     scale_requested_at: datetime | None
+    pti_checklist: dict[str, bool] | None
     pti_verified: bool
+    is_urgent_flag: bool
+    resolved_by: uuid.UUID | None
 
     created_at: datetime
     updated_at: datetime
@@ -152,6 +158,8 @@ class FlagRequest(BaseModel):
     notes: str | None = None
     severity: int | None = Field(default=None, ge=1, le=10)
     media: list[FlagMediaIn] = []
+    # R8 triage: urgent flags bypass Mistake Privacy (global visibility)
+    is_urgent: bool = False
 
     @model_validator(mode="after")
     def validate_conditionals(self):

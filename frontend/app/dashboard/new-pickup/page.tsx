@@ -1,11 +1,13 @@
 "use client";
 
-import { Fuel, Loader2, MapPin, Truck, User } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckSquare, Fuel, Loader2, MapPin, Truck, User } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, Skeleton, SuccessBanner, Toggle } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { emptyChecklist, isPtiComplete, PTI_SECTIONS, type PtiChecklist } from "@/lib/pti";
 import type {
   MotorCarrier,
   Telemetry,
@@ -13,14 +15,6 @@ import type {
   Trailer,
   TrailerCondition,
 } from "@/lib/types";
-
-/** PTI is strictly a checkbox array — never a file upload (04-Frontend-UI-UX-Spec §2). */
-const PTI_ITEMS = [
-  "Brakes & air lines checked",
-  "Lights & reflectors working",
-  "Tires, wheels & rims inspected",
-  "Coupling devices & landing gear secure",
-];
 
 const CONDITIONS: TrailerCondition[] = ["Good", "Fair", "Damaged"];
 
@@ -31,23 +25,38 @@ function toDateInputValue(iso: string): string {
 export default function NewPickupPage() {
   return (
     <RequireRole roles={["employee", "manager"]}>
-      <NewPickupForm />
+      <Suspense fallback={null}>
+        <NewPickupForm />
+      </Suspense>
     </RequireRole>
   );
 }
 
 function NewPickupForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+
   const [mcs, setMcs] = useState<MotorCarrier[]>([]);
   const [mcId, setMcId] = useState("");
   const [truckNumber, setTruckNumber] = useState("");
+  const [loadingTicket, setLoadingTicket] = useState(Boolean(editId));
 
-  // Telematics (auto-filled)
-  const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
+  // Truck details — auto-filled from Samsara but always manually editable
+  // (graceful degradation when the truck isn't in the fleet API).
+  const [driverName, setDriverName] = useState("");
+  const [truckLocation, setTruckLocation] = useState("");
+  const [truckModel, setTruckModel] = useState("");
+  const [fuelPct, setFuelPct] = useState("");
+  const [coords, setCoords] = useState<{ lat: number | null; lon: number | null }>({
+    lat: null,
+    lon: null,
+  });
   const [telemetryLoading, setTelemetryLoading] = useState(false);
-  const [telemetryError, setTelemetryError] = useState<string | null>(null);
+  const [telemetryInfo, setTelemetryInfo] = useState<string | null>(null);
   const telemetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // LOT trailer
+  // LOT trailer (creation only — trailer identity is fixed once created)
   const [isLot, setIsLot] = useState(false);
   const [trailerNumber, setTrailerNumber] = useState("");
   const [lastPtiDate, setLastPtiDate] = useState("");
@@ -55,7 +64,7 @@ function NewPickupForm() {
   const [trailerLoading, setTrailerLoading] = useState(false);
 
   // Checklist
-  const [ptiChecks, setPtiChecks] = useState<boolean[]>(PTI_ITEMS.map(() => false));
+  const [pti, setPti] = useState<PtiChecklist>(emptyChecklist());
   const [registrationVerified, setRegistrationVerified] = useState(false);
   const [inspectionVerified, setInspectionVerified] = useState(false);
   const [stickerVerified, setStickerVerified] = useState(false);
@@ -71,7 +80,8 @@ function NewPickupForm() {
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const ptiVerified = ptiChecks.every(Boolean);
+  const ptiComplete = isPtiComplete(pti);
+  const allChecked = Object.values(pti).every(Boolean);
 
   useEffect(() => {
     api<MotorCarrier[]>("/api/mcs")
@@ -79,35 +89,69 @@ function NewPickupForm() {
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load MCs."));
   }, []);
 
-  // Debounced telemetry auto-fill: fires once an MC is selected and a truck
-  // number typed. LOT trailers bypass the fleet lookup entirely (R7).
-  const scheduleTelemetry = useCallback((mc: string, truck: string, lot: boolean) => {
-    if (telemetryTimer.current) clearTimeout(telemetryTimer.current);
-    if (lot) {
-      setTelemetryError(null);
-      setTelemetryLoading(false);
-      return;
-    }
-    if (!mc || truck.trim().length < 2) return;
-    telemetryTimer.current = setTimeout(async () => {
-      setTelemetryLoading(true);
-      setTelemetry(null);
-      setTelemetryError(null);
-      try {
-        const data = await api<Telemetry>(
-          `/api/telemetry/truck/${mc}/${encodeURIComponent(truck.trim())}`
-        );
-        setTelemetry(data);
-      } catch (e) {
-        setTelemetry(null);
-        setTelemetryError(
-          e instanceof ApiError ? e.message : "Telemetry unavailable."
-        );
-      } finally {
-        setTelemetryLoading(false);
-      }
-    }, 600);
-  }, []);
+  // Edit mode: prefill the full form from the existing ticket
+  useEffect(() => {
+    if (!editId) return;
+    api<Ticket>(`/api/tickets/${editId}`)
+      .then((t) => {
+        setMcId(t.mc_id);
+        setTruckNumber(t.truck_number);
+        setDriverName(t.driver_name ?? "");
+        setTruckLocation(t.truck_location ?? "");
+        setTruckModel(t.truck_model ?? "");
+        setFuelPct(t.fuel_percentage != null ? String(t.fuel_percentage) : "");
+        setCoords({ lat: t.truck_latitude, lon: t.truck_longitude });
+        setIsLot(t.is_lot_trailer);
+        setPti({ ...emptyChecklist(), ...(t.pti_checklist ?? {}) });
+        setRegistrationVerified(t.registration_verified);
+        setInspectionVerified(t.inspection_paper_verified);
+        setStickerVerified(t.sticker_verified);
+        setCaFlDestination(t.is_ca_fl_destination);
+        setBolPresent(t.bol_present);
+        setWeight(t.weight ?? "");
+        setCondition(t.trailer_condition ?? "Good");
+        setConditionNotes(t.condition_notes ?? "");
+        setNeedsScale(t.needs_scale);
+        setScaleReceived(t.scale_ticket_received);
+      })
+      .catch((e) =>
+        setError(e instanceof ApiError ? e.message : "Failed to load the ticket.")
+      )
+      .finally(() => setLoadingTicket(false));
+  }, [editId]);
+
+  // Debounced telemetry auto-fill. LOT bypasses the fleet lookup (R7); a
+  // truck missing from Samsara never blocks the form (R8) — fields stay
+  // manually editable either way.
+  const scheduleTelemetry = useCallback(
+    (mc: string, truck: string, lot: boolean) => {
+      if (telemetryTimer.current) clearTimeout(telemetryTimer.current);
+      setTelemetryInfo(null);
+      if (lot || !mc || truck.trim().length < 2) return;
+      telemetryTimer.current = setTimeout(async () => {
+        setTelemetryLoading(true);
+        try {
+          const d = await api<Telemetry>(
+            `/api/telemetry/truck/${mc}/${encodeURIComponent(truck.trim())}`
+          );
+          setDriverName(d.driver_name);
+          setTruckLocation(d.location);
+          setTruckModel(d.model);
+          setFuelPct(d.fuel_percentage != null ? String(d.fuel_percentage) : "");
+          setCoords({ lat: d.latitude, lon: d.longitude });
+        } catch (e) {
+          setTelemetryInfo(
+            e instanceof ApiError && e.status === 404
+              ? "Truck not found in Samsara — enter the details manually below."
+              : "Telemetry unavailable — enter the details manually below."
+          );
+        } finally {
+          setTelemetryLoading(false);
+        }
+      }, 600);
+    },
+    []
+  );
 
   async function lookupTrailer() {
     const num = trailerNumber.trim();
@@ -118,7 +162,6 @@ function NewPickupForm() {
       const trailer = await api<Trailer>(`/api/trailers/${encodeURIComponent(num)}`);
       setLastPtiDate(toDateInputValue(trailer.last_pti_date));
     } catch (e) {
-      // R7: unknown trailers are fine — they get registered on submit.
       if (e instanceof ApiError && e.status === 404) {
         setTrailerError(
           "New trailer — it will be registered when you create the ticket. Set its last PTI date below."
@@ -137,38 +180,56 @@ function NewPickupForm() {
     : null;
   const lotPtiFresh = ptiAgeDays !== null && ptiAgeDays < 7;
 
+  function setPtiKey(key: string, value: boolean) {
+    setPti((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function setAllPti(value: boolean) {
+    setPti(Object.fromEntries(Object.keys(emptyChecklist()).map((k) => [k, value])));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
     setSubmitting(true);
+    const common = {
+      truck_number: truckNumber.trim(),
+      driver_name: driverName.trim() || null,
+      truck_location: truckLocation.trim() || null,
+      truck_latitude: coords.lat,
+      truck_longitude: coords.lon,
+      truck_model: truckModel.trim() || null,
+      fuel_percentage: fuelPct.trim() ? Number(fuelPct) || null : null,
+      registration_verified: registrationVerified,
+      inspection_paper_verified: inspectionVerified,
+      sticker_verified: stickerVerified,
+      is_ca_fl_destination: caFlDestination,
+      bol_present: bolPresent,
+      weight: weight.trim() || null,
+      trailer_condition: condition,
+      condition_notes: conditionNotes || null,
+      needs_scale: needsScale,
+      scale_ticket_received: needsScale ? scaleReceived : false,
+      pti_checklist: pti,
+    };
     try {
+      if (editId) {
+        await api<Ticket>(`/api/tickets/${editId}`, {
+          method: "PATCH",
+          body: JSON.stringify(common),
+        });
+        router.push("/dashboard/carryover");
+        return;
+      }
       const ticket = await api<Ticket>("/api/tickets", {
         method: "POST",
         body: JSON.stringify({
+          ...common,
           mc_id: mcId,
-          truck_number: truckNumber.trim(),
           is_lot_trailer: isLot,
           trailer_number: isLot ? trailerNumber.trim() : null,
-          last_pti_date_override:
-            isLot && lastPtiDate ? `${lastPtiDate}T00:00:00Z` : null,
-          driver_name: telemetry?.driver_name ?? null,
-          truck_location: telemetry?.location ?? null,
-          truck_latitude: telemetry?.latitude ?? null,
-          truck_longitude: telemetry?.longitude ?? null,
-          truck_model: telemetry?.model ?? null,
-          fuel_percentage: telemetry?.fuel_percentage ?? null,
-          registration_verified: registrationVerified,
-          inspection_paper_verified: inspectionVerified,
-          sticker_verified: stickerVerified,
-          is_ca_fl_destination: caFlDestination,
-          bol_present: bolPresent,
-          weight: weight.trim() || null,
-          trailer_condition: condition,
-          condition_notes: conditionNotes || null,
-          needs_scale: needsScale,
-          scale_ticket_received: needsScale ? scaleReceived : false,
-          pti_verified: ptiVerified,
+          last_pti_date_override: isLot && lastPtiDate ? `${lastPtiDate}T00:00:00Z` : null,
         }),
       });
       setSuccess(
@@ -178,11 +239,15 @@ function NewPickupForm() {
       );
       // Reset for the next pickup
       setTruckNumber("");
-      setTelemetry(null);
+      setDriverName("");
+      setTruckLocation("");
+      setTruckModel("");
+      setFuelPct("");
+      setCoords({ lat: null, lon: null });
       setIsLot(false);
       setTrailerNumber("");
       setLastPtiDate("");
-      setPtiChecks(PTI_ITEMS.map(() => false));
+      setPti(emptyChecklist());
       setRegistrationVerified(false);
       setInspectionVerified(false);
       setStickerVerified(false);
@@ -194,7 +259,7 @@ function NewPickupForm() {
       setNeedsScale(false);
       setScaleReceived(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to create ticket.");
+      setError(err instanceof ApiError ? err.message : "Save failed.");
     } finally {
       setSubmitting(false);
     }
@@ -203,9 +268,21 @@ function NewPickupForm() {
   const inputCls =
     "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-800 dark:border-slate-700 dark:bg-slate-800";
 
+  if (loadingTicket) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-3">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-4 font-mono text-xl font-semibold">New Pickup</h1>
+      <h1 className="mb-4 font-mono text-xl font-semibold">
+        {editId ? `Edit Pickup — Truck ${truckNumber}` : "New Pickup"}
+      </h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Truck & telemetry */}
@@ -221,12 +298,13 @@ function NewPickupForm() {
               <select
                 id="mc"
                 required
+                disabled={Boolean(editId)}
                 value={mcId}
                 onChange={(e) => {
                   setMcId(e.target.value);
                   scheduleTelemetry(e.target.value, truckNumber, isLot);
                 }}
-                className={inputCls}
+                className={`${inputCls} disabled:opacity-60`}
               >
                 <option value="">Select MC…</option>
                 {mcs.map((mc) => (
@@ -254,154 +332,210 @@ function NewPickupForm() {
             </div>
           </div>
 
-          {/* Auto-fill display with inline skeleton loaders */}
+          {/* Truck details — auto-filled, always editable */}
           <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <TelemetryField
+            <TelemetryInput
               icon={User}
               label="Driver Name"
-              value={telemetry?.driver_name}
+              value={driverName}
+              onChange={setDriverName}
               loading={telemetryLoading}
             />
-            <TelemetryField
+            <TelemetryInput
               icon={MapPin}
               label="Location"
-              value={telemetry?.location}
+              value={truckLocation}
+              onChange={setTruckLocation}
               loading={telemetryLoading}
             />
-            <TelemetryField
+            <TelemetryInput
               icon={Truck}
               label="Model"
-              value={telemetry?.model}
+              value={truckModel}
+              onChange={setTruckModel}
               loading={telemetryLoading}
             />
-            <TelemetryField
+            <TelemetryInput
               icon={Fuel}
-              label="Fuel"
-              value={
-                telemetry != null
-                  ? telemetry.fuel_percentage != null
-                    ? `${telemetry.fuel_percentage.toFixed(0)}%`
-                    : "—"
-                  : undefined
-              }
+              label="Fuel %"
+              value={fuelPct}
+              onChange={setFuelPct}
               loading={telemetryLoading}
             />
           </div>
-          {telemetryError && (
-            <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
-              {telemetryError}
+          {telemetryInfo && (
+            <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400" role="status">
+              {telemetryInfo}
             </p>
           )}
         </section>
 
-        {/* LOT trailer */}
-        <section className="rounded-lg border border-blue-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                LOT Trailer
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                LOT trailers with a PTI newer than 7 days may skip re-verification.
-              </p>
-            </div>
-            <Toggle
-              id="lot-toggle"
-              checked={isLot}
-              onChange={(v) => {
-                setIsLot(v);
-                // LOT bypasses the fleet lookup — clear any pending fetch/error
-                scheduleTelemetry(mcId, truckNumber, v);
-              }}
-              label="LOT Trailer"
-            />
-          </div>
-
-          {isLot && (
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {/* LOT trailer — creation only */}
+        {!editId && (
+          <section className="rounded-lg border border-blue-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
               <div>
-                <label htmlFor="trailer-number" className="mb-1 block text-sm font-medium">
-                  Trailer Number <span className="text-red-600">*</span>
-                </label>
-                <input
-                  id="trailer-number"
-                  required={isLot}
-                  value={trailerNumber}
-                  onChange={(e) => setTrailerNumber(e.target.value)}
-                  onBlur={lookupTrailer}
-                  placeholder="e.g. LOT-1001"
-                  className={`${inputCls} font-mono`}
-                />
-                {trailerError && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{trailerError}</p>
-                )}
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  LOT Trailer
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  LOT trailers skip the fleet lookup. PTI newer than 7 days may skip re-verification.
+                </p>
               </div>
-              <div>
-                <label htmlFor="last-pti" className="mb-1 block text-sm font-medium">
-                  Last PTI Date
-                </label>
-                {trailerLoading ? (
-                  <Skeleton className="h-9 w-full" />
-                ) : (
+              <Toggle
+                id="lot-toggle"
+                checked={isLot}
+                onChange={(v) => {
+                  setIsLot(v);
+                  scheduleTelemetry(mcId, truckNumber, v);
+                }}
+                label="LOT Trailer"
+              />
+            </div>
+
+            {isLot && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="trailer-number" className="mb-1 block text-sm font-medium">
+                    Trailer Number <span className="text-red-600">*</span>
+                  </label>
                   <input
-                    id="last-pti"
-                    type="date"
-                    value={lastPtiDate}
-                    onChange={(e) => setLastPtiDate(e.target.value)}
-                    className={inputCls}
+                    id="trailer-number"
+                    required={isLot}
+                    value={trailerNumber}
+                    onChange={(e) => setTrailerNumber(e.target.value)}
+                    onBlur={lookupTrailer}
+                    placeholder="e.g. LOT-1001"
+                    className={`${inputCls} font-mono`}
                   />
-                )}
-                {ptiAgeDays !== null && !trailerLoading && (
-                  <p
-                    className={`mt-1 text-xs font-medium ${
-                      lotPtiFresh
-                        ? "text-emerald-700 dark:text-emerald-400"
-                        : "text-amber-700 dark:text-amber-400"
-                    }`}
-                  >
-                    {lotPtiFresh
-                      ? `PTI is ${ptiAgeDays} day(s) old — verification optional.`
-                      : `PTI is ${ptiAgeDays} day(s) old — full PTI checklist required.`}
-                  </p>
-                )}
+                  {trailerError && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{trailerError}</p>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="last-pti" className="mb-1 block text-sm font-medium">
+                    Last PTI Date
+                  </label>
+                  {trailerLoading ? (
+                    <Skeleton className="h-9 w-full" />
+                  ) : (
+                    <input
+                      id="last-pti"
+                      type="date"
+                      value={lastPtiDate}
+                      onChange={(e) => setLastPtiDate(e.target.value)}
+                      className={inputCls}
+                    />
+                  )}
+                  {ptiAgeDays !== null && !trailerLoading && (
+                    <p
+                      className={`mt-1 text-xs font-medium ${
+                        lotPtiFresh
+                          ? "text-emerald-700 dark:text-emerald-400"
+                          : "text-amber-700 dark:text-amber-400"
+                      }`}
+                    >
+                      {lotPtiFresh
+                        ? `PTI is ${ptiAgeDays} day(s) old — verification optional.`
+                        : `PTI is ${ptiAgeDays} day(s) old — full PTI checklist required.`}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        )}
 
-        {/* PTI checklist — checkbox array, NO file upload */}
+        {/* PTI checklist — structured, checkboxes RIGHT of labels, no uploads */}
         <section className="rounded-lg border border-blue-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            PTI Verification
-          </h2>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              PTI Verification
+            </h2>
+            {/* Master Select All */}
+            <label className="flex cursor-pointer items-center gap-2 rounded border border-slate-300 px-3 py-1.5 text-sm font-semibold dark:border-slate-600">
+              <CheckSquare className="h-4 w-4 text-brand-600" aria-hidden="true" />
+              Select All
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={(e) => setAllPti(e.target.checked)}
+                className="h-4 w-4 accent-brand-600"
+              />
+            </label>
+          </div>
           <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-            Check every item to mark the PTI as verified. Not required to save —
-            the ticket can wait in Carryover — but it must be verified before the
-            ticket can go to QC review.
+            Not required to save — the ticket can wait in Carryover — but the full
+            checklist gates QC review.
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {PTI_ITEMS.map((item, i) => (
-              <label key={item} className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={ptiChecks[i]}
-                  onChange={(e) =>
-                    setPtiChecks((prev) => prev.map((v, j) => (j === i ? e.target.checked : v)))
-                  }
-                  className="h-4 w-4 accent-brand-600"
-                />
-                {item}
-              </label>
+
+          <div className="space-y-4">
+            {PTI_SECTIONS.map((section) => (
+              <div key={section.title}>
+                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-300">
+                  {section.title}
+                </h3>
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {section.rows.map((row) => (
+                    <li
+                      key={row.key ?? row.pair}
+                      className="flex items-center justify-between gap-3 py-1.5 text-sm"
+                    >
+                      <span>
+                        {row.label}
+                        {row.optional && (
+                          <span className="ml-1.5 text-xs text-slate-400">
+                            (optional — both if working)
+                          </span>
+                        )}
+                      </span>
+                      {row.key ? (
+                        <input
+                          type="checkbox"
+                          aria-label={row.label}
+                          checked={Boolean(pti[row.key])}
+                          onChange={(e) => setPtiKey(row.key!, e.target.checked)}
+                          className="h-4 w-4 shrink-0 accent-brand-600"
+                        />
+                      ) : (
+                        <span className="flex shrink-0 items-center gap-3">
+                          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                            (Left)
+                            <input
+                              type="checkbox"
+                              aria-label={`${row.label} (Left)`}
+                              checked={Boolean(pti[`${row.pair}_left`])}
+                              onChange={(e) => setPtiKey(`${row.pair}_left`, e.target.checked)}
+                              className="h-4 w-4 accent-brand-600"
+                            />
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                            (Right)
+                            <input
+                              type="checkbox"
+                              aria-label={`${row.label} (Right)`}
+                              checked={Boolean(pti[`${row.pair}_right`])}
+                              onChange={(e) => setPtiKey(`${row.pair}_right`, e.target.checked)}
+                              className="h-4 w-4 accent-brand-600"
+                            />
+                          </label>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
           </div>
+
           <p
-            className={`mt-2 text-xs font-semibold ${
-              ptiVerified
+            className={`mt-3 text-xs font-semibold ${
+              ptiComplete
                 ? "text-emerald-700 dark:text-emerald-400"
                 : "text-slate-500 dark:text-slate-400"
             }`}
           >
-            PTI status: {ptiVerified ? "VERIFIED" : "NOT VERIFIED"}
+            PTI status: {ptiComplete ? "VERIFIED" : "NOT VERIFIED"}
           </p>
         </section>
 
@@ -411,7 +545,6 @@ function NewPickupForm() {
             Documents & Condition
           </h2>
 
-          {/* Prominent CA/FL destination checkbox */}
           <label className="mb-3 flex cursor-pointer items-center gap-2.5 rounded border-2 border-amber-400 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-200">
             <input
               type="checkbox"
@@ -422,7 +555,11 @@ function NewPickupForm() {
             CA / FL destination
           </label>
 
-          <div className="grid gap-2 sm:grid-cols-3">
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+            Inspection paper <span className="font-semibold">or</span> sticker — one of the
+            two is enough.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -431,6 +568,15 @@ function NewPickupForm() {
                 className="h-4 w-4 accent-brand-600"
               />
               Registration verified
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={bolPresent}
+                onChange={(e) => setBolPresent(e.target.checked)}
+                className="h-4 w-4 accent-brand-600"
+              />
+              BOL present
             </label>
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input
@@ -450,15 +596,6 @@ function NewPickupForm() {
               />
               Sticker verified
             </label>
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={bolPresent}
-                onChange={(e) => setBolPresent(e.target.checked)}
-                className="h-4 w-4 accent-brand-600"
-              />
-              BOL present
-            </label>
           </div>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -471,9 +608,13 @@ function NewPickupForm() {
                 type="text"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
-                placeholder="e.g. 34,500 lbs (light)"
+                placeholder="e.g. 34,500 lbs — or CRVR"
                 className={`${inputCls} font-mono`}
               />
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Type <span className="font-mono font-semibold">CRVR</span> to route to the
+                scale queue automatically.
+              </p>
             </div>
             <div>
               <label htmlFor="condition" className="mb-1 block text-sm font-medium">
@@ -492,7 +633,7 @@ function NewPickupForm() {
                 ))}
               </select>
             </div>
-            <div className="sm:col-span-1">
+            <div>
               <label htmlFor="notes" className="mb-1 block text-sm font-medium">
                 Condition Notes
               </label>
@@ -538,42 +679,58 @@ function NewPickupForm() {
         <ErrorBanner message={error} />
         <SuccessBanner message={success} />
 
-        <button
-          type="submit"
-          disabled={submitting || !mcId || !truckNumber.trim()}
-          className="flex cursor-pointer items-center gap-2 rounded bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-          Create Ticket
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={submitting || (!editId && (!mcId || !truckNumber.trim()))}
+            className="flex cursor-pointer items-center gap-2 rounded bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            {editId ? "Save Changes" : "Create Ticket"}
+          </button>
+          {editId && (
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/carryover")}
+              className="cursor-pointer rounded border border-slate-300 px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );
 }
 
-function TelemetryField({
+function TelemetryInput({
   icon: Icon,
   label,
   value,
+  onChange,
   loading,
 }: {
   icon: typeof User;
   label: string;
-  value?: string;
+  value: string;
+  onChange: (v: string) => void;
   loading: boolean;
 }) {
   return (
     <div className="rounded border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/60">
-      <div className="mb-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+      <label className="mb-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         {label}
-      </div>
+      </label>
       {loading ? (
-        <Skeleton className="h-5 w-full" />
+        <Skeleton className="h-6 w-full" />
       ) : (
-        <p className="truncate font-mono text-sm font-medium" title={value ?? ""}>
-          {value ?? "—"}
-        </p>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={label}
+          className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 font-mono text-sm font-medium focus:border-slate-300 focus:bg-white focus:outline-none dark:focus:border-slate-600 dark:focus:bg-slate-900"
+        />
       )}
     </div>
   );

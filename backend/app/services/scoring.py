@@ -3,6 +3,8 @@
 from app.models import ErrorCategory, User
 
 APPROVAL_POINTS = 10
+# R8 shared-credit: bonus for an employee who resolves someone ELSE's urgent flag
+TEAMWORK_BONUS = 5
 
 # Severity-based deductions — placeholder values, adjust as the business decides.
 # Didnt_Text_In_Group is scored by the QC's 1-10 severity gauge instead.
@@ -21,6 +23,10 @@ FLAG_PENALTIES: dict[ErrorCategory, int] = {
 
 def apply_approval_bonus(creator: User) -> None:
     creator.performance_score += APPROVAL_POINTS
+
+
+def apply_teamwork_bonus(fixer: User) -> None:
+    fixer.performance_score += TEAMWORK_BONUS
 
 
 def apply_flag_penalty(creator: User, category: ErrorCategory, severity: int | None = None) -> None:

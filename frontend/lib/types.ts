@@ -123,7 +123,10 @@ export interface Ticket {
   needs_scale: boolean;
   scale_ticket_received: boolean;
   scale_requested_at: string | null;
+  pti_checklist: Record<string, boolean> | null;
   pti_verified: boolean;
+  is_urgent_flag: boolean;
+  resolved_by: string | null;
   created_at: string;
   updated_at: string;
   audit_flags: AuditFlag[];

@@ -3,7 +3,7 @@ from datetime import date, datetime, time, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func as sa_func
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.deps import get_current_user, require_roles
@@ -28,8 +28,15 @@ from app.schemas.ticket import (
     TicketUpdate,
 )
 from app.services.activity import record_event
-from app.services.scoring import apply_approval_bonus, apply_flag_penalty
+from app.services.pti import compute_pti_verified
+from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply_teamwork_bonus
 from app.services.ticket_lifecycle import is_ready_for_qc, resolve_lot_trailer
+
+
+def _apply_crvr_rule(ticket: PickupTicket) -> None:
+    """R8: 'CRVR' anywhere in the weight text forces the scale queue."""
+    if ticket.weight and "crvr" in ticket.weight.lower():
+        ticket.needs_scale = True
 
 router = APIRouter(tags=["tickets"])
 
@@ -64,6 +71,11 @@ def create_ticket(
         **payload.model_dump(exclude={"trailer_number", "last_pti_date_override"}),
     )
 
+    # R8: structured checklist drives the derived pti_verified gate
+    if payload.pti_checklist is not None:
+        ticket.pti_verified = compute_pti_verified(payload.pti_checklist)
+    _apply_crvr_rule(ticket)
+
     # Start the Carryover timer the moment a scale is needed but not yet received.
     if ticket.needs_scale and not ticket.scale_ticket_received:
         ticket.scale_requested_at = datetime.now(timezone.utc)
@@ -90,9 +102,12 @@ def update_ticket(
 
     # R7 RBAC: employees may only edit their OWN tickets; managers edit any
     # ticket in any state (including APPROVED).
+    # R8 exception: urgent-flagged tickets are open for team triage — any
+    # employee may fix them.
     if (
         current_user.role == UserRole.employee
         and ticket.created_by != current_user.id
+        and not (ticket.state == TicketState.FLAGGED and ticket.is_urgent_flag)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -107,6 +122,10 @@ def update_ticket(
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(ticket, field, value)
+
+    if "pti_checklist" in updates:
+        ticket.pti_verified = compute_pti_verified(updates["pti_checklist"])
+    _apply_crvr_rule(ticket)
 
     # If a scale becomes required and no timer is running, start one.
     if ticket.needs_scale and not ticket.scale_ticket_received and ticket.scale_requested_at is None:
@@ -163,14 +182,31 @@ def resolve_ticket(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
 ):
-    """Employee marks a FLAGGED ticket as fixed -> RESOLVED, back to the QC queue."""
+    """Employee marks a FLAGGED ticket as fixed -> RESOLVED, back to the QC queue.
+    R8: standard flags may only be resolved by their creator (Mistake Privacy);
+    urgent flags by ANY employee, who earns a teamwork bonus if not the creator."""
     ticket = _get_ticket_or_404(db, ticket_id)
     if ticket.state != TicketState.FLAGGED:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Only FLAGGED tickets can be resolved (current: {ticket.state.value}).",
         )
+    if (
+        current_user.role == UserRole.employee
+        and ticket.created_by != current_user.id
+        and not ticket.is_urgent_flag
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the ticket's creator can resolve a standard flag.",
+        )
+
     ticket.state = TicketState.RESOLVED
+    ticket.resolved_by = current_user.id
+    # Shared-credit engine: the fixer of someone else's urgent flag earns a
+    # teamwork bonus now; the creator still gets baseline credit at approval.
+    if ticket.is_urgent_flag and current_user.id != ticket.created_by:
+        apply_teamwork_bonus(current_user)
     record_event(db, ticket, current_user, AuditEvent.TICKET_RESOLVED)
     db.commit()
     db.refresh(ticket)
@@ -182,11 +218,20 @@ def get_flagged(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
 ):
-    """FLAGGED tickets bounced back to the employee dashboard."""
+    """Action Required queue. R8 Mistake Privacy: employees see their OWN
+    flagged tickets plus any URGENT flags (global triage); managers see all."""
+    q = _ticket_query.where(PickupTicket.state == TicketState.FLAGGED)
+    if current_user.role == UserRole.employee:
+        q = q.where(
+            or_(
+                PickupTicket.created_by == current_user.id,
+                PickupTicket.is_urgent_flag.is_(True),
+            )
+        )
     return (
         db.scalars(
-            _ticket_query.where(PickupTicket.state == TicketState.FLAGGED).order_by(
-                PickupTicket.updated_at.asc()
+            q.order_by(
+                PickupTicket.is_urgent_flag.desc(), PickupTicket.updated_at.asc()
             )
         )
         .unique()
@@ -417,6 +462,8 @@ def flag_ticket(
             detail=f"Ticket cannot be flagged from state {ticket.state.value}.",
         )
     ticket.state = TicketState.FLAGGED
+    ticket.is_urgent_flag = payload.is_urgent
+    ticket.resolved_by = None  # new flag cycle — nobody has fixed it yet
     first_flag: QCAuditFlag | None = None
     for category in payload.error_categories:
         severity = (
@@ -450,3 +497,15 @@ def flag_ticket(
     record_event(db, ticket, current_user, AuditEvent.TICKET_FLAGGED)
     db.commit()
     return _get_ticket_or_404(db, ticket.id)
+
+
+# NOTE: keep this LAST — the literal /api/tickets/* GET routes above must
+# match before this catch-all path parameter.
+@router.get("/api/tickets/{ticket_id}", response_model=TicketOut)
+def get_ticket(
+    ticket_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Single-ticket fetch (powers the full-form edit prefill)."""
+    return _get_ticket_or_404(db, ticket_id)

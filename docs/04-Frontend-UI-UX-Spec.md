@@ -63,3 +63,12 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 * LOT toggle suppresses the telemetry fetch; unknown trailers show a friendly "will be registered" hint.
 * Edit (inline editor: truck #, weight, notes) and Delete buttons on Carryover rows, shown only when ticket.created_by == current user (or manager). Delete also on My History rows and (manager) Archive rows. Non-owned rows' inline checkboxes are disabled for employees.
 * Admin page: per-user Edit (role, active, password reset) + Delete; per-MC Edit (endpoint, token).
+
+## Revision R8 (2026-07-12)
+* Carryover Edit opens the FULL pickup form at /dashboard/new-pickup?edit=<id>, fully pre-populated (PATCH on save); inline editor removed. PTI column is read-only there.
+* Telemetry fields (driver/location/model/fuel) are editable inputs; Samsara misses show a hint and never block manual entry.
+* PTI section: structured checklist in 3 groups (Trailer/Lights/Chassis), labels LEFT + checkboxes RIGHT, master "Select All", Left/Right pairs on one line, optional corner-lights pair marked.
+* Weight helper: "Type CRVR to route to the scale queue".
+* QC flag form: "Urgent Flag (Global Visibility)" toggle. QC cards show persistent flag history (categories, severity, notes, media) — highlighted on RESOLVED tickets for fix verification.
+* Flagged section renamed "Action Required": urgent tickets badge "URGENT — anyone can fix" + sorted first + "Open full form" button.
+* Layout polls the flagged queue (15s): red count badge on the Carryover nav item + toast when QC flags YOUR ticket (or an urgent flag appears).

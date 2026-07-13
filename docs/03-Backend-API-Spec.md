@@ -65,3 +65,13 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 * `PATCH /api/tickets/{id}`: employees only for tickets they created (403 otherwise); managers edit ANY ticket in ANY state, including APPROVED. Accepts truck_number.
 * `DELETE /api/tickets/{id}` (NEW): manager any / employee own-only. Logged to audit_logs + live_activity_feed ("X deleted pickup ticket for truck N (MC)"); flags+media delete with the ticket, audit logs and feed entries survive.
 * Admin (manager): `PATCH /api/admin/users/{id}` (username/password/role/is_active; self-demote/deactivate blocked), `DELETE /api/admin/users/{id}` (hard delete only when the user has zero recorded activity; otherwise 409 -> deactivate), `PATCH /api/admin/mcs/{id}` (name/endpoint/api_key).
+
+## Revision R8 (2026-07-12) — Triage, CRVR, PTI structure
+* CRVR: weight text containing "CRVR" (case-insensitive) forces needs_scale=True on create and PATCH.
+* Doc gate: inspection_paper_verified OR sticker_verified (one suffices) + registration + BOL.
+* PTI: requests carry `pti_checklist`; server derives pti_verified (all required singles + both sides of required pairs; optional corner-lights pair both-or-none). Legacy pti_verified accepted only when no checklist is sent.
+* `GET /api/tickets/{id}` (NEW, any authenticated): single ticket for edit-form prefill.
+* Flag: `is_urgent` in payload -> ticket.is_urgent_flag; resolved_by reset per flag cycle.
+* /api/tickets/flagged: employees see OWN + URGENT only (Mistake Privacy); managers all; urgent sorted first.
+* PATCH: employees may also edit urgent-FLAGGED tickets of others (team triage exception).
+* Resolve: standard flags creator-only (403 otherwise); urgent by anyone. resolved_by stamped; non-creator fixer of an urgent flag earns TEAMWORK_BONUS (+5) immediately; creator keeps +10 at approval. Feed logs both distinctly ("resolved URGENT flag ... for X (teamwork bonus)"; "approved ... — approval credit to X").

@@ -68,11 +68,11 @@ def _pti_gate_passed(ticket: PickupTicket) -> bool:
 
 
 def is_ready_for_qc(ticket: PickupTicket) -> bool:
-    """All required fields complete -> eligible for PENDING_QC."""
+    """All required fields complete -> eligible for PENDING_QC.
+    R8: inspection paper OR sticker suffices (either one, not both)."""
     if not (
         ticket.registration_verified
-        and ticket.inspection_paper_verified
-        and ticket.sticker_verified
+        and (ticket.inspection_paper_verified or ticket.sticker_verified)
         and ticket.bol_present
     ):
         return False

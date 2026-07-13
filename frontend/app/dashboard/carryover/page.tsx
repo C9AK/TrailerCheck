@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertCircle, Check, Flag, Pencil, RefreshCw, Send, Trash2, X } from "lucide-react";
+import { AlertCircle, Flag, Pencil, RefreshCw, Send, Siren, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthStore } from "@/store/authStore";
@@ -33,7 +34,6 @@ const INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
   { key: "inspection_paper_verified", label: "Insp." },
   { key: "sticker_verified", label: "Sticker" },
   { key: "bol_present", label: "BOL" },
-  { key: "pti_verified", label: "PTI" },
   { key: "scale_ticket_received", label: "Scale Tkt" },
 ];
 
@@ -53,19 +53,18 @@ function CarryoverTable() {
   const [notice, setNotice] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const now = useNow();
+  const router = useRouter();
   const { role, username } = useAuthStore();
 
   // R7 RBAC: employees may edit/delete only their OWN tickets; managers any.
+  // R8: urgent-flagged tickets are open for team triage.
   const canModify = useCallback(
-    (t: Ticket) => role === "manager" || t.creator.username === username,
+    (t: Ticket) =>
+      role === "manager" ||
+      t.creator.username === username ||
+      (t.state === "FLAGGED" && t.is_urgent_flag),
     [role, username]
   );
-
-  // Inline row editor (truck #, weight, notes)
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTruck, setEditTruck] = useState("");
-  const [editWeight, setEditWeight] = useState("");
-  const [editNotes, setEditNotes] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,34 +158,6 @@ function CarryoverTable() {
     }
   }
 
-  function startEdit(t: Ticket) {
-    setEditingId(t.id);
-    setEditTruck(t.truck_number);
-    setEditWeight(t.weight ?? "");
-    setEditNotes(t.condition_notes ?? "");
-  }
-
-  async function saveEdit(ticket: Ticket) {
-    setSavingId(ticket.id);
-    setError(null);
-    try {
-      const updated = await api<Ticket>(`/api/tickets/${ticket.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          truck_number: editTruck.trim() || ticket.truck_number,
-          weight: editWeight.trim() || null,
-          condition_notes: editNotes.trim() || null,
-        }),
-      });
-      setTickets((prev) => prev.map((t) => (t.id === ticket.id ? updated : t)));
-      setEditingId(null);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Edit failed.");
-    } finally {
-      setSavingId(null);
-    }
-  }
-
   async function resendToQC(ticket: Ticket) {
     setSavingId(ticket.id);
     setError(null);
@@ -232,12 +203,12 @@ function CarryoverTable() {
         </div>
       )}
 
-      {/* Flagged by QC — bounced back to the employee dashboard (01 §4) */}
+      {/* Action Required: own flagged tickets + URGENT team-triage flags */}
       {flagged.length > 0 && (
         <section className="mb-6">
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">
             <Flag className="h-4 w-4" aria-hidden="true" />
-            Flagged by QC — fix &amp; resend ({flagged.length})
+            Action Required ({flagged.length})
           </h2>
           <div className="grid gap-3 lg:grid-cols-2">
             {flagged.map((t) => {
@@ -252,8 +223,16 @@ function CarryoverTable() {
                   key={t.id}
                   className="rounded-lg border border-red-200 bg-red-50/50 p-4 dark:border-red-900 dark:bg-red-950/30"
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="font-mono font-semibold">{t.truck_number}</span>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 font-mono font-semibold">
+                      {t.truck_number}
+                      {t.is_urgent_flag && (
+                        <span className="flex animate-pulse items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-[11px] font-bold uppercase text-white">
+                          <Siren className="h-3 w-3" aria-hidden="true" />
+                          Urgent — anyone can fix
+                        </span>
+                      )}
+                    </span>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       {t.motor_carrier.name} · by {t.creator.username}
                     </span>
@@ -336,15 +315,27 @@ function CarryoverTable() {
                       );
                     })}
                   </div>
-                  <button
-                    type="button"
-                    disabled={savingId === t.id}
-                    onClick={() => resendToQC(t)}
-                    className="flex cursor-pointer items-center gap-1.5 rounded bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-brand-700 disabled:opacity-50"
-                  >
-                    <Send className="h-3.5 w-3.5" aria-hidden="true" />
-                    Fixed — resend to QC
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={savingId === t.id || !canModify(t)}
+                      onClick={() => resendToQC(t)}
+                      className="flex cursor-pointer items-center gap-1.5 rounded bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-brand-700 disabled:opacity-50"
+                    >
+                      <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                      Fixed — resend to QC
+                    </button>
+                    {canModify(t) && (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/dashboard/new-pickup?edit=${t.id}`)}
+                        className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        Open full form
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -373,6 +364,7 @@ function CarryoverTable() {
                     {f.label}
                   </th>
                 ))}
+                <th className="px-3 py-2.5 text-center">PTI</th>
                 <th className="px-3 py-2.5">Created by</th>
                 <th className="px-3 py-2.5 text-center">Actions</th>
               </tr>
@@ -449,6 +441,16 @@ function CarryoverTable() {
                         </td>
                       );
                     })}
+                    <td
+                      className="px-3 py-2.5 text-center text-sm"
+                      title="PTI is completed via the full checklist — click Edit"
+                    >
+                      {t.pti_verified ? (
+                        <span className="font-semibold text-emerald-600">✓</span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">
                       {t.creator.username}
                     </td>
@@ -458,9 +460,8 @@ function CarryoverTable() {
                           <button
                             type="button"
                             aria-label={`Edit truck ${t.truck_number}`}
-                            onClick={() =>
-                              editingId === t.id ? setEditingId(null) : startEdit(t)
-                            }
+                            title="Open the full pickup form pre-filled with this ticket"
+                            onClick={() => router.push(`/dashboard/new-pickup?edit=${t.id}`)}
                             className="cursor-pointer rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                           >
                             <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -485,74 +486,6 @@ function CarryoverTable() {
         </div>
       )}
 
-      {/* Inline ticket editor (R7: post-submission edits, ownership-gated) */}
-      {editingId &&
-        (() => {
-          const t = tickets.find((x) => x.id === editingId);
-          if (!t) return null;
-          return (
-            <div className="mt-4 rounded-lg border-2 border-brand-300 bg-white p-4 dark:border-brand-700 dark:bg-slate-900">
-              <h3 className="mb-3 font-mono text-sm font-semibold">
-                Editing truck {t.truck_number} ({t.motor_carrier.name})
-              </h3>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <label htmlFor="edit-truck" className="mb-1 block text-xs font-medium">
-                    Truck Number
-                  </label>
-                  <input
-                    id="edit-truck"
-                    value={editTruck}
-                    onChange={(e) => setEditTruck(e.target.value)}
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-800"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="edit-weight" className="mb-1 block text-xs font-medium">
-                    Weight
-                  </label>
-                  <input
-                    id="edit-weight"
-                    value={editWeight}
-                    onChange={(e) => setEditWeight(e.target.value)}
-                    placeholder="e.g. 34,500 lbs (light)"
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-800"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="edit-notes" className="mb-1 block text-xs font-medium">
-                    Condition Notes
-                  </label>
-                  <input
-                    id="edit-notes"
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                  />
-                </div>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  disabled={savingId === t.id}
-                  onClick={() => saveEdit(t)}
-                  className="flex cursor-pointer items-center gap-1.5 rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 hover:bg-brand-700 disabled:opacity-50"
-                >
-                  <Check className="h-4 w-4" aria-hidden="true" />
-                  Save changes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingId(null)}
-                  className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                  Cancel
-                </button>
-              </div>
-            </div>
-          );
-        })()}
     </div>
   );
 }
