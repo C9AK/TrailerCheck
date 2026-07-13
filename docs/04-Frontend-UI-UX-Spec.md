@@ -83,3 +83,9 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 
 ## Revision R12 (2026-07-13)
 * PTI section: prominent "Is this a Chassis?" toggle at the top. The Chassis section (locks + zip ties) is HIDDEN and excluded from validation when off; pti_verified is re-derived server-side whenever the checklist or the toggle changes (toggling chassis off can auto-promote a waiting ticket). Select All operates on visible items.
+
+## Revision R13 (2026-07-13) — Notification system
+* Floating bottom-right toasts, two tones: red (alerts) and amber (reminders), auto-dismiss 12s, dismissible.
+* Employee: toast when QC flags THEIR ticket (and on new urgent flags) — 15s polling (existing R8, now toned).
+* QC + managers: toast when an employee resends a flagged pickup (new RESOLVED ticket in the queue), batched "(+N more)".
+* Employee hourly reminder: at most once per hour (tracked per-user in localStorage), lists how many items are still missing on their carryover tickets with an example, sourced from the shift-notes auto-compiler.

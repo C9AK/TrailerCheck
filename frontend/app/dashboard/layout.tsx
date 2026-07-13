@@ -21,10 +21,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
-import type { Role, Ticket, User } from "@/lib/types";
+import type { AutoNote, Role, Ticket, User } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
 const FLAG_POLL_MS = 15_000;
+const REMINDER_CHECK_MS = 5 * 60_000; // check every 5 min...
+const REMINDER_EVERY_MS = 60 * 60_000; // ...but nag at most hourly
+
+interface Toast {
+  msg: string;
+  tone: "alert" | "warn";
+}
 
 const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[] }[] = [
   { href: "/dashboard/new-pickup", label: "New Pickup", icon: Truck, roles: ["employee", "manager"] },
@@ -68,8 +75,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // R8: flag notifications — poll the Action Required queue, badge the nav,
   // and toast the creator the moment QC flags one of THEIR tickets.
   const [flagCount, setFlagCount] = useState(0);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
   const knownFlagIds = useRef<Set<string> | null>(null);
+  // R13: QC gets notified when a flagged pickup comes back RESOLVED
+  const knownResolvedIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     if (!token || (role !== "employee" && role !== "manager")) return;
@@ -85,9 +94,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const mine = fresh.find((t) => t.creator.username === username);
           const urgent = fresh.find((t) => t.is_urgent_flag);
           if (mine) {
-            setToast(`QC flagged your ticket for truck ${mine.truck_number} — see Action Required.`);
+            setToast({
+              msg: `QC flagged your ticket for truck ${mine.truck_number} — see Action Required.`,
+              tone: "alert",
+            });
           } else if (urgent && role === "employee") {
-            setToast(`URGENT flag on truck ${urgent.truck_number} — anyone available can fix it.`);
+            setToast({
+              msg: `URGENT flag on truck ${urgent.truck_number} — anyone available can fix it.`,
+              tone: "alert",
+            });
           }
         }
         knownFlagIds.current = ids;
@@ -103,9 +118,77 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [token, role, username]);
 
+  // R13: QC (and managers) — toast when an employee resends a flagged pickup
+  useEffect(() => {
+    if (!token || (role !== "qc" && role !== "manager")) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const queue = await api<Ticket[]>("/api/tickets/qc");
+        if (cancelled) return;
+        const resolved = queue.filter((t) => t.state === "RESOLVED");
+        const ids = new Set(resolved.map((t) => t.id));
+        if (knownResolvedIds.current !== null) {
+          const fresh = resolved.filter((t) => !knownResolvedIds.current!.has(t.id));
+          if (fresh.length > 0) {
+            const first = fresh[0];
+            setToast({
+              msg:
+                `${first.creator.username} resent truck ${first.truck_number} after fixes — ready to verify` +
+                (fresh.length > 1 ? ` (+${fresh.length - 1} more)` : "") +
+                ".",
+              tone: "alert",
+            });
+          }
+        }
+        knownResolvedIds.current = ids;
+      } catch {
+        /* transient — keep last known state */
+      }
+    };
+    poll();
+    const id = setInterval(poll, FLAG_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [token, role]);
+
+  // R13: hourly reminder for employees — missing items on their carryover
+  // tickets (the shift-notes auto-compiler is the source of truth).
+  useEffect(() => {
+    if (!token || role !== "employee") return;
+    const storageKey = `tc-missing-reminder-${username}`;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const last = Number(localStorage.getItem(storageKey) || 0);
+        if (Date.now() - last < REMINDER_EVERY_MS) return;
+        const drafts = await api<{ auto_notes: AutoNote[] }>("/api/notes/drafts");
+        if (cancelled || drafts.auto_notes.length === 0) return;
+        const first = drafts.auto_notes[0];
+        setToast({
+          msg:
+            `Hourly check: ${drafts.auto_notes.length} item(s) still missing on your ` +
+            `carryover tickets — e.g. ${first.content}. Recheck them before handover.`,
+          tone: "warn",
+        });
+        localStorage.setItem(storageKey, String(Date.now()));
+      } catch {
+        /* transient */
+      }
+    };
+    check();
+    const id = setInterval(check, REMINDER_CHECK_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [token, role, username]);
+
   useEffect(() => {
     if (!toast) return;
-    const id = setTimeout(() => setToast(null), 10_000);
+    const id = setTimeout(() => setToast(null), 12_000);
     return () => clearTimeout(id);
   }, [toast]);
 
@@ -237,15 +320,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <main className="min-w-0 flex-1 p-4 md:p-6 md:pt-3">{children}</main>
 
-        {/* R8: flag notification toast */}
+        {/* Floating bottom-right notification (alerts red, reminders amber) */}
         {toast && (
           <div
             role="alert"
             aria-live="assertive"
-            className="fixed bottom-4 right-4 z-50 flex max-w-sm items-start gap-2 rounded-lg border-2 border-red-500 bg-white p-3 text-sm font-medium shadow-xl dark:bg-slate-900"
+            className={`fixed bottom-4 right-4 z-50 flex max-w-sm items-start gap-2 rounded-lg border-2 bg-white p-3 text-sm font-medium shadow-xl dark:bg-slate-900 ${
+              toast.tone === "warn" ? "border-amber-500" : "border-red-500"
+            }`}
           >
-            <span className="mt-0.5 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
-            <span className="min-w-0">{toast}</span>
+            <span
+              className={`mt-0.5 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full ${
+                toast.tone === "warn" ? "bg-amber-500" : "bg-red-600"
+              }`}
+              aria-hidden="true"
+            />
+            <span className="min-w-0">{toast.msg}</span>
             <button
               type="button"
               aria-label="Dismiss notification"
