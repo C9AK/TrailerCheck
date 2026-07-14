@@ -1,7 +1,9 @@
+import traceback
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import (
@@ -124,6 +126,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Unhandled crashes bypass CORSMiddleware, so the browser hides the 500 and
+# the frontend misreads it as a network error ("waking up" retry loop).
+# Echo the Origin here so real 500s surface as "Request failed (500)".
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    traceback.print_exception(exc)
+    headers = {}
+    origin = request.headers.get("origin")
+    if origin:
+        headers = {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin",
+        }
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error — check the backend logs."},
+        headers=headers,
+    )
+
 
 app.include_router(auth.router)
 app.include_router(admin.router)
