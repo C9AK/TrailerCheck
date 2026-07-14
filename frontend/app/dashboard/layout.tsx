@@ -39,7 +39,7 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[
   { href: "/dashboard/all-pickups", label: "All Pickups", icon: Table2, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/notes", label: "Notes", icon: StickyNote, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["employee", "qc", "manager"] },
-  { href: "/dashboard/my-history", label: "My History", icon: History, roles: ["employee", "manager"] },
+  { href: "/dashboard/my-history", label: "My History", icon: History, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/qc-review", label: "QC Review", icon: ShieldCheck, roles: ["qc", "manager"] },
   { href: "/dashboard/qc-history", label: "My Audits", icon: ClipboardCheck, roles: ["qc", "manager"] },
   { href: "/dashboard/manager/live-feed", label: "Live Feed", icon: Activity, roles: ["manager"] },
