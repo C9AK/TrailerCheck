@@ -76,3 +76,7 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 * **Edit fix:** `PATCH /api/tickets/{id}` accepts `mc_id` (validated against Motor_Carriers, 404 if unknown; null ignored) so an MC picked wrong at creation is correctable. Endpoint continues to use `exclude_unset=True` + explicit `commit()`/`refresh()`.
 * **Decoupled notes:** the auto-note compiler is no longer limited to AWAITING_DRIVER. Any of the caller's tickets - in ANY state, including APPROVED - that still has `needs_scale=true` and `scale_ticket_received=false` generates its "Waiting on Scale Ticket" note until the scale arrives. Published notes were already immortal until resolved; this closes the gap where a ticket approved early made its follow-up vanish.
 * **Cloud keep-alive:** production start command is `uvicorn app.main:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 120` (render.yaml).
+
+## Revision R15 (2026-07-14) - CRVR rule removed
+
+* Typing "CRVR" in the weight text no longer auto-sets `needs_scale` (reverses the R8 rule). The Needs Scale checkbox is the only trigger for the scale queue; weight stays pure free text.

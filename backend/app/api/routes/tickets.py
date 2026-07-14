@@ -36,11 +36,6 @@ from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply
 from app.services.ticket_lifecycle import is_ready_for_qc, resolve_lot_trailer
 
 
-def _apply_crvr_rule(ticket: PickupTicket) -> None:
-    """R8: 'CRVR' anywhere in the weight text forces the scale queue."""
-    if ticket.weight and "crvr" in ticket.weight.lower():
-        ticket.needs_scale = True
-
 router = APIRouter(tags=["tickets"])
 
 _ticket_query = select(PickupTicket).options(
@@ -78,7 +73,8 @@ def create_ticket(
     # (R12: chassis-only items count only when is_chassis)
     if payload.pti_checklist is not None:
         ticket.pti_verified = compute_pti_verified(payload.pti_checklist, ticket.is_chassis)
-    _apply_crvr_rule(ticket)
+    # R15: CRVR in the weight text no longer forces the scale queue — the
+    # dispatcher decides via the Needs Scale checkbox alone.
 
     # Start the Carryover timer the moment a scale is needed but not yet received.
     if ticket.needs_scale and not ticket.scale_ticket_received:
@@ -144,7 +140,6 @@ def update_ticket(
         ticket.pti_verified = compute_pti_verified(
             ticket.pti_checklist or {}, ticket.is_chassis
         )
-    _apply_crvr_rule(ticket)
 
     # If a scale becomes required and no timer is running, start one.
     if ticket.needs_scale and not ticket.scale_ticket_received and ticket.scale_requested_at is None:

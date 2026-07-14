@@ -883,13 +883,9 @@ function NewPickupForm() {
                 type="text"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
-                placeholder="e.g. 34,500 lbs — or CRVR"
+                placeholder="e.g. 34,500 lbs or CRVR"
                 className={`${inputCls} font-mono`}
               />
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Type <span className="font-mono font-semibold">CRVR</span> to route to the
-                scale queue automatically.
-              </p>
             </div>
             <div>
               <label htmlFor="condition" className="mb-1 block text-sm font-medium">
