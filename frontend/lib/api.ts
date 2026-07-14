@@ -48,7 +48,9 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
 
-  if (res.status === 401) {
+  // 401 on the login endpoint means bad credentials, not an expired session —
+  // let it fall through so the server's "Invalid username or password" shows.
+  if (res.status === 401 && !path.startsWith("/api/auth/login")) {
     logout();
     if (typeof window !== "undefined") window.location.href = "/login";
     throw new ApiError(401, "Session expired — please log in again.");

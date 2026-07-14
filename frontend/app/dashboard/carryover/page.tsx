@@ -39,7 +39,7 @@ const INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
 
 export default function CarryoverPage() {
   return (
-    <RequireRole roles={["employee", "manager"]}>
+    <RequireRole roles={["employee", "qc","manager"]}>
       <CarryoverTable />
     </RequireRole>
   );

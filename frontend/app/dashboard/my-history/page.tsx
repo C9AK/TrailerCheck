@@ -13,7 +13,7 @@ const inputCls =
 
 export default function MyHistoryPage() {
   return (
-    <RequireRole roles={["employee", "manager"]}>
+    <RequireRole roles={["employee", "qc", "manager"]}>
       <MyHistoryTable />
     </RequireRole>
   );

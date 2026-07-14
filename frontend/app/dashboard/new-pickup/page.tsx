@@ -24,7 +24,7 @@ function toDateInputValue(iso: string): string {
 
 export default function NewPickupPage() {
   return (
-    <RequireRole roles={["employee", "manager"]}>
+    <RequireRole roles={["employee", "qc", "manager"]}>
       <Suspense fallback={null}>
         <NewPickupForm />
       </Suspense>
