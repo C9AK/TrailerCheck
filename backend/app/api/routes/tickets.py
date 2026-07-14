@@ -60,7 +60,7 @@ def _get_ticket_or_404(db: Session, ticket_id: uuid.UUID) -> PickupTicket:
 def create_ticket(
     payload: TicketCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     # R2: PTI no longer blocks creation — the ticket may sit in AWAITING_DRIVER
     # unchecked. LOT trailers are resolved and persisted for the later gate.
@@ -100,7 +100,7 @@ def update_ticket(
     ticket_id: uuid.UUID,
     payload: TicketUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     ticket = _get_ticket_or_404(db, ticket_id)
 
@@ -157,7 +157,7 @@ def update_ticket(
 def delete_ticket(
     ticket_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     """R7 RBAC: managers delete any pickup; employees only their own.
     The deletion is recorded in both the audit log and the immutable feed;
@@ -189,7 +189,7 @@ def delete_ticket(
 def resolve_ticket(
     ticket_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     """Employee marks a FLAGGED ticket as fixed -> RESOLVED, back to the QC queue.
     R8: standard flags may only be resolved by their creator (Mistake Privacy);
@@ -227,7 +227,7 @@ def mark_unresolvable(
     ticket_id: uuid.UUID,
     payload: UnresolvableRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     """R11 escape hatch: a FLAGGED ticket the employee cannot physically fix is
     escalated back to QC (-> PENDING_QC) with a mandatory reason, clearing it
@@ -260,7 +260,7 @@ def mark_unresolvable(
 @router.get("/api/tickets/flagged", response_model=list[TicketOut])
 def get_flagged(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     """Action Required queue. R8 Mistake Privacy: employees see their OWN
     flagged tickets plus any URGENT flags (global triage); managers see all."""
@@ -286,7 +286,7 @@ def get_flagged(
 @router.get("/api/tickets/carryover", response_model=list[TicketOut])
 def get_carryover(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     """Employee active board. Tickets remain visible and editable through
     PENDING_QC/RESOLVED — they only leave this board once APPROVED
@@ -343,7 +343,7 @@ def get_qc_queue(
 def get_my_history(
     on_date: date | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     """EVERY ticket created by the logged-in user, in any state, newest first."""
     q = _ticket_query.where(PickupTicket.created_by == current_user.id)
