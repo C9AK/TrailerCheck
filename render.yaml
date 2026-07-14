@@ -8,7 +8,9 @@ services:
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # keep-alive buffer prevents the Render load balancer dropping idle
+    # connections mid-request while the free instance wakes up
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 120
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION

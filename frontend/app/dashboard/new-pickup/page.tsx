@@ -472,9 +472,10 @@ function NewPickupForm() {
     };
     try {
       if (editId) {
+        // R14: the MC is correctable on edit too (trailer identity stays fixed)
         await api<Ticket>(`/api/tickets/${editId}`, {
           method: "PATCH",
-          body: JSON.stringify(common),
+          body: JSON.stringify({ ...common, mc_id: mcId }),
         });
         router.push("/dashboard/carryover");
         return;
@@ -556,7 +557,6 @@ function NewPickupForm() {
               <select
                 id="mc"
                 required
-                disabled={Boolean(editId)}
                 value={mcId}
                 onChange={(e) => {
                   setMcId(e.target.value);

@@ -51,6 +51,8 @@ class TicketCreate(BaseModel):
 class TicketUpdate(BaseModel):
     """PATCH payload for inline edits — every field optional; state is server-controlled."""
 
+    # R14: the MC is correctable after creation (validated against the MC table)
+    mc_id: uuid.UUID | None = None
     truck_number: str | None = Field(default=None, min_length=1, max_length=100)
     driver_name: str | None = None
     truck_location: str | None = None

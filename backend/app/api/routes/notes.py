@@ -1,7 +1,9 @@
-"""Automated Shift Handover & Notes System.
+﻿"""Automated Shift Handover & Notes System.
 
 - Drafts: auto-notes computed live from the caller's AWAITING_DRIVER tickets
-  (one note per missing checklist item) + their manually typed DRAFT notes.
+  (one note per missing checklist item) plus any ticket in a later state that
+  still owes a scale ticket (R14: decoupled from APPROVED), + their manually
+  typed DRAFT notes.
 - Publish: persists auto-notes and flips manual drafts to PUBLISHED,
   skipping duplicates already open on the global board.
 - Global inbox: all PUBLISHED (unresolved) notes; anyone on shift can
@@ -12,7 +14,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_roles
@@ -36,6 +38,10 @@ _note_query = select(ShiftNote).options(
 
 
 def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
+    """R14: notes are decoupled from the ticket lifecycle. AWAITING_DRIVER
+    tickets get the full missing-item scan; tickets in ANY later state -
+    including APPROVED - still surface an outstanding scale ticket, because
+    the truck may have left while dispatch still chases the driver for it."""
     tickets = (
         db.scalars(
             select(PickupTicket)
@@ -44,7 +50,13 @@ def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
             )
             .where(
                 PickupTicket.created_by == user.id,
-                PickupTicket.state == TicketState.AWAITING_DRIVER,
+                or_(
+                    PickupTicket.state == TicketState.AWAITING_DRIVER,
+                    and_(
+                        PickupTicket.needs_scale.is_(True),
+                        PickupTicket.scale_ticket_received.is_(False),
+                    ),
+                ),
             )
             .order_by(PickupTicket.created_at.asc())
         )
@@ -53,11 +65,16 @@ def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
     )
     notes: list[AutoNoteOut] = []
     for t in tickets:
-        missing = [label for field, label in MISSING_ITEMS if not getattr(t, field)]
-        if t.needs_scale and not t.scale_ticket_received:
-            missing.append("Scale Ticket")
-        if not _pti_gate_passed(t):
-            missing.append("PTI")
+        if t.state == TicketState.AWAITING_DRIVER:
+            missing = [label for field, label in MISSING_ITEMS if not getattr(t, field)]
+            if t.needs_scale and not t.scale_ticket_received:
+                missing.append("Scale Ticket")
+            if not _pti_gate_passed(t):
+                missing.append("PTI")
+        else:
+            # Past AWAITING_DRIVER the only genuine follow-up is the scale
+            # ticket (checklist gaps were consciously waved through by QC).
+            missing = ["Scale Ticket"]
         for item in missing:
             notes.append(
                 AutoNoteOut(
@@ -80,7 +97,7 @@ def _get_note_or_404(db: Session, note_id: uuid.UUID) -> ShiftNote:
 @router.get("/api/notes/drafts", response_model=DraftsOut)
 def get_drafts(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     manual = (
         db.scalars(
@@ -99,7 +116,7 @@ def get_drafts(
 def create_manual_draft(
     payload: NoteCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     note = ShiftNote(
         created_by=current_user.id,
@@ -115,7 +132,7 @@ def create_manual_draft(
 @router.post("/api/notes/publish", response_model=PublishResult)
 def publish_shift_handover(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     """The 'Publish Shift Handover' button: persist auto-notes + flip the
     caller's manual drafts to PUBLISHED. Identical auto-notes already open on
@@ -187,7 +204,7 @@ def get_global_notes(
 def resolve_note(
     note_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     note = _get_note_or_404(db, note_id)
     if note.status != NoteStatus.PUBLISHED:
@@ -208,7 +225,7 @@ def update_note(
     note_id: uuid.UUID,
     payload: NoteUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.employee, UserRole.manager)),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     note = _get_note_or_404(db, note_id)
     if note.status == NoteStatus.RESOLVED:

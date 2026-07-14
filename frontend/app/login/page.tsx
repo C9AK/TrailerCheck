@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
 import type { Role } from "@/lib/types";
@@ -23,6 +23,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [waking, setWaking] = useState(false);
+
+  // R14: the API client retries against the sleeping cloud backend and fires
+  // this event — show an inline status so the user doesn't spam Sign in.
+  useEffect(() => {
+    const onToast = () => setWaking(true);
+    window.addEventListener("tc-toast", onToast);
+    return () => window.removeEventListener("tc-toast", onToast);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +47,8 @@ export default function LoginPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to reach the server.");
       setBusy(false);
+    } finally {
+      setWaking(false);
     }
   }
 
@@ -86,6 +97,16 @@ export default function LoginPage() {
           </div>
 
           <ErrorBanner message={error} />
+
+          {waking && busy && (
+            <p
+              role="status"
+              className="flex items-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Waking up secure connection, please wait...
+            </p>
+          )}
 
           <button
             type="submit"

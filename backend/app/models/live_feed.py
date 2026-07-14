@@ -24,8 +24,11 @@ class LiveActivityFeed(Base):
     __tablename__ = "live_activity_feed"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    ticket_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("pickup_tickets.id"), nullable=False, index=True
+    # Nullable (R14): when a ticket is deleted its feed rows are DETACHED
+    # (ticket_id -> NULL), never deleted — the denormalized snapshots keep the
+    # history readable and the deletion itself stays on record.
+    ticket_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("pickup_tickets.id"), nullable=True, index=True
     )
     event: Mapped[AuditEvent] = mapped_column(
         Enum(AuditEvent, name="audit_event"), nullable=False, index=True

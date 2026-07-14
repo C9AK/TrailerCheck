@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Flag, History, Paperclip, RefreshCw, Siren, X } from "lucide-react";
+import { CheckCircle2, Flag, History, Paperclip, RefreshCw, ShieldAlert, Siren, Warehouse, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -14,6 +14,7 @@ import {
   type MediaType,
   type Ticket,
 } from "@/lib/types";
+import { useAuthStore } from "@/store/authStore";
 
 export default function QCReviewPage() {
   return (
@@ -24,6 +25,7 @@ export default function QCReviewPage() {
 }
 
 function QCQueue() {
+  const { username, role } = useAuthStore();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -205,6 +207,13 @@ function QCQueue() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-mono text-base font-semibold">
                 {t.truck_number}
+                {/* R14: LOT trailers called out prominently for the auditor */}
+                {t.is_lot_trailer && (
+                  <span className="flex items-center gap-1 rounded bg-blue-800 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+                    <Warehouse className="h-3 w-3" aria-hidden="true" />
+                    LOT Trailer
+                  </span>
+                )}
                 {t.is_unresolvable && (
                   <span className="animate-pulse rounded bg-red-600 px-2 py-0.5 text-[11px] font-bold uppercase text-white">
                     Exception Review
@@ -335,6 +344,14 @@ function QCQueue() {
               </div>
             )}
 
+            {/* R14 conflict of interest: QC never audits their own pickup —
+                the backend enforces this too (403). */}
+            {role === "qc" && t.creator.username === username ? (
+              <p className="flex items-center gap-2 rounded border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Your pickup — another QC or a manager must audit it.
+              </p>
+            ) : (
             <div className="flex gap-2">
               <button
                 type="button"
@@ -360,6 +377,7 @@ function QCQueue() {
                 Flag
               </button>
             </div>
+            )}
 
             {flaggingId === t.id && (
               <div className="mt-3 space-y-2.5 rounded border border-red-200 bg-red-50/60 p-3 dark:border-red-900 dark:bg-red-950/30">

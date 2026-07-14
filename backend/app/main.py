@@ -23,9 +23,65 @@ from app.core.database import Base, engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Dev convenience; replace with Alembic migrations for production.
+    _migrate_feed_ticket_nullable()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     yield
+
+
+def _migrate_feed_ticket_nullable() -> None:
+    """R14 in-place migration: live_activity_feed.ticket_id becomes nullable
+    so feed history survives ticket deletion (rows are detached, never
+    destroyed). Runs on every boot; no-op once applied or on a fresh DB.
+    Must run BEFORE create_all (the SQLite path rebuilds the table)."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "live_activity_feed" not in insp.get_table_names():
+        return  # fresh database — create_all builds it correctly
+    ticket_col = next(
+        c for c in insp.get_columns("live_activity_feed") if c["name"] == "ticket_id"
+    )
+    if ticket_col["nullable"]:
+        return  # already migrated
+
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE live_activity_feed ALTER COLUMN ticket_id DROP NOT NULL")
+            )
+        print("R14 migration: live_activity_feed.ticket_id is now nullable (postgres)")
+        return
+
+    # SQLite can't relax NOT NULL in place — rebuild the table: rename old,
+    # drop its carried-over indexes (they keep their names and would collide),
+    # create the new table from the model, copy rows, drop old.
+    cols = (
+        "id, ticket_id, event, actor_id, actor_username, employee_username, "
+        "truck_number, mc_name, message, created_at"
+    )
+    with engine.begin() as conn:
+        conn.execute(
+            text("ALTER TABLE live_activity_feed RENAME TO live_activity_feed_r14_old")
+        )
+        stale = conn.execute(
+            text(
+                "SELECT name FROM sqlite_master WHERE type='index' "
+                "AND tbl_name='live_activity_feed_r14_old' AND name NOT LIKE 'sqlite_%'"
+            )
+        ).scalars().all()
+        for name in stale:
+            conn.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
+        Base.metadata.tables["live_activity_feed"].create(bind=conn)
+        conn.execute(
+            text(
+                f"INSERT INTO live_activity_feed ({cols}) "
+                f"SELECT {cols} FROM live_activity_feed_r14_old"
+            )
+        )
+        conn.execute(text("DROP TABLE live_activity_feed_r14_old"))
+    print("R14 migration: live_activity_feed rebuilt with nullable ticket_id (sqlite)")
 
 
 def _bootstrap_admin() -> None:

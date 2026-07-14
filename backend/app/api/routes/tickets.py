@@ -13,6 +13,8 @@ from app.models import (
     AuditLog,
     ErrorCategory,
     FlagMedia,
+    LiveActivityFeed,
+    MotorCarrier,
     PickupTicket,
     QCAuditFlag,
     TicketState,
@@ -105,11 +107,12 @@ def update_ticket(
     ticket = _get_ticket_or_404(db, ticket_id)
 
     # R7 RBAC: employees may only edit their OWN tickets; managers edit any
-    # ticket in any state (including APPROVED).
+    # ticket in any state (including APPROVED). R14: QC creates pickups under
+    # the same ownership rules as employees.
     # R8 exception: urgent-flagged tickets are open for team triage — any
     # employee may fix them.
     if (
-        current_user.role == UserRole.employee
+        current_user.role != UserRole.manager
         and ticket.created_by != current_user.id
         and not (ticket.state == TicketState.FLAGGED and ticket.is_urgent_flag)
     ):
@@ -124,6 +127,15 @@ def update_ticket(
         )
 
     updates = payload.model_dump(exclude_unset=True)
+    # R14: the MC is editable after creation — validate it exists first so the
+    # FK never blows up mid-commit.
+    if "mc_id" in updates and updates["mc_id"] is not None:
+        if db.get(MotorCarrier, updates["mc_id"]) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Motor carrier not found."
+            )
+    elif "mc_id" in updates:
+        updates.pop("mc_id")  # never null out the required MC
     for field, value in updates.items():
         setattr(ticket, field, value)
 
@@ -159,12 +171,13 @@ def delete_ticket(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
-    """R7 RBAC: managers delete any pickup; employees only their own.
+    """R7 RBAC: managers delete any pickup; employees/QC only their own.
     The deletion is recorded in both the audit log and the immutable feed;
-    existing audit-log rows are detached (ticket_id -> NULL), never destroyed."""
+    existing audit-log AND feed rows are detached (ticket_id -> NULL), never
+    destroyed — QC flags + their media cascade away with the ticket."""
     ticket = _get_ticket_or_404(db, ticket_id)
     if (
-        current_user.role == UserRole.employee
+        current_user.role != UserRole.manager
         and ticket.created_by != current_user.id
     ):
         raise HTTPException(
@@ -174,10 +187,16 @@ def delete_ticket(
 
     record_event(db, ticket, current_user, AuditEvent.TICKET_DELETED)
     db.flush()
-    # Detach ALL audit logs (incl. the deletion event) before removing the
-    # ticket so history survives; QC flags + media go with the ticket.
+    # Detach ALL audit-log + live-feed rows (incl. the deletion event just
+    # written) before removing the ticket so history survives. Without this,
+    # Postgres rejects the delete with a foreign-key IntegrityError.
     db.execute(
         update(AuditLog).where(AuditLog.ticket_id == ticket.id).values(ticket_id=None)
+    )
+    db.execute(
+        update(LiveActivityFeed)
+        .where(LiveActivityFeed.ticket_id == ticket.id)
+        .values(ticket_id=None)
     )
     db.expire(ticket, ["audit_logs"])
     db.delete(ticket)
@@ -193,7 +212,8 @@ def resolve_ticket(
 ):
     """Employee marks a FLAGGED ticket as fixed -> RESOLVED, back to the QC queue.
     R8: standard flags may only be resolved by their creator (Mistake Privacy);
-    urgent flags by ANY employee, who earns a teamwork bonus if not the creator."""
+    urgent flags by ANY employee, who earns a teamwork bonus if not the creator.
+    R14: QC users creating pickups follow the same rules as employees."""
     ticket = _get_ticket_or_404(db, ticket_id)
     if ticket.state != TicketState.FLAGGED:
         raise HTTPException(
@@ -201,7 +221,7 @@ def resolve_ticket(
             detail=f"Only FLAGGED tickets can be resolved (current: {ticket.state.value}).",
         )
     if (
-        current_user.role == UserRole.employee
+        current_user.role != UserRole.manager
         and ticket.created_by != current_user.id
         and not ticket.is_urgent_flag
     ):
@@ -239,7 +259,7 @@ def mark_unresolvable(
             detail=f"Only FLAGGED tickets can be marked unresolvable (current: {ticket.state.value}).",
         )
     if (
-        current_user.role == UserRole.employee
+        current_user.role != UserRole.manager
         and ticket.created_by != current_user.id
         and not ticket.is_urgent_flag
     ):
@@ -262,10 +282,11 @@ def get_flagged(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
-    """Action Required queue. R8 Mistake Privacy: employees see their OWN
-    flagged tickets plus any URGENT flags (global triage); managers see all."""
+    """Action Required queue. R8 Mistake Privacy: employees (and QC acting as
+    creators, R14) see their OWN flagged tickets plus any URGENT flags (global
+    triage); managers see all."""
     q = _ticket_query.where(PickupTicket.state == TicketState.FLAGGED)
-    if current_user.role == UserRole.employee:
+    if current_user.role != UserRole.manager:
         q = q.where(
             or_(
                 PickupTicket.created_by == current_user.id,
@@ -470,6 +491,13 @@ def approve_ticket(
     current_user: User = Depends(require_roles(UserRole.qc, UserRole.manager)),
 ):
     ticket = _get_ticket_or_404(db, ticket_id)
+    # R14 conflict of interest: QC may create pickups, but NEVER audit their
+    # own — another QC or a manager must review them.
+    if current_user.role == UserRole.qc and ticket.created_by == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Conflict of interest — you cannot approve a pickup you created.",
+        )
     # AWAITING_DRIVER allowed: QC may consciously approve early.
     if ticket.state not in (
         TicketState.PENDING_QC,
@@ -496,6 +524,12 @@ def flag_ticket(
     current_user: User = Depends(require_roles(UserRole.qc, UserRole.manager)),
 ):
     ticket = _get_ticket_or_404(db, ticket_id)
+    # R14 conflict of interest: QC never audits their own pickup.
+    if current_user.role == UserRole.qc and ticket.created_by == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Conflict of interest — you cannot flag a pickup you created.",
+        )
     if ticket.state not in (
         TicketState.PENDING_QC,
         TicketState.RESOLVED,

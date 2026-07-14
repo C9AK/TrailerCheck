@@ -80,8 +80,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // R13: QC gets notified when a flagged pickup comes back RESOLVED
   const knownResolvedIds = useRef<Set<string> | null>(null);
 
+  // R14: the API client fires this event while retrying against a sleeping
+  // Render instance — surface it through the existing toast UI.
   useEffect(() => {
-    if (!token || (role !== "employee" && role !== "manager")) return;
+    const onToast = (e: Event) => setToast((e as CustomEvent<Toast>).detail);
+    window.addEventListener("tc-toast", onToast);
+    return () => window.removeEventListener("tc-toast", onToast);
+  }, []);
+
+  useEffect(() => {
+    // R14: QC creates pickups too — they get the same flag notifications.
+    if (!token || !role) return;
     let cancelled = false;
     const poll = async () => {
       try {
@@ -98,7 +107,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               msg: `QC flagged your ticket for truck ${mine.truck_number} — see Action Required.`,
               tone: "alert",
             });
-          } else if (urgent && role === "employee") {
+          } else if (urgent && role !== "manager") {
             setToast({
               msg: `URGENT flag on truck ${urgent.truck_number} — anyone available can fix it.`,
               tone: "alert",
@@ -154,10 +163,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [token, role]);
 
-  // R13: hourly reminder for employees — missing items on their carryover
-  // tickets (the shift-notes auto-compiler is the source of truth).
+  // R13: hourly reminder for employees (and QC since R14) — missing items on
+  // their carryover tickets (the shift-notes auto-compiler is the source of truth).
   useEffect(() => {
-    if (!token || role !== "employee") return;
+    if (!token || (role !== "employee" && role !== "qc")) return;
     const storageKey = `tc-missing-reminder-${username}`;
     let cancelled = false;
     const check = async () => {
@@ -196,9 +205,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (hasHydrated && !token) router.replace("/login");
   }, [hasHydrated, token, router]);
 
-  // Keep the employee's performance score fresh as they navigate.
+  // Keep the employee's (or QC creator's, R14) performance score fresh.
   useEffect(() => {
-    if (!token || role !== "employee") return;
+    if (!token || (role !== "employee" && role !== "qc")) return;
     api<User>("/api/users/me")
       .then((u) => setScore(u.performance_score))
       .catch(() => setScore(null));
@@ -296,7 +305,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
           ))}
           <span className="ml-auto flex items-center gap-1">
-            {role === "employee" && score !== null && <ScoreBadge score={score} />}
+            {(role === "employee" || role === "qc") && score !== null && (
+              <ScoreBadge score={score} />
+            )}
             <button
               type="button"
               aria-label="Log out"
@@ -311,8 +322,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </span>
         </header>
 
-        {/* Desktop top bar: employee performance score pinned top-right */}
-        {role === "employee" && score !== null && (
+        {/* Desktop top bar: employee/QC performance score pinned top-right */}
+        {(role === "employee" || role === "qc") && score !== null && (
           <div className="hidden justify-end px-6 pt-4 md:flex">
             <ScoreBadge score={score} />
           </div>
