@@ -72,3 +72,8 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 * **QC parity:** New Pickup / Carryover / Notes / My History nav + pages open to `qc`; QC users get the flag-notification poll, the urgent-flag toast, the hourly missing-items reminder, and the performance ScoreBadge.
 * **QC Review:** prominent crimson "LOT Trailer" badge next to the truck number when `is_lot_trailer`; a QC user's own pickups show "Your pickup - another QC or a manager must audit it." instead of Approve/Flag buttons (backend enforces 403 regardless).
 * **Edit form:** the Motor Carrier select is enabled in edit mode and `mc_id` is sent on PATCH. Error toasts surface the backend `detail` message.
+
+## Revision R16 (2026-07-14) - QC delete power
+
+* QC Review cards gain a trash button (with confirm) that deletes the pickup outright - including on the QC's own conflict-of-interest cards.
+* Carryover: the delete icon now appears for QC on every row (edit remains creator/manager-gated).

@@ -65,6 +65,11 @@ function CarryoverTable() {
       (t.state === "FLAGGED" && t.is_urgent_flag),
     [role, username]
   );
+  // R16: QC may DELETE any pickup (editing others' stays manager-only)
+  const canDelete = useCallback(
+    (t: Ticket) => role === "qc" || canModify(t),
+    [role, canModify]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -495,8 +500,8 @@ function CarryoverTable() {
                       {t.creator.username}
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      {canModify(t) && (
-                        <span className="flex justify-center gap-1">
+                      <span className="flex justify-center gap-1">
+                        {canModify(t) && (
                           <button
                             type="button"
                             aria-label={`Edit truck ${t.truck_number}`}
@@ -506,6 +511,8 @@ function CarryoverTable() {
                           >
                             <Pencil className="h-4 w-4" aria-hidden="true" />
                           </button>
+                        )}
+                        {canDelete(t) && (
                           <button
                             type="button"
                             aria-label={`Delete truck ${t.truck_number}`}
@@ -515,8 +522,8 @@ function CarryoverTable() {
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </button>
-                        </span>
-                      )}
+                        )}
+                      </span>
                     </td>
                   </tr>
                 );

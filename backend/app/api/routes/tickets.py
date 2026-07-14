@@ -166,13 +166,13 @@ def delete_ticket(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
-    """R7 RBAC: managers delete any pickup; employees/QC only their own.
-    The deletion is recorded in both the audit log and the immutable feed;
-    existing audit-log AND feed rows are detached (ticket_id -> NULL), never
-    destroyed — QC flags + their media cascade away with the ticket."""
+    """R7/R16 RBAC: managers AND QC delete any pickup; employees only their
+    own. The deletion is recorded in both the audit log and the immutable
+    feed; existing audit-log AND feed rows are detached (ticket_id -> NULL),
+    never destroyed — QC flags + their media cascade away with the ticket."""
     ticket = _get_ticket_or_404(db, ticket_id)
     if (
-        current_user.role != UserRole.manager
+        current_user.role == UserRole.employee
         and ticket.created_by != current_user.id
     ):
         raise HTTPException(

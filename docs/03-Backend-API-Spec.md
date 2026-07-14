@@ -80,3 +80,7 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 ## Revision R15 (2026-07-14) - CRVR rule removed
 
 * Typing "CRVR" in the weight text no longer auto-sets `needs_scale` (reverses the R8 rule). The Needs Scale checkbox is the only trigger for the scale queue; weight stays pure free text.
+
+## Revision R16 (2026-07-14) - QC delete power
+
+* `DELETE /api/tickets/{id}`: QC may now delete ANY pickup, same as a manager (employees remain limited to their own). Editing other users' tickets is still manager-only. Deletions stay on permanent record in the audit log and live feed.

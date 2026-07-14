@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Flag, History, Paperclip, RefreshCw, ShieldAlert, Siren, Warehouse, X } from "lucide-react";
+import { CheckCircle2, Flag, History, Paperclip, RefreshCw, ShieldAlert, Siren, Trash2, Warehouse, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -113,6 +113,21 @@ function QCQueue() {
       setError(e instanceof ApiError ? e.message : "Approval failed.");
     } finally {
       setApproveBusy(false);
+    }
+  }
+
+  // R16: QC can delete any pickup outright (bogus/duplicate entries)
+  async function deleteTicket(t: Ticket) {
+    if (!window.confirm(`Delete the pickup for truck ${t.truck_number}? This cannot be undone.`)) {
+      return;
+    }
+    setError(null);
+    try {
+      await api<void>(`/api/tickets/${t.id}`, { method: "DELETE" });
+      setTickets((prev) => prev.filter((x) => x.id !== t.id));
+      setNotice(`Truck ${t.truck_number}: pickup deleted.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Delete failed.");
     }
   }
 
@@ -347,10 +362,21 @@ function QCQueue() {
             {/* R14 conflict of interest: QC never audits their own pickup —
                 the backend enforces this too (403). */}
             {role === "qc" && t.creator.username === username ? (
-              <p className="flex items-center gap-2 rounded border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
-                <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
-                Your pickup — another QC or a manager must audit it.
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="flex flex-1 items-center gap-2 rounded border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                  <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  Your pickup — another QC or a manager must audit it.
+                </p>
+                <button
+                  type="button"
+                  aria-label={`Delete truck ${t.truck_number}`}
+                  title="Delete this pickup"
+                  onClick={() => deleteTicket(t)}
+                  className="cursor-pointer rounded border border-slate-300 p-2 text-slate-500 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:hover:bg-red-950/40"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             ) : (
             <div className="flex gap-2">
               <button
@@ -375,6 +401,15 @@ function QCQueue() {
               >
                 <Flag className="h-4 w-4" aria-hidden="true" />
                 Flag
+              </button>
+              <button
+                type="button"
+                aria-label={`Delete truck ${t.truck_number}`}
+                title="Delete this pickup"
+                onClick={() => deleteTicket(t)}
+                className="ml-auto cursor-pointer rounded border border-slate-300 p-2 text-slate-500 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:hover:bg-red-950/40"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
             )}
