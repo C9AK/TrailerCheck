@@ -34,8 +34,8 @@ interface Toast {
 }
 
 const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[] }[] = [
-  { href: "/dashboard/new-pickup", label: "New Pickup", icon: Truck, roles: ["employee", "manager"] },
-  { href: "/dashboard/carryover", label: "Carryover", icon: Timer, roles: ["employee", "manager"] },
+  { href: "/dashboard/new-pickup", label: "New Pickup", icon: Truck, roles: ["employee", "qc", "manager"] },
+  { href: "/dashboard/carryover", label: "Carryover", icon: Timer, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/all-pickups", label: "All Pickups", icon: Table2, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/notes", label: "Notes", icon: StickyNote, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["employee", "qc", "manager"] },
