@@ -86,3 +86,10 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 * **"Still Sending" drafts:** secondary "Save Draft (Still Sending)" button on the New Pickup form (create + resumed drafts); saving clears the form for the next concurrent pickup. Sidebar "Active Drafts" panel lists parked drafts (truck + MC), one click resumes the full pre-filled form; primary button reads "Submit Ticket" when resuming a draft. STILL SENDING badge (sky blue) in all tables.
 * **My History:** Edit button on every row opens the full form pre-filled; APPROVED edits return to My History on save.
 * **New checkboxes:** "ELD mentioned" + "Checklist sent" on the form, as inline-editable Carryover columns, All Pickups sheet columns, and QC Review pills.
+
+## Revision R18 (2026-07-15) - Master PTI box, PTI video log, notes for QC
+
+* **New Pickup form:** prominent crimson-bordered master "PTI" checkbox at the top of the PTI section - it alone marks PTI verified. The granular checkboxes remain unchanged below as the video log (Select All intact); the chassis toggle now just shows/hides the chassis rows. Status line reads "PTI status: VERIFIED/NOT VERIFIED (master checkbox) - video log: N item(s) noted".
+* **Carryover:** PTI is now an inline-editable checkbox column like the rest (the old read-only "via full checklist" cell is gone) - ticking it can promote the ticket to PENDING_QC.
+* **QC Review:** the PTI pill shows the master status; a collapsible read-only "PTI video log - N/M item(s) noted" panel lists exactly which granular items the employee checked, for context without false flags.
+* **Notes:** Edit/Done buttons on the global board now show for QC too; delete buttons (trash) on draft and published notes for the author or a manager, wired to the new DELETE endpoint.

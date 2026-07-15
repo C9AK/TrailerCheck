@@ -92,3 +92,9 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 * `GET /api/tickets/drafts` (employee/qc/manager): the caller's own `DRAFT_IN_PROGRESS` pickups, oldest first. Drafts are personal.
 * `eld_mentioned` and `checklist_sent` on create/update/read.
 * **History edits:** the CREATOR of a ticket may now edit it in ANY state including APPROVED (`created_by == current_user.id`); non-creators still need manager rights. Enables My History fix-ups for employees and QC.
+
+## Revision R18 (2026-07-15) - Decoupled PTI + note deletion
+
+* **Master PTI checkbox:** `pti_verified` IS the master "PTI" boolean and is now set DIRECTLY by the dispatcher (no new column - adding a second flag would have created two sources of truth). The granular `pti_checklist` is a video log only: it is stored verbatim and NEVER derives, gates, or un-verifies PTI. `compute_pti_verified` is no longer called by any route; `is_chassis` is informational. All downstream gates (send-to-QC readiness, LOT 7-day window) read `pti_verified` unchanged.
+* `DELETE /api/notes/{id}` (employee/qc/manager): hard delete by the note's AUTHOR or a manager, any status (403 otherwise). Resolve remains the normal close path.
+* QC notes parity (create/read/edit/publish/resolve) was shipped in R14 and is unchanged.

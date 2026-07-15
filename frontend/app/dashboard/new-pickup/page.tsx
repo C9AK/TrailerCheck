@@ -7,7 +7,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, Skeleton, SuccessBanner, Toggle } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { emptyChecklist, isPtiComplete, PTI_SECTIONS, type PtiChecklist } from "@/lib/pti";
+import { emptyChecklist, PTI_SECTIONS, type PtiChecklist } from "@/lib/pti";
 import type {
   MotorCarrier,
   Telemetry,
@@ -315,6 +315,9 @@ function NewPickupForm() {
 
   // Checklist
   const [pti, setPti] = useState<PtiChecklist>(emptyChecklist());
+  // R18: the MASTER PTI checkbox — verification depends on this alone; the
+  // granular checklist below is just a log of what the video showed.
+  const [ptiMaster, setPtiMaster] = useState(false);
   const [isChassis, setIsChassis] = useState(false);
   const [registrationVerified, setRegistrationVerified] = useState(false);
   const [inspectionVerified, setInspectionVerified] = useState(false);
@@ -336,7 +339,6 @@ function NewPickupForm() {
   // R17: state of the ticket loaded in edit mode (drives draft/redirect logic)
   const [loadedState, setLoadedState] = useState<Ticket["state"] | null>(null);
 
-  const ptiComplete = isPtiComplete(pti, isChassis);
   const visibleSections = PTI_SECTIONS.filter((s) => !s.chassisOnly || isChassis);
   const visibleKeys = visibleSections.flatMap((s) =>
     s.rows.flatMap((r) => (r.key ? [r.key] : [`${r.pair}_left`, `${r.pair}_right`]))
@@ -364,6 +366,7 @@ function NewPickupForm() {
         setCoords({ lat: t.truck_latitude, lon: t.truck_longitude });
         setIsLot(t.is_lot_trailer);
         setIsChassis(t.is_chassis);
+        setPtiMaster(t.pti_verified);
         setPti({ ...emptyChecklist(), ...(t.pti_checklist ?? {}) });
         setRegistrationVerified(t.registration_verified);
         setInspectionVerified(t.inspection_paper_verified);
@@ -474,6 +477,7 @@ function NewPickupForm() {
       needs_scale: needsScale,
       scale_ticket_received: needsScale ? scaleReceived : false,
       pti_checklist: pti,
+      pti_verified: ptiMaster,
       is_chassis: isChassis,
     };
   }
@@ -499,6 +503,7 @@ function NewPickupForm() {
     setTrailerNumber("");
     setLastPtiDate("");
     setPti(emptyChecklist());
+    setPtiMaster(false);
     setIsChassis(false);
     setRegistrationVerified(false);
     setInspectionVerified(false);
@@ -754,7 +759,7 @@ function NewPickupForm() {
                     >
                       {lotPtiFresh
                         ? `PTI is ${ptiAgeDays} day(s) old — verification optional.`
-                        : `PTI is ${ptiAgeDays} day(s) old — full PTI checklist required.`}
+                        : `PTI is ${ptiAgeDays} day(s) old — the master PTI checkbox is required.`}
                     </p>
                   )}
                 </div>
@@ -782,17 +787,34 @@ function NewPickupForm() {
             </label>
           </div>
           <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-            Not required to save — the ticket can wait in Carryover — but the full
-            checklist gates QC review.
+            The master PTI box below is what gates QC review. The item list is a
+            log of what you saw in the video — it never blocks verification.
           </p>
 
-          {/* R12: chassis toggle — the Chassis section only applies (and is only
-              required) when this is on */}
+          {/* R18: MASTER PTI checkbox — verification depends on this alone */}
+          <label className="mb-3 flex cursor-pointer items-center justify-between gap-3 rounded border-2 border-brand-600 bg-brand-50 px-3 py-3 dark:border-brand-500 dark:bg-brand-950/30">
+            <span className="text-sm font-bold">
+              PTI
+              <span className="ml-2 text-xs font-normal text-slate-600 dark:text-slate-300">
+                Master verification — this box alone marks PTI as done
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              aria-label="PTI verified (master)"
+              checked={ptiMaster}
+              onChange={(e) => setPtiMaster(e.target.checked)}
+              className="h-5 w-5 shrink-0 accent-brand-600"
+            />
+          </label>
+
+          {/* R12: chassis toggle — shows the chassis rows in the video log
+              (informational since R18) */}
           <label className="mb-4 flex cursor-pointer items-center justify-between gap-3 rounded border-2 border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">
             <span className="text-sm font-semibold">
               Is this a Chassis?
               <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
-                Adds the lock &amp; zip-tie checks to the required list
+                Shows the lock &amp; zip-tie rows in the log below
               </span>
             </span>
             <Toggle
@@ -864,12 +886,13 @@ function NewPickupForm() {
 
           <p
             className={`mt-3 text-xs font-semibold ${
-              ptiComplete
+              ptiMaster
                 ? "text-emerald-700 dark:text-emerald-400"
                 : "text-slate-500 dark:text-slate-400"
             }`}
           >
-            PTI status: {ptiComplete ? "VERIFIED" : "NOT VERIFIED"}
+            PTI status: {ptiMaster ? "VERIFIED" : "NOT VERIFIED"} (master checkbox)
+            {" · "}video log: {Object.values(pti).filter(Boolean).length} item(s) noted
           </p>
         </section>
 

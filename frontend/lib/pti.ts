@@ -74,6 +74,21 @@ export function emptyChecklist(): PtiChecklist {
   return Object.fromEntries(allPtiKeys().map((k) => [k, false]));
 }
 
+/** R18: human labels for every checklist key — powers QC's read-only log. */
+export function ptiKeyLabels(): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const section of PTI_SECTIONS) {
+    for (const row of section.rows) {
+      if (row.key) labels[row.key] = row.label;
+      if (row.pair) {
+        labels[`${row.pair}_left`] = `${row.label} (L)`;
+        labels[`${row.pair}_right`] = `${row.label} (R)`;
+      }
+    }
+  }
+  return labels;
+}
+
 /** Mirrors backend compute_pti_verified: all required checked; the optional
  * corner-lights pair must be both-or-none; chassis-only sections count only
  * when isChassis (R12). */

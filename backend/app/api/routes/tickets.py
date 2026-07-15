@@ -31,7 +31,6 @@ from app.schemas.ticket import (
     UnresolvableRequest,
 )
 from app.services.activity import record_event
-from app.services.pti import compute_pti_verified
 from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply_teamwork_bonus
 from app.services.ticket_lifecycle import is_ready_for_qc, resolve_lot_trailer
 
@@ -71,10 +70,9 @@ def create_ticket(
         ),
     )
 
-    # R8: structured checklist drives the derived pti_verified gate
-    # (R12: chassis-only items count only when is_chassis)
-    if payload.pti_checklist is not None:
-        ticket.pti_verified = compute_pti_verified(payload.pti_checklist, ticket.is_chassis)
+    # R18: pti_verified is the MASTER PTI checkbox, set directly by the
+    # dispatcher. The granular pti_checklist is a video log only — it never
+    # derives or gates verification anymore.
     # R15: CRVR in the weight text no longer forces the scale queue — the
     # dispatcher decides via the Needs Scale checkbox alone.
 
@@ -150,11 +148,8 @@ def update_ticket(
     for field, value in updates.items():
         setattr(ticket, field, value)
 
-    # Re-derive the PTI gate when the checklist OR the chassis toggle changes
-    if "pti_checklist" in updates or "is_chassis" in updates:
-        ticket.pti_verified = compute_pti_verified(
-            ticket.pti_checklist or {}, ticket.is_chassis
-        )
+    # R18: no re-derivation — the master pti_verified checkbox stands alone;
+    # pti_checklist and is_chassis are informational.
 
     # If a scale becomes required and no timer is running, start one.
     if ticket.needs_scale and not ticket.scale_ticket_received and ticket.scale_requested_at is None:

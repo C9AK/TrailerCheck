@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Send,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -31,7 +32,9 @@ export default function NotesPage() {
 
 function NotesBoard() {
   const role = useAuthStore((s) => s.role);
-  const canHandover = role === "employee" || role === "manager";
+  const username = useAuthStore((s) => s.username);
+  // R18: QC has full notes parity — drafts, publish, edit, resolve, delete
+  const canHandover = role === "employee" || role === "qc" || role === "manager";
 
   const [autoNotes, setAutoNotes] = useState<AutoNote[]>([]);
   const [drafts, setDrafts] = useState<ShiftNote[]>([]);
@@ -122,6 +125,22 @@ function NotesBoard() {
       setGlobalNotes((prev) => prev.filter((n) => n.id !== note.id));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not resolve the note.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  // R18: hard delete (author or manager) — for mistakes and stale notes
+  async function deleteNote(note: ShiftNote) {
+    if (!window.confirm("Delete this note permanently?")) return;
+    setSavingId(note.id);
+    setError(null);
+    try {
+      await api<void>(`/api/notes/${note.id}`, { method: "DELETE" });
+      setGlobalNotes((prev) => prev.filter((n) => n.id !== note.id));
+      setDrafts((prev) => prev.filter((n) => n.id !== note.id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete the note.");
     } finally {
       setSavingId(null);
     }
@@ -236,6 +255,15 @@ function NotesBoard() {
                     >
                       <Pencil className="h-4 w-4" aria-hidden="true" />
                     </button>
+                    <button
+                      type="button"
+                      aria-label="Delete draft note"
+                      disabled={savingId === n.id}
+                      onClick={() => deleteNote(n)}
+                      className="cursor-pointer rounded p-1 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/40"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
                   </>
                 )}
               </li>
@@ -349,30 +377,41 @@ function NotesBoard() {
                       {n.creator.username} · {fmtCstFull(n.created_at)}
                     </p>
                   </div>
-                  {(role === "employee" || role === "manager") && (
-                    <div className="flex shrink-0 gap-1.5">
+                  <div className="flex shrink-0 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(n.id);
+                        setEditText(n.content);
+                      }}
+                      className="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1.5 text-xs font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingId === n.id}
+                      onClick={() => resolve(n)}
+                      className="flex cursor-pointer items-center gap-1 rounded bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors duration-150 hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      Done
+                    </button>
+                    {/* R18: delete — author or manager only */}
+                    {(role === "manager" || n.creator.username === username) && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingId(n.id);
-                          setEditText(n.content);
-                        }}
-                        className="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1.5 text-xs font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
-                      >
-                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
+                        aria-label="Delete note"
+                        title="Delete this note permanently"
                         disabled={savingId === n.id}
-                        onClick={() => resolve(n)}
-                        className="flex cursor-pointer items-center gap-1 rounded bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors duration-150 hover:bg-emerald-700 disabled:opacity-50"
+                        onClick={() => deleteNote(n)}
+                        className="flex cursor-pointer items-center rounded border border-slate-300 px-2 py-1.5 text-xs text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-red-950/40"
                       >
-                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                        Done
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </li>

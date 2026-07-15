@@ -42,6 +42,8 @@ const INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
   { key: "bol_present", label: "BOL" },
   { key: "eld_mentioned", label: "ELD" },
   { key: "checklist_sent", label: "CkLst" },
+  // R18: PTI is a master checkbox now — inline-editable like the rest
+  { key: "pti_verified", label: "PTI" },
   { key: "scale_ticket_received", label: "Scale Tkt" },
 ];
 
@@ -476,7 +478,6 @@ function CarryoverTable() {
                     {f.label}
                   </th>
                 ))}
-                <th className="px-3 py-2.5 text-center">PTI</th>
                 <th className="px-3 py-2.5">Created by</th>
                 <th className="px-3 py-2.5 text-center">Actions</th>
               </tr>
@@ -553,16 +554,6 @@ function CarryoverTable() {
                         </td>
                       );
                     })}
-                    <td
-                      className="px-3 py-2.5 text-center text-sm"
-                      title="PTI is completed via the full checklist — click Edit"
-                    >
-                      {t.pti_verified ? (
-                        <span className="font-semibold text-emerald-600">✓</span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
                     <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">
                       {t.creator.username}
                     </td>

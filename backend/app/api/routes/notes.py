@@ -222,6 +222,25 @@ def resolve_note(
     return note
 
 
+@router.delete("/api/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_note(
+    note_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
+):
+    """R18: notes are deletable by their author or a manager (any status).
+    Resolve remains the normal way to close a published note — delete is for
+    mistakes and stale entries."""
+    note = _get_note_or_404(db, note_id)
+    if current_user.role != UserRole.manager and note.created_by != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the author or a manager can delete a note.",
+        )
+    db.delete(note)
+    db.commit()
+
+
 @router.patch("/api/notes/{note_id}", response_model=NoteOut)
 def update_note(
     note_id: uuid.UUID,

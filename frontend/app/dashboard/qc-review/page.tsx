@@ -14,6 +14,7 @@ import {
   type MediaType,
   type Ticket,
 } from "@/lib/types";
+import { ptiKeyLabels } from "@/lib/pti";
 import {
   matchesDayShift,
   matchesSearch,
@@ -373,6 +374,10 @@ function QCQueue() {
               )}
             </div>
 
+            {/* R18: read-only granular PTI video log — context only, the
+                master PTI pill above is the verification status */}
+            <PtiLog checklist={t.pti_checklist} />
+
             {t.condition_notes && (
               <p className="mb-3 rounded bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {t.condition_notes}
@@ -720,6 +725,40 @@ function Detail({ label, value }: { label: string; value: string }) {
         {value}
       </dd>
     </div>
+  );
+}
+
+const PTI_LABELS = ptiKeyLabels();
+
+/** R18: what the employee logged from the PTI video — read-only for QC;
+ *  never drives a flag, the master PTI checkbox is the verification. */
+function PtiLog({ checklist }: { checklist: Record<string, boolean> | null }) {
+  const checked = Object.entries(checklist ?? {})
+    .filter(([, v]) => v)
+    .map(([k]) => PTI_LABELS[k] ?? k);
+  const total = Object.keys(PTI_LABELS).length;
+  return (
+    <details className="mb-3 rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800/50">
+      <summary className="cursor-pointer font-medium text-slate-600 dark:text-slate-300">
+        PTI video log — {checked.length}/{total} item(s) noted (read-only)
+      </summary>
+      {checked.length === 0 ? (
+        <p className="mt-1.5 text-slate-500 dark:text-slate-400">
+          Nothing logged from the video for this pickup.
+        </p>
+      ) : (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {checked.map((label) => (
+            <span
+              key={label}
+              className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      )}
+    </details>
   );
 }
 
