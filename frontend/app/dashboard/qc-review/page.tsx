@@ -16,6 +16,7 @@ import {
 } from "@/lib/types";
 import { ptiKeyLabels } from "@/lib/pti";
 import {
+  fmtCstDate,
   matchesDayShift,
   matchesSearch,
   SHIFT_LABELS,
@@ -356,6 +357,12 @@ function QCQueue() {
               />
               <Detail label="Weight" value={t.weight || "—"} />
               <Detail label="Condition" value={t.trailer_condition ?? "—"} />
+              {/* R20: historical context — last time this truck/trailer had
+                  a verified PTI, so QC isn't reviewing blind */}
+              <Detail
+                label="Last PTI Date"
+                value={t.last_pti_date ? fmtCstDate(t.last_pti_date) : "No prior record"}
+              />
             </dl>
 
             <div className="mb-3 flex flex-wrap gap-1.5 text-xs">

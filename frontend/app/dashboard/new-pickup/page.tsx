@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare, FileClock, Fuel, Loader2, MapPin, Truck, User } from "lucide-react";
+import { CheckSquare, FileClock, Fuel, Loader2, MapPin, Trash2, Truck, User } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
@@ -551,6 +551,21 @@ function NewPickupForm() {
     }
   }
 
+  // R20: discard a parked draft outright — load canceled, no longer needed
+  async function discardDraft() {
+    if (!editId) return;
+    if (!window.confirm("Discard this draft permanently? This cannot be undone.")) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api<void>(`/api/tickets/${editId}`, { method: "DELETE" });
+      router.push("/dashboard/carryover");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not discard the draft.");
+      setSubmitting(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -1085,6 +1100,19 @@ function NewPickupForm() {
             >
               <FileClock className="h-4 w-4" aria-hidden="true" />
               Save Draft (Still Sending)
+            </button>
+          )}
+          {/* R20: discard a parked draft outright — load canceled, no need
+              to keep cluttering Active Drafts or Carryover */}
+          {editId && loadedState === "DRAFT_IN_PROGRESS" && (
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={discardDraft}
+              className="flex cursor-pointer items-center gap-2 rounded border-2 border-red-300 px-5 py-2.5 text-sm font-semibold text-red-700 transition-colors duration-150 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Discard Draft
             </button>
           )}
           {editId && (

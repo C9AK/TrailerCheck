@@ -13,6 +13,7 @@ import {
   StickyNote,
   Table2,
   Timer,
+  Trash2,
   Trophy,
   Truck,
   Users,
@@ -219,6 +220,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [token, role, pathname]);
 
+  // R20: discard a parked draft outright (load canceled, no longer needed)
+  async function discardDraft(id: string) {
+    if (!window.confirm("Discard this draft? This cannot be undone.")) return;
+    try {
+      await api<void>(`/api/tickets/${id}`, { method: "DELETE" });
+      setDrafts((prev) => prev.filter((d) => d.id !== id));
+    } catch {
+      setToast({ msg: "Could not discard the draft — try again.", tone: "warn" });
+    }
+  }
+
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(null), 12_000);
@@ -296,18 +308,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </p>
             <div className="max-h-40 space-y-1 overflow-y-auto">
               {drafts.map((d) => (
-                <button
+                <div
                   key={d.id}
-                  type="button"
-                  title={`Resume draft for truck ${d.truck_number} (${d.motor_carrier.name})`}
-                  onClick={() => router.push(`/dashboard/new-pickup?edit=${d.id}`)}
-                  className="flex w-full cursor-pointer items-center justify-between gap-2 rounded border border-sky-200 bg-sky-50 px-2 py-1.5 text-left text-xs font-medium text-sky-900 transition-colors duration-150 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/70"
+                  className="flex items-center gap-1 rounded border border-sky-200 bg-sky-50 pl-2 pr-1 py-1.5 text-xs font-medium text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200"
                 >
-                  <span className="truncate font-mono font-semibold">{d.truck_number}</span>
-                  <span className="truncate text-[10px] text-sky-600 dark:text-sky-400">
-                    {d.motor_carrier.name}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    title={`Resume draft for truck ${d.truck_number} (${d.motor_carrier.name})`}
+                    onClick={() => router.push(`/dashboard/new-pickup?edit=${d.id}`)}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 text-left transition-colors duration-150"
+                  >
+                    <span className="truncate font-mono font-semibold">{d.truck_number}</span>
+                    <span className="truncate text-[10px] text-sky-600 dark:text-sky-400">
+                      {d.motor_carrier.name}
+                    </span>
+                  </button>
+                  {/* R20: discard a draft that's no longer needed (load canceled) */}
+                  <button
+                    type="button"
+                    aria-label={`Discard draft for truck ${d.truck_number}`}
+                    title="Discard this draft"
+                    onClick={() => discardDraft(d.id)}
+                    className="shrink-0 cursor-pointer rounded p-1 text-sky-700 hover:bg-red-100 hover:text-red-700 dark:text-sky-300 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </div>
               ))}
             </div>
           </div>

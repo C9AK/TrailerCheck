@@ -98,3 +98,8 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 
 * **Tables:** Carryover and My History table wrappers use `max-h-[calc(100vh-230px)] overflow-auto` with a sticky `<thead>` - vertical scrolling happens inside the wrapper, so the horizontal scrollbar is always visible without scrolling to the last row. (All Pickups already used this pattern; QC Review is a card grid with no horizontal scroll.)
 * **Bulk notes:** the manual-note input is a textarea; on submit the text splits on line breaks, trims each line, skips empties, and creates ONE note per line. Button shows "Add N notes" for multi-line input; success shows a banner plus a toast with the created count; partial failures report "Created N of M". Enter submits, Shift+Enter adds a line.
+
+## Revision R20 (2026-07-15) - Discard Draft + Last PTI Date
+
+* **Discard Draft:** trash icon on each row of the Active Drafts sidebar panel, and a "Discard Draft" button (next to Save Draft/Submit) when the New Pickup form is resuming a `DRAFT_IN_PROGRESS` ticket. Both confirm before permanently deleting.
+* **Last PTI Date:** QC Review cards show "Last PTI Date: MM/DD/YYYY" (CST, via new `fmtCstDate`) sourced from the backend's per-ticket historical lookup; reads "No prior record" when the truck/trailer has never had a verified PTI before.

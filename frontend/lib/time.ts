@@ -27,6 +27,13 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
   second: "2-digit",
 });
 
+const dateOnlyFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: DISPATCH_TZ,
+  month: "2-digit",
+  day: "2-digit",
+  year: "numeric",
+});
+
 /** "Jul 15, 3:42 PM" in Central Time. */
 export function fmtCst(iso: string | Date): string {
   return dateTimeFmt.format(typeof iso === "string" ? new Date(iso) : iso);
@@ -40,6 +47,11 @@ export function fmtCstFull(iso: string | Date): string {
 /** "3:42:07 PM" in Central Time (live "updated" stamps). */
 export function fmtCstTime(iso: string | Date): string {
   return timeFmt.format(typeof iso === "string" ? new Date(iso) : iso);
+}
+
+/** "07/15/2026" in Central Time — date-only, no time-of-day component. */
+export function fmtCstDate(iso: string | Date): string {
+  return dateOnlyFmt.format(typeof iso === "string" ? new Date(iso) : iso);
 }
 
 // ---------------------------------------------------------------------------

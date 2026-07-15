@@ -67,6 +67,23 @@ def _pti_gate_passed(ticket: PickupTicket) -> bool:
     return False
 
 
+def get_last_pti_date(db: Session, ticket: PickupTicket) -> datetime | None:
+    """R20: most recent OTHER ticket for this same truck/trailer with the
+    master PTI checkbox verified — historical context for QC Review.
+    Matched by trailer_id when the ticket has one (LOT trailers, a stable
+    identity), otherwise by truck_number (standard pickups)."""
+    q = select(PickupTicket.created_at).where(
+        PickupTicket.pti_verified.is_(True),
+        PickupTicket.id != ticket.id,
+    )
+    if ticket.trailer_id is not None:
+        q = q.where(PickupTicket.trailer_id == ticket.trailer_id)
+    else:
+        q = q.where(PickupTicket.truck_number == ticket.truck_number)
+    q = q.order_by(PickupTicket.created_at.desc()).limit(1)
+    return db.scalar(q)
+
+
 def is_ready_for_qc(ticket: PickupTicket) -> bool:
     """All required fields complete -> eligible for PENDING_QC.
     R8: inspection paper OR sticker suffices (either one, not both)."""

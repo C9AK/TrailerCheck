@@ -98,3 +98,8 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 * **Master PTI checkbox:** `pti_verified` IS the master "PTI" boolean and is now set DIRECTLY by the dispatcher (no new column - adding a second flag would have created two sources of truth). The granular `pti_checklist` is a video log only: it is stored verbatim and NEVER derives, gates, or un-verifies PTI. `compute_pti_verified` is no longer called by any route; `is_chassis` is informational. All downstream gates (send-to-QC readiness, LOT 7-day window) read `pti_verified` unchanged.
 * `DELETE /api/notes/{id}` (employee/qc/manager): hard delete by the note's AUTHOR or a manager, any status (403 otherwise). Resolve remains the normal close path.
 * QC notes parity (create/read/edit/publish/resolve) was shipped in R14 and is unchanged.
+
+## Revision R20 (2026-07-15) - Draft deletion + Last PTI Date on QC queue
+
+* `DELETE /api/tickets/{id}` already had no state restriction, so deleting a `DRAFT_IN_PROGRESS` ticket worked without backend changes (same ownership rules: creator, QC, or manager).
+* `GET /api/tickets/qc` now attaches `last_pti_date` to every ticket: the `created_at` of the most recent OTHER ticket for the same truck/trailer with the master `pti_verified` checkbox true (matched by `trailer_id` for LOT trailers, else `truck_number`). `TicketOut.last_pti_date` is optional and defaults to null everywhere except this endpoint.

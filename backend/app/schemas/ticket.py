@@ -162,6 +162,10 @@ class TicketOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     audit_flags: list[FlagOut] = []
+    # R20: historical context for the QC Review card — the most recent OTHER
+    # ticket for this same truck/trailer that had the master PTI checkbox
+    # verified. Only populated by GET /api/tickets/qc; None everywhere else.
+    last_pti_date: datetime | None = None
 
 
 class FlagMediaIn(BaseModel):

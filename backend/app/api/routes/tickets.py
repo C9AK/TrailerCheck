@@ -32,7 +32,7 @@ from app.schemas.ticket import (
 )
 from app.services.activity import record_event
 from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply_teamwork_bonus
-from app.services.ticket_lifecycle import is_ready_for_qc, resolve_lot_trailer
+from app.services.ticket_lifecycle import get_last_pti_date, is_ready_for_qc, resolve_lot_trailer
 
 
 router = APIRouter(tags=["tickets"])
@@ -379,7 +379,7 @@ def get_qc_queue(
     states = [TicketState.PENDING_QC, TicketState.RESOLVED]
     if include_awaiting:
         states.append(TicketState.AWAITING_DRIVER)
-    return (
+    tickets = (
         db.scalars(
             _ticket_query.where(PickupTicket.state.in_(states)).order_by(
                 PickupTicket.updated_at.asc()
@@ -388,6 +388,12 @@ def get_qc_queue(
         .unique()
         .all()
     )
+    # R20: attach each ticket's historical last-PTI-date for the QC card.
+    # Not a mapped column — a transient attribute read by TicketOut's
+    # optional last_pti_date field, never persisted.
+    for t in tickets:
+        t.last_pti_date = get_last_pti_date(db, t)
+    return tickets
 
 
 @router.get("/api/tickets/my-history", response_model=list[TicketOut])

@@ -137,6 +137,8 @@ export interface Ticket {
   created_at: string;
   updated_at: string;
   audit_flags: AuditFlag[];
+  // R20: only populated on GET /api/tickets/qc — historical context card
+  last_pti_date: string | null;
 }
 
 export type AuditEventType =
