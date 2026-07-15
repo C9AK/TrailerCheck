@@ -464,9 +464,11 @@ function CarryoverTable() {
       )}
 
       {sorted.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900">
+        // R19: vertical scroll happens INSIDE this wrapper so the horizontal
+        // scrollbar stays pinned on-screen no matter which row you're on.
+        <div className="max-h-[calc(100vh-230px)] overflow-auto rounded-lg border border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full min-w-[980px] text-left text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
               <tr className="border-b border-blue-100 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 <th className="px-3 py-2.5">Truck #</th>
                 <th className="px-3 py-2.5">Status</th>

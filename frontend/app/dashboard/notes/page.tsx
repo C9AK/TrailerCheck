@@ -75,22 +75,52 @@ function NotesBoard() {
     return () => clearInterval(id);
   }, [loadDrafts, loadGlobal]);
 
+  // R19 bulk paste: each non-empty line becomes its OWN note, so a pasted
+  // list of missing documents lands as individual actionable items.
   async function addDraft() {
-    const content = newNote.trim();
-    if (!content) return;
+    const lines = newNote
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    if (lines.length === 0) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
+    let created = 0;
     try {
-      await api<ShiftNote>("/api/notes", {
-        method: "POST",
-        body: JSON.stringify({ content }),
-      });
+      for (const content of lines) {
+        await api<ShiftNote>("/api/notes", {
+          method: "POST",
+          body: JSON.stringify({ content }),
+        });
+        created++;
+      }
       setNewNote("");
-      loadDrafts();
+      setNotice(
+        created === 1
+          ? "Note added to your drafts."
+          : `Bulk paste: ${created} separate notes created.`
+      );
+      if (created > 1) {
+        window.dispatchEvent(
+          new CustomEvent("tc-toast", {
+            detail: {
+              msg: `${created} notes created from your pasted list — ready to publish.`,
+              tone: "warn",
+            },
+          })
+        );
+      }
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Failed to save the note.");
+      const msg = e instanceof ApiError ? e.message : "Failed to save the note.";
+      setError(
+        created > 0
+          ? `Created ${created} of ${lines.length} note(s), then failed: ${msg}`
+          : msg
+      );
     } finally {
       setBusy(false);
+      loadDrafts();
     }
   }
 
@@ -270,27 +300,36 @@ function NotesBoard() {
             ))}
           </ul>
 
+          {/* R19: multi-line aware — paste a list and every line becomes its
+              own note. Enter submits, Shift+Enter adds a manual line. */}
           <div className="mb-4 flex gap-2">
-            <input
+            <textarea
+              rows={2}
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   addDraft();
                 }
               }}
-              placeholder='e.g. "Driver for 4005 said his phone died, call dispatch at 8 PM"'
-              className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-800 dark:border-slate-700 dark:bg-slate-800"
+              placeholder={
+                'e.g. "Driver for 4005 said his phone died, call dispatch at 8 PM"\n' +
+                "Paste a multi-line list to create one note per line."
+              }
+              className="min-w-0 flex-1 resize-y rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-800 dark:border-slate-700 dark:bg-slate-800"
             />
             <button
               type="button"
               onClick={addDraft}
               disabled={busy || !newNote.trim()}
-              className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-3 py-2 text-sm font-medium transition-colors duration-150 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              className="flex cursor-pointer items-center gap-1.5 self-start rounded border border-slate-300 px-3 py-2 text-sm font-medium transition-colors duration-150 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              Add note
+              {(() => {
+                const n = newNote.split("\n").filter((l) => l.trim()).length;
+                return n > 1 ? `Add ${n} notes` : "Add note";
+              })()}
             </button>
           </div>
 

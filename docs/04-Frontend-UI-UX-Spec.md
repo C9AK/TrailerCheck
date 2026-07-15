@@ -93,3 +93,8 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 * **Carryover:** PTI is now an inline-editable checkbox column like the rest (the old read-only "via full checklist" cell is gone) - ticking it can promote the ticket to PENDING_QC.
 * **QC Review:** the PTI pill shows the master status; a collapsible read-only "PTI video log - N/M item(s) noted" panel lists exactly which granular items the employee checked, for context without false flags.
 * **Notes:** Edit/Done buttons on the global board now show for QC too; delete buttons (trash) on draft and published notes for the author or a manager, wired to the new DELETE endpoint.
+
+## Revision R19 (2026-07-15) - Sticky table scrollbars + bulk note paste
+
+* **Tables:** Carryover and My History table wrappers use `max-h-[calc(100vh-230px)] overflow-auto` with a sticky `<thead>` - vertical scrolling happens inside the wrapper, so the horizontal scrollbar is always visible without scrolling to the last row. (All Pickups already used this pattern; QC Review is a card grid with no horizontal scroll.)
+* **Bulk notes:** the manual-note input is a textarea; on submit the text splits on line breaks, trims each line, skips empties, and creates ONE note per line. Button shows "Add N notes" for multi-line input; success shows a banner plus a toast with the created count; partial failures report "Created N of M". Enter submits, Shift+Enter adds a line.
