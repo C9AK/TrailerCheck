@@ -1,11 +1,13 @@
 "use client";
 
-import { RefreshCw, Trash2, X } from "lucide-react";
+import { Pencil, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, StateBadge } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { fmtCstFull, matchesSearch } from "@/lib/time";
 import type { Ticket } from "@/lib/types";
 
 const inputCls =
@@ -20,10 +22,12 @@ export default function MyHistoryPage() {
 }
 
 function MyHistoryTable() {
+  const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [onDate, setOnDate] = useState("");
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +67,25 @@ function MyHistoryTable() {
           </p>
         </div>
         <div className="flex items-end gap-2">
+          <div>
+            <label htmlFor="hist-search" className="mb-1 block text-xs font-medium">
+              Search
+            </label>
+            <span className="relative block">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                id="hist-search"
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Truck # or MC…"
+                className={`${inputCls} w-44 pl-8`}
+              />
+            </span>
+          </div>
           <div>
             <label htmlFor="hist-date" className="mb-1 block text-xs font-medium">
               Day
@@ -117,17 +140,17 @@ function MyHistoryTable() {
                 <th className="px-3 py-2.5">State</th>
                 <th className="px-3 py-2.5 text-center">Flags</th>
                 <th className="px-3 py-2.5 text-center">PTI</th>
-                <th className="px-3 py-2.5 text-center">Del</th>
+                <th className="px-3 py-2.5 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {tickets.map((t) => (
+              {tickets.filter((t) => matchesSearch(t, search)).map((t) => (
                 <tr
                   key={t.id}
                   className="border-b border-slate-100 last:border-0 dark:border-slate-800"
                 >
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
-                    {new Date(t.created_at).toLocaleString()}
+                    {fmtCstFull(t.created_at)}
                   </td>
                   <td className="px-3 py-2.5 font-mono font-semibold">{t.truck_number}</td>
                   <td className="px-3 py-2.5">{t.motor_carrier.name}</td>
@@ -148,14 +171,27 @@ function MyHistoryTable() {
                     {t.pti_verified ? "✓" : "—"}
                   </td>
                   <td className="px-3 py-2.5 text-center">
-                    <button
-                      type="button"
-                      aria-label={`Delete truck ${t.truck_number}`}
-                      onClick={() => deleteTicket(t)}
-                      className="cursor-pointer rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
+                    <span className="flex justify-center gap-1">
+                      {/* R17: creators can correct their own pickups from
+                          history — even after approval */}
+                      <button
+                        type="button"
+                        aria-label={`Edit truck ${t.truck_number}`}
+                        title="Open the full pickup form pre-filled with this ticket"
+                        onClick={() => router.push(`/dashboard/new-pickup?edit=${t.id}`)}
+                        className="cursor-pointer rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete truck ${t.truck_number}`}
+                        onClick={() => deleteTicket(t)}
+                        className="cursor-pointer rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </span>
                   </td>
                 </tr>
               ))}

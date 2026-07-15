@@ -31,6 +31,8 @@ class TicketCreate(BaseModel):
     sticker_verified: bool = False
     is_ca_fl_destination: bool = False
     bol_present: bool = False
+    eld_mentioned: bool = False  # R17
+    checklist_sent: bool = False  # R17
     weight: str | None = Field(default=None, max_length=100)  # R7: free text
     trailer_condition: TrailerCondition | None = None
     condition_notes: str | None = None
@@ -41,6 +43,9 @@ class TicketCreate(BaseModel):
     pti_checklist: dict[str, bool] | None = None
     pti_verified: bool = False
     is_chassis: bool = False
+    # R17 "Still Sending": park the ticket as DRAFT_IN_PROGRESS instead of
+    # entering the normal AWAITING/PENDING_QC lifecycle.
+    still_sending: bool = False
 
     @field_validator("weight", mode="before")
     @classmethod
@@ -65,6 +70,8 @@ class TicketUpdate(BaseModel):
     sticker_verified: bool | None = None
     is_ca_fl_destination: bool | None = None
     bol_present: bool | None = None
+    eld_mentioned: bool | None = None  # R17
+    checklist_sent: bool | None = None  # R17
     weight: str | None = Field(default=None, max_length=100)
     trailer_condition: TrailerCondition | None = None
     condition_notes: str | None = None
@@ -73,6 +80,9 @@ class TicketUpdate(BaseModel):
     pti_checklist: dict[str, bool] | None = None
     pti_verified: bool | None = None
     is_chassis: bool | None = None
+    # R17: True keeps a DRAFT_IN_PROGRESS parked; False submits it into the
+    # normal lifecycle. Not a column — consumed by the route, never setattr'd.
+    still_sending: bool | None = None
 
     @field_validator("weight", mode="before")
     @classmethod
@@ -127,6 +137,8 @@ class TicketOut(BaseModel):
     sticker_verified: bool
     is_ca_fl_destination: bool
     bol_present: bool
+    eld_mentioned: bool
+    checklist_sent: bool
     weight: str | None
 
     @field_validator("weight", mode="before")

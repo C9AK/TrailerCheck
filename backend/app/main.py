@@ -26,9 +26,43 @@ from app.core.database import Base, engine
 async def lifespan(app: FastAPI):
     # Dev convenience; replace with Alembic migrations for production.
     _migrate_feed_ticket_nullable()
+    _migrate_r17()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     yield
+
+
+def _migrate_r17() -> None:
+    """R17 in-place migration: DRAFT_IN_PROGRESS enum value (native type on
+    Postgres) + eld_mentioned/checklist_sent columns. Idempotent; no-op on a
+    fresh database (create_all builds everything correctly)."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    if engine.dialect.name == "postgresql":
+        # ADD VALUE is allowed inside a transaction on PG 12+, but AUTOCOMMIT
+        # keeps it safe regardless of server version.
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(
+                text("ALTER TYPE ticket_state ADD VALUE IF NOT EXISTS 'DRAFT_IN_PROGRESS'")
+            )
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    false_lit = "FALSE" if engine.dialect.name == "postgresql" else "0"
+    with engine.begin() as conn:
+        for col in ("eld_mentioned", "checklist_sent"):
+            if col not in cols:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE pickup_tickets ADD COLUMN {col} "
+                        f"BOOLEAN NOT NULL DEFAULT {false_lit}"
+                    )
+                )
+                print(f"R17 migration: added pickup_tickets.{col}")
 
 
 def _migrate_feed_ticket_nullable() -> None:

@@ -45,6 +45,8 @@ export function Toggle({
 
 const STATE_STYLES: Record<TicketState, string> = {
   DRAFT: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  DRAFT_IN_PROGRESS:
+    "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
   AWAITING_DRIVER: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   PENDING_QC: "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200",
   FLAGGED: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
@@ -57,7 +59,7 @@ export function StateBadge({ state }: { state: TicketState }) {
     <span
       className={`inline-flex items-center rounded px-2 py-0.5 font-mono text-xs font-semibold ${STATE_STYLES[state]}`}
     >
-      {state.replace(/_/g, " ")}
+      {state === "DRAFT_IN_PROGRESS" ? "STILL SENDING" : state.replace(/_/g, " ")}
     </span>
   );
 }

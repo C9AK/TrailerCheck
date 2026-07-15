@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, SuccessBanner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { fmtCstFull } from "@/lib/time";
 import type { AutoNote, ShiftNote } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
@@ -345,7 +346,7 @@ function NotesBoard() {
                           auto
                         </span>
                       )}
-                      {n.creator.username} · {new Date(n.created_at).toLocaleString()}
+                      {n.creator.username} · {fmtCstFull(n.created_at)}
                     </p>
                   </div>
                   {(role === "employee" || role === "manager") && (

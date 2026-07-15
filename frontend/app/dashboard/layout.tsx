@@ -5,6 +5,7 @@ import {
   Archive,
   BarChart3,
   ClipboardCheck,
+  FileClock,
   Gauge,
   History,
   LogOut,
@@ -76,6 +77,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // and toast the creator the moment QC flags one of THEIR tickets.
   const [flagCount, setFlagCount] = useState(0);
   const [toast, setToast] = useState<Toast | null>(null);
+  // R17 "Still Sending": the dispatcher's parked drafts, one click to resume
+  const [drafts, setDrafts] = useState<Ticket[]>([]);
   const knownFlagIds = useRef<Set<string> | null>(null);
   // R13: QC gets notified when a flagged pickup comes back RESOLVED
   const knownResolvedIds = useRef<Set<string> | null>(null);
@@ -195,6 +198,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [token, role, username]);
 
+  // R17: keep the Active Drafts panel fresh (poll + refetch on navigation,
+  // so a just-saved draft appears the moment the form redirects away).
+  useEffect(() => {
+    if (!token || !role) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const d = await api<Ticket[]>("/api/tickets/drafts");
+        if (!cancelled) setDrafts(d);
+      } catch {
+        /* transient — keep last known state */
+      }
+    };
+    poll();
+    const id = setInterval(poll, FLAG_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [token, role, pathname]);
+
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(null), 12_000);
@@ -262,6 +286,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
         </nav>
+
+        {/* R17 Active Drafts — parked "Still Sending" pickups, click to resume */}
+        {drafts.length > 0 && (
+          <div className="border-t border-blue-100 p-2 dark:border-slate-800">
+            <p className="mb-1 flex items-center gap-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-400">
+              <FileClock className="h-3.5 w-3.5" aria-hidden="true" />
+              Active Drafts ({drafts.length})
+            </p>
+            <div className="max-h-40 space-y-1 overflow-y-auto">
+              {drafts.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  title={`Resume draft for truck ${d.truck_number} (${d.motor_carrier.name})`}
+                  onClick={() => router.push(`/dashboard/new-pickup?edit=${d.id}`)}
+                  className="flex w-full cursor-pointer items-center justify-between gap-2 rounded border border-sky-200 bg-sky-50 px-2 py-1.5 text-left text-xs font-medium text-sky-900 transition-colors duration-150 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/70"
+                >
+                  <span className="truncate font-mono font-semibold">{d.truck_number}</span>
+                  <span className="truncate text-[10px] text-sky-600 dark:text-sky-400">
+                    {d.motor_carrier.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="border-t border-blue-100 p-3 dark:border-slate-800">
           <p className="mb-2 truncate text-xs text-slate-500 dark:text-slate-400">
             {username} · <span className="font-mono uppercase">{role}</span>

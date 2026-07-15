@@ -84,3 +84,11 @@ Implement these routes in FastAPI. All routes (except login) require JWT authent
 ## Revision R16 (2026-07-14) - QC delete power
 
 * `DELETE /api/tickets/{id}`: QC may now delete ANY pickup, same as a manager (employees remain limited to their own). Editing other users' tickets is still manager-only. Deletions stay on permanent record in the audit log and live feed.
+
+## Revision R17 (2026-07-15) - Draft lifecycle, history edits, new fields
+
+* `POST /api/tickets` accepts `still_sending: true` -> ticket is created as `DRAFT_IN_PROGRESS` regardless of completeness; `submitted_to_qc_at` stays null while parked.
+* `PATCH /api/tickets/{id}` accepts `still_sending`: `true` keeps a draft parked; `false` graduates it into the normal lifecycle (AWAITING_DRIVER, or straight to PENDING_QC + SENT_TO_QC event when the readiness gate passes). The flag is consumed by the route, never stored.
+* `GET /api/tickets/drafts` (employee/qc/manager): the caller's own `DRAFT_IN_PROGRESS` pickups, oldest first. Drafts are personal.
+* `eld_mentioned` and `checklist_sent` on create/update/read.
+* **History edits:** the CREATOR of a ticket may now edit it in ANY state including APPROVED (`created_by == current_user.id`); non-creators still need manager rights. Enables My History fix-ups for employees and QC.

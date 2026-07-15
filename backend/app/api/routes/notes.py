@@ -53,6 +53,8 @@ def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
                 or_(
                     PickupTicket.state == TicketState.AWAITING_DRIVER,
                     and_(
+                        # R17: parked drafts aren't in play yet — no notes
+                        PickupTicket.state != TicketState.DRAFT_IN_PROGRESS,
                         PickupTicket.needs_scale.is_(True),
                         PickupTicket.scale_ticket_received.is_(False),
                     ),

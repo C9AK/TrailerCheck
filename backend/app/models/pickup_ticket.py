@@ -48,6 +48,9 @@ class PickupTicket(Base):
     sticker_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_ca_fl_destination: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     bol_present: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # R17: extra checkout confirmations (informational — not QC gates)
+    eld_mentioned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    checklist_sent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # R7: free-text — scale tickets sometimes carry annotations, not just numbers
     weight: Mapped[str | None] = mapped_column(String(100), nullable=True)
     trailer_condition: Mapped[TrailerCondition | None] = mapped_column(

@@ -66,7 +66,9 @@ def create_ticket(
     ticket = PickupTicket(
         created_by=current_user.id,
         trailer_id=trailer.id if trailer else None,
-        **payload.model_dump(exclude={"trailer_number", "last_pti_date_override"}),
+        **payload.model_dump(
+            exclude={"trailer_number", "last_pti_date_override", "still_sending"}
+        ),
     )
 
     # R8: structured checklist drives the derived pti_verified gate
@@ -82,11 +84,16 @@ def create_ticket(
 
     db.add(ticket)
     db.flush()  # assign ticket.id and load relations for the readiness check
-    ticket.state = (
-        TicketState.PENDING_QC if is_ready_for_qc(ticket) else TicketState.AWAITING_DRIVER
-    )
-    if ticket.state == TicketState.PENDING_QC:
-        ticket.submitted_to_qc_at = datetime.now(timezone.utc)
+    if payload.still_sending:
+        # R17 "Still Sending": park the ticket so the dispatcher can juggle
+        # several concurrent pickups; it enters the lifecycle on submit.
+        ticket.state = TicketState.DRAFT_IN_PROGRESS
+    else:
+        ticket.state = (
+            TicketState.PENDING_QC if is_ready_for_qc(ticket) else TicketState.AWAITING_DRIVER
+        )
+        if ticket.state == TicketState.PENDING_QC:
+            ticket.submitted_to_qc_at = datetime.now(timezone.utc)
     record_event(db, ticket, current_user, AuditEvent.TICKET_CREATED)
 
     db.commit()
@@ -116,13 +123,21 @@ def update_ticket(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only edit tickets you created.",
         )
-    if ticket.state == TicketState.APPROVED and current_user.role != UserRole.manager:
+    # R17: the CREATOR may edit their own ticket even after approval (My
+    # History corrections); everyone else still needs manager rights.
+    if (
+        ticket.state == TicketState.APPROVED
+        and current_user.role != UserRole.manager
+        and ticket.created_by != current_user.id
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="APPROVED is a terminal state — only a manager can edit this ticket.",
+            detail="APPROVED is a terminal state — only its creator or a manager can edit it.",
         )
 
     updates = payload.model_dump(exclude_unset=True)
+    # R17 "Still Sending" control flag — consumed here, never a column.
+    still_sending = updates.pop("still_sending", None)
     # R14: the MC is editable after creation — validate it exists first so the
     # FK never blows up mid-commit.
     if "mc_id" in updates and updates["mc_id"] is not None:
@@ -145,8 +160,14 @@ def update_ticket(
     if ticket.needs_scale and not ticket.scale_ticket_received and ticket.scale_requested_at is None:
         ticket.scale_requested_at = datetime.now(timezone.utc)
 
+    # R17: a parked draft stays parked while still_sending; an explicit
+    # still_sending=False submit graduates it into the normal lifecycle.
+    if ticket.state == TicketState.DRAFT_IN_PROGRESS and still_sending is False:
+        ticket.state = TicketState.AWAITING_DRIVER
+
     # AWAITING_DRIVER/DRAFT + all required fields complete (incl. the PTI gate)
-    # -> PENDING_QC. FLAGGED tickets stay FLAGGED until the explicit /resolve.
+    # -> PENDING_QC. FLAGGED tickets stay FLAGGED until the explicit /resolve;
+    # DRAFT_IN_PROGRESS stays parked until submitted.
     if ticket.state in (TicketState.DRAFT, TicketState.AWAITING_DRIVER) and is_ready_for_qc(
         ticket
     ):
@@ -314,6 +335,25 @@ def get_carryover(
                     [TicketState.AWAITING_DRIVER, TicketState.PENDING_QC, TicketState.RESOLVED]
                 )
             ).order_by(PickupTicket.scale_requested_at.asc().nulls_last())
+        )
+        .unique()
+        .all()
+    )
+
+
+@router.get("/api/tickets/drafts", response_model=list[TicketOut])
+def get_my_drafts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
+):
+    """R17 'Still Sending' panel: the caller's parked DRAFT_IN_PROGRESS
+    pickups, oldest first. Drafts are personal — you only resume your own."""
+    return (
+        db.scalars(
+            _ticket_query.where(
+                PickupTicket.state == TicketState.DRAFT_IN_PROGRESS,
+                PickupTicket.created_by == current_user.id,
+            ).order_by(PickupTicket.created_at.asc())
         )
         .unique()
         .all()

@@ -2,6 +2,7 @@ export type Role = "employee" | "qc" | "manager";
 
 export type TicketState =
   | "DRAFT"
+  | "DRAFT_IN_PROGRESS"
   | "AWAITING_DRIVER"
   | "PENDING_QC"
   | "FLAGGED"
@@ -117,6 +118,8 @@ export interface Ticket {
   sticker_verified: boolean;
   is_ca_fl_destination: boolean;
   bol_present: boolean;
+  eld_mentioned: boolean;
+  checklist_sent: boolean;
   weight: string | null;
   trailer_condition: TrailerCondition | null;
   condition_notes: string | null;

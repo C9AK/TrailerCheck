@@ -99,3 +99,9 @@ Implement this relational structure in PostgreSQL. Enforce foreign keys and time
 * `Live_Activity_Feed.ticket_id` is now NULLABLE. On ticket deletion, feed rows (and audit-log rows, as before) are DETACHED (`ticket_id -> NULL`), never deleted - the denormalized snapshots keep history readable and fix the Postgres foreign-key IntegrityError that made deletes fail in production. `QC_Audit_Flags` (+ their media) continue to cascade-delete with the ticket.
 * In-place startup migration (runs automatically on boot, no-op once applied): Postgres `ALTER COLUMN ... DROP NOT NULL`; SQLite table rebuild with row copy.
 * `Shift_Notes` remain fully independent of tickets (no FK) - they never block deletion and never disappear on ticket state changes.
+
+## Revision R17 (2026-07-15) - "Still Sending" drafts + new checklist fields
+
+* `ticket_state` enum gains `DRAFT_IN_PROGRESS` - a deliberately parked pickup (dispatcher juggling several trailers at once). Parked drafts are excluded from the carryover board, QC queue, and shift-note compilation until submitted.
+* `Pickup_Tickets` gains `eld_mentioned` (Boolean, default false) and `checklist_sent` (Boolean, default false) - informational checkout confirmations, NOT QC gates.
+* Automatic startup migration: Postgres `ALTER TYPE ticket_state ADD VALUE` + `ADD COLUMN`s; SQLite `ADD COLUMN`s (state column is unconstrained VARCHAR).

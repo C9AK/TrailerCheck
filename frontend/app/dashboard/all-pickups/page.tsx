@@ -1,11 +1,19 @@
 "use client";
 
-import { Check, Minus, RefreshCw } from "lucide-react";
+import { Check, Minus, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, StateBadge } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import {
+  fmtCst,
+  fmtCstTime,
+  matchesDayShift,
+  matchesSearch,
+  SHIFT_LABELS,
+  type Shift,
+} from "@/lib/time";
 import type { Ticket } from "@/lib/types";
 
 const POLL_MS = 20_000;
@@ -18,6 +26,8 @@ const SHEET_CHECKS: { key: keyof Ticket & string; label: string }[] = [
   { key: "bol_present", label: "BOL" },
   { key: "pti_verified", label: "PTI" },
   { key: "scale_ticket_received", label: "Scale" },
+  { key: "eld_mentioned", label: "ELD" },
+  { key: "checklist_sent", label: "CkLst" },
 ];
 
 export default function AllPickupsPage() {
@@ -33,6 +43,10 @@ function GlobalSheet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // R17: search + CST day/shift filters
+  const [search, setSearch] = useState("");
+  const [day, setDay] = useState("");
+  const [shift, setShift] = useState<Shift | "">("");
 
   const load = useCallback(async () => {
     try {
@@ -58,10 +72,10 @@ function GlobalSheet() {
         <div>
           <h1 className="font-mono text-xl font-semibold">All Pickups — Global Sheet</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Every ticket across the whole team, live
+            Every ticket across the whole team, live — times in CST
             {lastUpdated && (
               <span className="ml-2 font-mono text-xs">
-                (updated {lastUpdated.toLocaleTimeString()})
+                (updated {fmtCstTime(lastUpdated)})
               </span>
             )}
           </p>
@@ -74,6 +88,57 @@ function GlobalSheet() {
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
           Refresh
         </button>
+      </div>
+
+      {/* R17: search + CST day/shift filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="relative">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search truck # or MC…"
+            aria-label="Search by truck number or motor carrier"
+            className="w-56 rounded border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
+        </span>
+        <input
+          type="date"
+          value={day}
+          onChange={(e) => setDay(e.target.value)}
+          aria-label="Filter by day (CST)"
+          className="rounded border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        />
+        <select
+          value={shift}
+          onChange={(e) => setShift(e.target.value as Shift | "")}
+          aria-label="Filter by shift (CST)"
+          className="rounded border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <option value="">All shifts</option>
+          {(Object.keys(SHIFT_LABELS) as Shift[]).map((s) => (
+            <option key={s} value={s}>
+              {SHIFT_LABELS[s]}
+            </option>
+          ))}
+        </select>
+        {(search || day || shift) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setDay("");
+              setShift("");
+            }}
+            className="cursor-pointer rounded px-2 py-1 text-xs font-medium text-slate-500 underline hover:text-slate-800 dark:hover:text-slate-200"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       <ErrorBanner message={error} />
@@ -103,7 +168,12 @@ function GlobalSheet() {
               </tr>
             </thead>
             <tbody>
-              {tickets.map((t, i) => (
+              {tickets
+                .filter(
+                  (t) =>
+                    matchesSearch(t, search) && matchesDayShift(t.created_at, day, shift)
+                )
+                .map((t, i) => (
                 <tr
                   key={t.id}
                   className={`border-b border-slate-100 last:border-0 dark:border-slate-800 ${
@@ -111,12 +181,7 @@ function GlobalSheet() {
                   }`}
                 >
                   <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs">
-                    {new Date(t.created_at).toLocaleString(undefined, {
-                      month: "numeric",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {fmtCst(t.created_at)}
                   </td>
                   <td className="px-3 py-1.5 font-mono font-semibold">{t.truck_number}</td>
                   <td className="px-3 py-1.5">{t.motor_carrier.name}</td>

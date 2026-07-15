@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, StateBadge } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { fmtCstFull } from "@/lib/time";
 import { CATEGORY_LABELS, type QCHistoryItem } from "@/lib/types";
 
 type Outcome = "approved" | "flagged";
@@ -147,7 +148,7 @@ function QCHistoryTable() {
                   className="border-b border-slate-100 last:border-0 dark:border-slate-800"
                 >
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
-                    {new Date(processed_at).toLocaleString()}
+                    {fmtCstFull(processed_at)}
                   </td>
                   <td className="px-3 py-2.5 font-mono font-semibold">{t.truck_number}</td>
                   <td className="px-3 py-2.5">{t.motor_carrier.name}</td>

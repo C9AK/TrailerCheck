@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Ban, Flag, Loader2, Pencil, RefreshCw, Send, Siren, Trash2, X } from "lucide-react";
+import { AlertCircle, Ban, Flag, Loader2, Pencil, RefreshCw, Search, Send, Siren, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -10,6 +10,12 @@ import RequireRole from "@/components/RequireRole";
 import { ErrorBanner } from "@/components/ui";
 import { getTimerInfo, useNow } from "@/hooks/useTicketTimer";
 import { api, ApiError, mediaUrl } from "@/lib/api";
+import {
+  matchesDayShift,
+  matchesSearch,
+  SHIFT_LABELS,
+  type Shift,
+} from "@/lib/time";
 import { CATEGORY_LABELS, type Ticket, type TicketState } from "@/lib/types";
 
 /** Active-board status badges — tickets stay visible until APPROVED. */
@@ -34,6 +40,8 @@ const INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
   { key: "inspection_paper_verified", label: "Insp." },
   { key: "sticker_verified", label: "Sticker" },
   { key: "bol_present", label: "BOL" },
+  { key: "eld_mentioned", label: "ELD" },
+  { key: "checklist_sent", label: "CkLst" },
   { key: "scale_ticket_received", label: "Scale Tkt" },
 ];
 
@@ -52,6 +60,10 @@ function CarryoverTable() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  // R17: search + CST day/shift filters
+  const [search, setSearch] = useState("");
+  const [day, setDay] = useState("");
+  const [shiftFilter, setShiftFilter] = useState<Shift | "">("");
   const now = useNow();
   const router = useRouter();
   const { role, username } = useAuthStore();
@@ -92,8 +104,12 @@ function CarryoverTable() {
     load();
   }, [load]);
 
+  // R17: search + CST day/shift filters apply to both board sections
+  const matches = (t: Ticket) =>
+    matchesSearch(t, search) && matchesDayShift(t.created_at, day, shiftFilter);
+
   // ≥120 min rows sort to the absolute top (04 §3), then by longest wait.
-  const sorted = [...tickets].sort((a, b) => {
+  const sorted = [...tickets.filter(matches)].sort((a, b) => {
     const ta = getTimerInfo(a.scale_requested_at, now);
     const tb = getTimerInfo(b.scale_requested_at, now);
     const critA = ta.tier === "critical" ? 1 : 0;
@@ -225,6 +241,57 @@ function CarryoverTable() {
         </button>
       </div>
 
+      {/* R17: search + CST day/shift filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="relative">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search truck # or MC…"
+            aria-label="Search by truck number or motor carrier"
+            className="w-56 rounded border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
+        </span>
+        <input
+          type="date"
+          value={day}
+          onChange={(e) => setDay(e.target.value)}
+          aria-label="Filter by day (CST)"
+          className="rounded border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        />
+        <select
+          value={shiftFilter}
+          onChange={(e) => setShiftFilter(e.target.value as Shift | "")}
+          aria-label="Filter by shift (CST)"
+          className="rounded border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <option value="">All shifts</option>
+          {(Object.keys(SHIFT_LABELS) as Shift[]).map((s) => (
+            <option key={s} value={s}>
+              {SHIFT_LABELS[s]}
+            </option>
+          ))}
+        </select>
+        {(search || day || shiftFilter) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setDay("");
+              setShiftFilter("");
+            }}
+            className="cursor-pointer rounded px-2 py-1 text-xs font-medium text-slate-500 underline hover:text-slate-800 dark:hover:text-slate-200"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
       <ErrorBanner message={error} />
       {notice && (
         <div
@@ -243,7 +310,7 @@ function CarryoverTable() {
             Action Required ({flagged.length})
           </h2>
           <div className="grid gap-3 lg:grid-cols-2">
-            {flagged.map((t) => {
+            {flagged.filter(matches).map((t) => {
               const categories = [...new Set(t.audit_flags.map((f) => f.error_category))];
               const noteList = [
                 ...new Set(

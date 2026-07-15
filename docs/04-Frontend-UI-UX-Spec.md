@@ -77,3 +77,12 @@ Build the frontend using Next.js and Tailwind CSS. The UI must be highly functio
 
 * QC Review cards gain a trash button (with confirm) that deletes the pickup outright - including on the QC's own conflict-of-interest cards.
 * Carryover: the delete icon now appears for QC on every row (edit remains creator/manager-gated).
+
+## Revision R17 (2026-07-15) - CST everywhere, drafts, filters, search
+
+* **Global CST display:** all timestamps render in America/Chicago via `lib/time.ts` (Intl.DateTimeFormat; no new dependency). Applied to All Pickups, My History, QC History, Archive, Live Feed, Notes.
+* **Shifts (CST):** First 1 AM-9 AM, Main 9 AM-5 PM, Third 5 PM-1 AM (spans midnight; 12-1 AM belongs to the PREVIOUS day's Third shift). QC Review gains Shift + Employee + Newest/Oldest sort filters; All Pickups and Carryover gain Day (datepicker) + Shift filters.
+* **Search:** real-time truck #/MC search bars on QC Review, Carryover, All Pickups, and My History.
+* **"Still Sending" drafts:** secondary "Save Draft (Still Sending)" button on the New Pickup form (create + resumed drafts); saving clears the form for the next concurrent pickup. Sidebar "Active Drafts" panel lists parked drafts (truck + MC), one click resumes the full pre-filled form; primary button reads "Submit Ticket" when resuming a draft. STILL SENDING badge (sky blue) in all tables.
+* **My History:** Edit button on every row opens the full form pre-filled; APPROVED edits return to My History on save.
+* **New checkboxes:** "ELD mentioned" + "Checklist sent" on the form, as inline-editable Carryover columns, All Pickups sheet columns, and QC Review pills.

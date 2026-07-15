@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Flag, History, Paperclip, RefreshCw, ShieldAlert, Siren, Trash2, Warehouse, X } from "lucide-react";
+import { CheckCircle2, Flag, History, Paperclip, RefreshCw, Search, ShieldAlert, Siren, Trash2, Warehouse, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -14,6 +14,12 @@ import {
   type MediaType,
   type Ticket,
 } from "@/lib/types";
+import {
+  matchesDayShift,
+  matchesSearch,
+  SHIFT_LABELS,
+  type Shift,
+} from "@/lib/time";
 import { useAuthStore } from "@/store/authStore";
 
 export default function QCReviewPage() {
@@ -31,6 +37,11 @@ function QCQueue() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [includeAwaiting, setIncludeAwaiting] = useState(false);
+  // R17: queue filters — search, CST shift, employee, sort order
+  const [search, setSearch] = useState("");
+  const [shift, setShift] = useState<Shift | "">("");
+  const [employee, setEmployee] = useState("");
+  const [sort, setSort] = useState<"newest" | "oldest">("oldest");
 
   // Approval friction modal
   const [approving, setApproving] = useState<Ticket | null>(null);
@@ -193,6 +204,72 @@ function QCQueue() {
         </div>
       </div>
 
+      {/* R17: search + shift + employee + sort filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="relative">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search truck # or MC…"
+            aria-label="Search by truck number or motor carrier"
+            className="w-56 rounded border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
+        </span>
+        <select
+          value={shift}
+          onChange={(e) => setShift(e.target.value as Shift | "")}
+          aria-label="Filter by shift (CST)"
+          className="rounded border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <option value="">All shifts</option>
+          {(Object.keys(SHIFT_LABELS) as Shift[]).map((s) => (
+            <option key={s} value={s}>
+              {SHIFT_LABELS[s]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={employee}
+          onChange={(e) => setEmployee(e.target.value)}
+          aria-label="Filter by employee"
+          className="rounded border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <option value="">All employees</option>
+          {[...new Set(tickets.map((t) => t.creator.username))].sort().map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
+        </select>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as "newest" | "oldest")}
+          aria-label="Sort order"
+          className="rounded border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <option value="oldest">Oldest first</option>
+          <option value="newest">Newest first</option>
+        </select>
+        {(search || shift || employee) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setShift("");
+              setEmployee("");
+            }}
+            className="cursor-pointer rounded px-2 py-1 text-xs font-medium text-slate-500 underline hover:text-slate-800 dark:hover:text-slate-200"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
       <ErrorBanner message={error} />
       {notice && (
         <div
@@ -210,7 +287,19 @@ function QCQueue() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {tickets.map((t) => (
+        {tickets
+          .filter(
+            (t) =>
+              matchesSearch(t, search) &&
+              matchesDayShift(t.created_at, "", shift) &&
+              (!employee || t.creator.username === employee)
+          )
+          .sort((a, b) =>
+            sort === "newest"
+              ? +new Date(b.created_at) - +new Date(a.created_at)
+              : +new Date(a.created_at) - +new Date(b.created_at)
+          )
+          .map((t) => (
           <div
             key={t.id}
             className={`rounded-lg border bg-white p-4 dark:bg-slate-900 ${
@@ -274,6 +363,8 @@ function QCQueue() {
               <CheckPill ok={t.sticker_verified} label="Sticker" />
               <CheckPill ok={t.bol_present} label="BOL" />
               <CheckPill ok={t.pti_verified} label="PTI" />
+              <CheckPill ok={t.eld_mentioned} label="ELD" />
+              <CheckPill ok={t.checklist_sent} label="Checklist" />
               {t.needs_scale && <CheckPill ok={t.scale_ticket_received} label="Scale ticket" />}
               {t.is_ca_fl_destination && (
                 <span className="rounded bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">

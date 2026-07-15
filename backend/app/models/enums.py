@@ -9,6 +9,9 @@ class UserRole(str, enum.Enum):
 
 class TicketState(str, enum.Enum):
     DRAFT = "DRAFT"
+    # R17 "Still Sending": a deliberately parked pickup the dispatcher will
+    # resume — excluded from carryover and the QC queue until submitted.
+    DRAFT_IN_PROGRESS = "DRAFT_IN_PROGRESS"
     AWAITING_DRIVER = "AWAITING_DRIVER"
     PENDING_QC = "PENDING_QC"
     FLAGGED = "FLAGGED"

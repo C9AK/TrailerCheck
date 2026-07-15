@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare, Fuel, Loader2, MapPin, Truck, User } from "lucide-react";
+import { CheckSquare, FileClock, Fuel, Loader2, MapPin, Truck, User } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
@@ -321,6 +321,9 @@ function NewPickupForm() {
   const [stickerVerified, setStickerVerified] = useState(false);
   const [caFlDestination, setCaFlDestination] = useState(false);
   const [bolPresent, setBolPresent] = useState(false);
+  // R17: extra checkout confirmations
+  const [eldMentioned, setEldMentioned] = useState(false);
+  const [checklistSent, setChecklistSent] = useState(false);
   const [weight, setWeight] = useState("");
   const [condition, setCondition] = useState<TrailerCondition>("Good");
   const [conditionNotes, setConditionNotes] = useState("");
@@ -330,6 +333,8 @@ function NewPickupForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // R17: state of the ticket loaded in edit mode (drives draft/redirect logic)
+  const [loadedState, setLoadedState] = useState<Ticket["state"] | null>(null);
 
   const ptiComplete = isPtiComplete(pti, isChassis);
   const visibleSections = PTI_SECTIONS.filter((s) => !s.chassisOnly || isChassis);
@@ -349,6 +354,7 @@ function NewPickupForm() {
     if (!editId) return;
     api<Ticket>(`/api/tickets/${editId}`)
       .then((t) => {
+        setLoadedState(t.state);
         setMcId(t.mc_id);
         setTruckNumber(t.truck_number);
         setDriverName(t.driver_name ?? "");
@@ -364,6 +370,8 @@ function NewPickupForm() {
         setStickerVerified(t.sticker_verified);
         setCaFlDestination(t.is_ca_fl_destination);
         setBolPresent(t.bol_present);
+        setEldMentioned(t.eld_mentioned);
+        setChecklistSent(t.checklist_sent);
         setWeight(t.weight ?? "");
         setCondition(t.trailer_condition ?? "Good");
         setConditionNotes(t.condition_notes ?? "");
@@ -444,12 +452,8 @@ function NewPickupForm() {
     setPti(Object.fromEntries(Object.keys(emptyChecklist()).map((k) => [k, value])));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    setSubmitting(true);
-    const common = {
+  function commonPayload() {
+    return {
       truck_number: truckNumber.trim(),
       driver_name: driverName.trim() || null,
       truck_location: truckLocation.trim() || null,
@@ -462,6 +466,8 @@ function NewPickupForm() {
       sticker_verified: stickerVerified,
       is_ca_fl_destination: caFlDestination,
       bol_present: bolPresent,
+      eld_mentioned: eldMentioned,
+      checklist_sent: checklistSent,
       weight: weight.trim() || null,
       trailer_condition: condition,
       condition_notes: conditionNotes || null,
@@ -470,25 +476,98 @@ function NewPickupForm() {
       pti_checklist: pti,
       is_chassis: isChassis,
     };
+  }
+
+  function createPayload() {
+    return {
+      ...commonPayload(),
+      mc_id: mcId,
+      is_lot_trailer: isLot,
+      trailer_number: isLot ? trailerNumber.trim() : null,
+      last_pti_date_override: isLot && lastPtiDate ? `${lastPtiDate}T00:00:00Z` : null,
+    };
+  }
+
+  function resetForm() {
+    setTruckNumber("");
+    setDriverName("");
+    setTruckLocation("");
+    setTruckModel("");
+    setFuelPct("");
+    setCoords({ lat: null, lon: null });
+    setIsLot(false);
+    setTrailerNumber("");
+    setLastPtiDate("");
+    setPti(emptyChecklist());
+    setIsChassis(false);
+    setRegistrationVerified(false);
+    setInspectionVerified(false);
+    setStickerVerified(false);
+    setCaFlDestination(false);
+    setBolPresent(false);
+    setEldMentioned(false);
+    setChecklistSent(false);
+    setWeight("");
+    setCondition("Good");
+    setConditionNotes("");
+    setNeedsScale(false);
+    setScaleReceived(false);
+    setLoadedState(null);
+  }
+
+  // R17 "Still Sending": park the ticket as a draft and clear the form so the
+  // dispatcher can start the next concurrent pickup immediately.
+  async function saveDraft() {
+    setError(null);
+    setSuccess(null);
+    setSubmitting(true);
     try {
       if (editId) {
-        // R14: the MC is correctable on edit too (trailer identity stays fixed)
         await api<Ticket>(`/api/tickets/${editId}`, {
           method: "PATCH",
-          body: JSON.stringify({ ...common, mc_id: mcId }),
+          body: JSON.stringify({ ...commonPayload(), mc_id: mcId, still_sending: true }),
         });
-        router.push("/dashboard/carryover");
+        resetForm();
+        router.replace("/dashboard/new-pickup");
+      } else {
+        await api<Ticket>("/api/tickets", {
+          method: "POST",
+          body: JSON.stringify({ ...createPayload(), still_sending: true }),
+        });
+        resetForm();
+      }
+      setSuccess(
+        "Draft saved (Still Sending) — resume it anytime from Active Drafts in the sidebar."
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save the draft.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setSubmitting(true);
+    try {
+      if (editId) {
+        // R14: the MC is correctable on edit too (trailer identity stays
+        // fixed). still_sending:false graduates a parked draft on submit.
+        await api<Ticket>(`/api/tickets/${editId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ ...commonPayload(), mc_id: mcId, still_sending: false }),
+        });
+        // Approved tickets edited from history don't live on the carryover board
+        router.push(
+          loadedState === "APPROVED" ? "/dashboard/my-history" : "/dashboard/carryover"
+        );
         return;
       }
       const ticket = await api<Ticket>("/api/tickets", {
         method: "POST",
-        body: JSON.stringify({
-          ...common,
-          mc_id: mcId,
-          is_lot_trailer: isLot,
-          trailer_number: isLot ? trailerNumber.trim() : null,
-          last_pti_date_override: isLot && lastPtiDate ? `${lastPtiDate}T00:00:00Z` : null,
-        }),
+        body: JSON.stringify(createPayload()),
       });
       setSuccess(
         ticket.state === "PENDING_QC"
@@ -496,27 +575,7 @@ function NewPickupForm() {
           : "Ticket created — saved to Carryover (awaiting driver/scale ticket)."
       );
       // Reset for the next pickup
-      setTruckNumber("");
-      setDriverName("");
-      setTruckLocation("");
-      setTruckModel("");
-      setFuelPct("");
-      setCoords({ lat: null, lon: null });
-      setIsLot(false);
-      setTrailerNumber("");
-      setLastPtiDate("");
-      setPti(emptyChecklist());
-      setIsChassis(false);
-      setRegistrationVerified(false);
-      setInspectionVerified(false);
-      setStickerVerified(false);
-      setCaFlDestination(false);
-      setBolPresent(false);
-      setWeight("");
-      setCondition("Good");
-      setConditionNotes("");
-      setNeedsScale(false);
-      setScaleReceived(false);
+      resetForm();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Save failed.");
     } finally {
@@ -871,6 +930,24 @@ function NewPickupForm() {
               />
               Sticker verified
             </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={eldMentioned}
+                onChange={(e) => setEldMentioned(e.target.checked)}
+                className="h-4 w-4 accent-brand-600"
+              />
+              ELD mentioned
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={checklistSent}
+                onChange={(e) => setChecklistSent(e.target.checked)}
+                className="h-4 w-4 accent-brand-600"
+              />
+              Checklist sent
+            </label>
           </div>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -961,15 +1038,32 @@ function NewPickupForm() {
         <ErrorBanner message={error} />
         <SuccessBanner message={success} />
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="submit"
             disabled={submitting || (!editId && (!mcId || !truckNumber.trim()))}
             className="flex cursor-pointer items-center gap-2 rounded bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            {editId ? "Save Changes" : "Create Ticket"}
+            {editId
+              ? loadedState === "DRAFT_IN_PROGRESS"
+                ? "Submit Ticket"
+                : "Save Changes"
+              : "Create Ticket"}
           </button>
+          {/* R17: park the pickup while the driver is still sending papers —
+              available on create, and while resuming an existing draft */}
+          {(!editId || loadedState === "DRAFT_IN_PROGRESS") && (
+            <button
+              type="button"
+              disabled={submitting || !mcId || !truckNumber.trim()}
+              onClick={saveDraft}
+              className="flex cursor-pointer items-center gap-2 rounded border-2 border-sky-500 px-5 py-2.5 text-sm font-semibold text-sky-700 transition-colors duration-150 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-sky-300 dark:hover:bg-sky-950/40"
+            >
+              <FileClock className="h-4 w-4" aria-hidden="true" />
+              Save Draft (Still Sending)
+            </button>
+          )}
           {editId && (
             <button
               type="button"

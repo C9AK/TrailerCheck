@@ -6,10 +6,12 @@ import { useCallback, useEffect, useState } from "react";
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, StateBadge } from "@/components/ui";
 import { api, API_BASE, ApiError } from "@/lib/api";
+import { fmtCstFull } from "@/lib/time";
 import type { Ticket, TicketState, User } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
 const STATES: TicketState[] = [
+  "DRAFT_IN_PROGRESS",
   "AWAITING_DRIVER",
   "PENDING_QC",
   "FLAGGED",
@@ -253,7 +255,7 @@ function ArchiveTable() {
                   className="border-b border-slate-100 last:border-0 dark:border-slate-800"
                 >
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
-                    {new Date(t.created_at).toLocaleString()}
+                    {fmtCstFull(t.created_at)}
                   </td>
                   <td className="px-3 py-2.5 font-mono font-semibold">{t.truck_number}</td>
                   <td className="px-3 py-2.5">{t.motor_carrier.name}</td>

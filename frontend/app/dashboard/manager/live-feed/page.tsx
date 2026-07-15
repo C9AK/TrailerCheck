@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { fmtCstFull, fmtCstTime } from "@/lib/time";
 import type { AuditEventType, FeedEntry } from "@/lib/types";
 
 const POLL_MS = 5000;
@@ -80,7 +81,7 @@ function LiveFeed() {
             Immutable, timestamped record of every dispatch &amp; QC action
             {lastUpdated && (
               <span className="ml-2 font-mono text-xs">
-                (updated {lastUpdated.toLocaleTimeString()})
+                (updated {fmtCstTime(lastUpdated)} CST)
               </span>
             )}
           </p>
@@ -98,7 +99,6 @@ function LiveFeed() {
       <ol className="max-h-[70vh] space-y-1.5 overflow-y-auto pr-1" aria-live="polite">
         {entries.map((e) => {
           const { icon: Icon, cls } = EVENT_STYLE[e.event] ?? EVENT_STYLE.TICKET_CREATED;
-          const ts = new Date(e.created_at);
           return (
             <li
               key={e.id}
@@ -113,7 +113,7 @@ function LiveFeed() {
               </span>
               <div className="min-w-0">
                 <p className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                  [{ts.toLocaleDateString()} {ts.toLocaleTimeString()}]
+                  [{fmtCstFull(e.created_at)} CST]
                 </p>
                 <p className="text-sm">{e.message}</p>
               </div>
