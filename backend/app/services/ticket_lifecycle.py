@@ -68,10 +68,21 @@ def _pti_gate_passed(ticket: PickupTicket) -> bool:
 
 
 def get_last_pti_date(db: Session, ticket: PickupTicket) -> datetime | None:
-    """R20: most recent OTHER ticket for this same truck/trailer with the
-    master PTI checkbox verified — historical context for QC Review.
-    Matched by trailer_id when the ticket has one (LOT trailers, a stable
-    identity), otherwise by truck_number (standard pickups)."""
+    """R20 (fixed): historical context for QC Review — the most recent known
+    PTI check for this truck/trailer, from EITHER source:
+      - the trailer's own last_pti_date (LOT trailers track this directly —
+        it's set at intake/override and is the SAME field the 7-day gate
+        reads, so it must win even when no ticket has ever verified it), or
+      - the most recent OTHER ticket for the same truck/trailer with the
+        master PTI checkbox verified.
+    Whichever is more recent is returned. Matched by trailer_id when the
+    ticket has one (LOT trailers, a stable identity), otherwise by
+    truck_number (standard pickups, which have no trailer entity at all)."""
+    candidates: list[datetime] = []
+
+    if ticket.trailer_id is not None and ticket.trailer is not None:
+        candidates.append(_as_utc(ticket.trailer.last_pti_date))
+
     q = select(PickupTicket.created_at).where(
         PickupTicket.pti_verified.is_(True),
         PickupTicket.id != ticket.id,
@@ -81,7 +92,11 @@ def get_last_pti_date(db: Session, ticket: PickupTicket) -> datetime | None:
     else:
         q = q.where(PickupTicket.truck_number == ticket.truck_number)
     q = q.order_by(PickupTicket.created_at.desc()).limit(1)
-    return db.scalar(q)
+    historical = db.scalar(q)
+    if historical is not None:
+        candidates.append(_as_utc(historical))
+
+    return max(candidates) if candidates else None
 
 
 def is_ready_for_qc(ticket: PickupTicket) -> bool:
