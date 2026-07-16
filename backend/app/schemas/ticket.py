@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.models.enums import ErrorCategory, MediaType, TicketState, TrailerCondition
 from app.schemas.motor_carrier import MCBrief
+from app.schemas.trailer import TrailerOut
 from app.schemas.user import UserBrief
 
 
@@ -59,6 +60,12 @@ class TicketUpdate(BaseModel):
     # R14: the MC is correctable after creation (validated against the MC table)
     mc_id: uuid.UUID | None = None
     truck_number: str | None = Field(default=None, min_length=1, max_length=100)
+    # R21: LOT identity is editable from the full edit form. trailer_number
+    # resolves/registers a trailer record; last_pti_date_override updates it.
+    # Consumed by the route (never setattr'd blindly).
+    is_lot_trailer: bool | None = None
+    trailer_number: str | None = None
+    last_pti_date_override: datetime | None = None
     driver_name: str | None = None
     truck_location: str | None = None
     truck_latitude: float | None = None
@@ -123,6 +130,9 @@ class TicketOut(BaseModel):
     truck_number: str
     is_lot_trailer: bool
     trailer_id: uuid.UUID | None
+    # R21: embedded trailer record (LOT tickets) — prefills the edit form's
+    # LOT section with the trailer number and its last PTI date.
+    trailer: TrailerOut | None = None
     state: TicketState
 
     driver_name: str | None
@@ -150,6 +160,8 @@ class TicketOut(BaseModel):
     needs_scale: bool
     scale_ticket_received: bool
     scale_requested_at: datetime | None
+    # R21: "Followed up" restarts the visible waiting timer from here
+    last_followed_up_at: datetime | None
     submitted_to_qc_at: datetime | None
     pti_checklist: dict[str, bool] | None
     pti_verified: bool

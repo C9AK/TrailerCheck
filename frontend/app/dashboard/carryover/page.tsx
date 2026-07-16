@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Ban, Flag, Loader2, Pencil, RefreshCw, Search, Send, Siren, Trash2, X } from "lucide-react";
+import { AlertCircle, Ban, Flag, Loader2, Pencil, RefreshCw, Search, Send, Siren, TimerReset, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -8,7 +8,7 @@ import { useAuthStore } from "@/store/authStore";
 
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner } from "@/components/ui";
-import { getTimerInfo, useNow } from "@/hooks/useTicketTimer";
+import { getTimerInfo, getTimerStart, useNow } from "@/hooks/useTicketTimer";
 import { api, ApiError, mediaUrl } from "@/lib/api";
 import {
   matchesDayShift,
@@ -112,8 +112,8 @@ function CarryoverTable() {
 
   // ≥120 min rows sort to the absolute top (04 §3), then by longest wait.
   const sorted = [...tickets.filter(matches)].sort((a, b) => {
-    const ta = getTimerInfo(a.scale_requested_at, now);
-    const tb = getTimerInfo(b.scale_requested_at, now);
+    const ta = getTimerInfo(getTimerStart(a), now);
+    const tb = getTimerInfo(getTimerStart(b), now);
     const critA = ta.tier === "critical" ? 1 : 0;
     const critB = tb.tier === "critical" ? 1 : 0;
     if (critA !== critB) return critB - critA;
@@ -158,6 +158,24 @@ function CarryoverTable() {
       setFlagged((prev) => prev.map((t) => (t.id === ticket.id ? updated : t)));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Update failed.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  // R21 "Followed up": the dispatcher chased the driver/scale again — the
+  // waiting timer restarts from now and the overdue alert clears.
+  async function followUp(ticket: Ticket) {
+    setSavingId(ticket.id);
+    setError(null);
+    try {
+      const updated = await api<Ticket>(`/api/tickets/${ticket.id}/follow-up`, {
+        method: "PATCH",
+      });
+      setTickets((prev) => prev.map((t) => (t.id === ticket.id ? updated : t)));
+      setNotice(`Truck ${updated.truck_number}: follow-up recorded — waiting timer restarted.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not record the follow-up.");
     } finally {
       setSavingId(null);
     }
@@ -486,7 +504,7 @@ function CarryoverTable() {
             </thead>
             <tbody>
               {sorted.map((t) => {
-                const timer = getTimerInfo(t.scale_requested_at, now);
+                const timer = getTimerInfo(getTimerStart(t), now);
                 const rowCls =
                   timer.tier === "critical"
                     ? "bg-red-100 dark:bg-red-950/40"
@@ -500,6 +518,19 @@ function CarryoverTable() {
                   >
                     <td className="px-3 py-2.5 font-mono font-semibold">
                       <span className="flex items-center gap-1.5">
+                        {/* R21: Followed up — restart the waiting timer */}
+                        {timer.minutes !== null && canModify(t) && (
+                          <button
+                            type="button"
+                            aria-label={`Followed up on truck ${t.truck_number} — restart the waiting timer`}
+                            title="Followed up — restarts the waiting timer and clears the overdue alert"
+                            disabled={savingId === t.id}
+                            onClick={() => followUp(t)}
+                            className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-200 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-700"
+                          >
+                            <TimerReset className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        )}
                         {timer.tier === "critical" && (
                           <span
                             className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-600"

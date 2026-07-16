@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
     # Dev convenience; replace with Alembic migrations for production.
     _migrate_feed_ticket_nullable()
     _migrate_r17()
+    _migrate_r21()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     yield
@@ -63,6 +64,26 @@ def _migrate_r17() -> None:
                     )
                 )
                 print(f"R17 migration: added pickup_tickets.{col}")
+
+
+def _migrate_r21() -> None:
+    """R21 in-place migration: last_followed_up_at column (nullable timestamp)
+    on pickup_tickets. Idempotent; no-op on a fresh database."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    if "last_followed_up_at" not in cols:
+        col_type = "TIMESTAMPTZ" if engine.dialect.name == "postgresql" else "DATETIME"
+        with engine.begin() as conn:
+            conn.execute(
+                text(f"ALTER TABLE pickup_tickets ADD COLUMN last_followed_up_at {col_type}")
+            )
+        print("R21 migration: added pickup_tickets.last_followed_up_at")
 
 
 def _migrate_feed_ticket_nullable() -> None:

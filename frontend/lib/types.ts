@@ -106,6 +106,8 @@ export interface Ticket {
   truck_number: string;
   is_lot_trailer: boolean;
   trailer_id: string | null;
+  // R21: embedded trailer record (LOT tickets) — prefills the edit form
+  trailer: Trailer | null;
   state: TicketState;
   driver_name: string | null;
   truck_location: string | null;
@@ -126,6 +128,8 @@ export interface Ticket {
   needs_scale: boolean;
   scale_ticket_received: boolean;
   scale_requested_at: string | null;
+  // R21: "Followed up" restarts the visible waiting timer from here
+  last_followed_up_at: string | null;
   submitted_to_qc_at: string | null;
   pti_checklist: Record<string, boolean> | null;
   pti_verified: boolean;

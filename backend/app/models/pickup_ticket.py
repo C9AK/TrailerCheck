@@ -68,6 +68,12 @@ class PickupTicket(Base):
     submitted_to_qc_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # R21: dispatcher "Followed up" action — the Carryover waiting timer and
+    # 2h/4h overdue signals restart from this timestamp when it is newer than
+    # scale_requested_at (which keeps the original request time on record).
+    last_followed_up_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # PTI verification - strictly checkboxes, no file uploads.
     # R8: structured checklist (JSON dict of item -> bool) is the source of

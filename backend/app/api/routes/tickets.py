@@ -32,7 +32,12 @@ from app.schemas.ticket import (
 )
 from app.services.activity import record_event
 from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply_teamwork_bonus
-from app.services.ticket_lifecycle import get_last_pti_date, is_ready_for_qc, resolve_lot_trailer
+from app.services.ticket_lifecycle import (
+    get_last_pti_date,
+    is_ready_for_qc,
+    resolve_lot_trailer,
+    resolve_trailer_by_number,
+)
 
 
 router = APIRouter(tags=["tickets"])
@@ -136,6 +141,11 @@ def update_ticket(
     updates = payload.model_dump(exclude_unset=True)
     # R17 "Still Sending" control flag — consumed here, never a column.
     still_sending = updates.pop("still_sending", None)
+    # R21: LOT identity control fields — resolved together below, never
+    # setattr'd blindly (trailer_number is not a ticket column).
+    lot_flag = updates.pop("is_lot_trailer", None)
+    lot_trailer_number = updates.pop("trailer_number", None)
+    lot_pti_override = updates.pop("last_pti_date_override", None)
     # R14: the MC is editable after creation — validate it exists first so the
     # FK never blows up mid-commit.
     if "mc_id" in updates and updates["mc_id"] is not None:
@@ -147,6 +157,26 @@ def update_ticket(
         updates.pop("mc_id")  # never null out the required MC
     for field, value in updates.items():
         setattr(ticket, field, value)
+
+    # R21: apply LOT identity changes (edit form now carries the LOT section).
+    # Assign the relationship (not just trailer_id) so the PTI-gate check
+    # below sees the fresh trailer without a round-trip.
+    if lot_flag is not None or lot_trailer_number is not None or lot_pti_override is not None:
+        wants_lot = ticket.is_lot_trailer if lot_flag is None else lot_flag
+        if not wants_lot:
+            ticket.is_lot_trailer = False
+            ticket.trailer = None
+        else:
+            number = (lot_trailer_number or "").strip() or (
+                ticket.trailer.trailer_number if ticket.trailer is not None else ""
+            )
+            if not number:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="LOT Trailer tickets require a trailer_number.",
+                )
+            ticket.trailer = resolve_trailer_by_number(db, number, lot_pti_override)
+            ticket.is_lot_trailer = True
 
     # R18: no re-derivation — the master pti_verified checkbox stands alone;
     # pti_checklist and is_chassis are informational.
@@ -171,6 +201,33 @@ def update_ticket(
             ticket.submitted_to_qc_at = datetime.now(timezone.utc)
         record_event(db, ticket, current_user, AuditEvent.TICKET_SENT_TO_QC)
 
+    db.commit()
+    db.refresh(ticket)
+    return ticket
+
+
+@router.patch("/api/tickets/{ticket_id}/follow-up", response_model=TicketOut)
+def follow_up_ticket(
+    ticket_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
+):
+    """R21 "Followed up": the dispatcher chased the driver/scale again. Stamps
+    last_followed_up_at so the Carryover waiting timer and the 2h/4h overdue
+    signals restart from now — scale_requested_at keeps the original request
+    time on record. Same ownership rules as editing the ticket."""
+    ticket = _get_ticket_or_404(db, ticket_id)
+    if (
+        current_user.role != UserRole.manager
+        and ticket.created_by != current_user.id
+        and not (ticket.state == TicketState.FLAGGED and ticket.is_urgent_flag)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only follow up on tickets you created.",
+        )
+
+    ticket.last_followed_up_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(ticket)
     return ticket

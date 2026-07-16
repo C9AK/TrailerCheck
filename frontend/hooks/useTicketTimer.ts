@@ -9,6 +9,23 @@ export interface TimerInfo {
   tier: TimerTier;
 }
 
+/** R21: the waiting timer starts at scale_requested_at, but a "Followed up"
+ * action restarts it — use whichever timestamp is newer. No scale request
+ * means no timer, follow-up or not. */
+export function getTimerStart(t: {
+  scale_requested_at: string | null;
+  last_followed_up_at: string | null;
+}): string | null {
+  if (!t.scale_requested_at) return null;
+  if (
+    t.last_followed_up_at &&
+    new Date(t.last_followed_up_at).getTime() > new Date(t.scale_requested_at).getTime()
+  ) {
+    return t.last_followed_up_at;
+  }
+  return t.scale_requested_at;
+}
+
 /** Pure helper so list pages can sort with the same rules the rows render with. */
 export function getTimerInfo(scaleRequestedAt: string | null, nowMs: number): TimerInfo {
   if (!scaleRequestedAt) return { minutes: null, tier: "normal" };

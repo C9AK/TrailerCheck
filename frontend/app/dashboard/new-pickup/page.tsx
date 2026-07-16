@@ -306,7 +306,8 @@ function NewPickupForm() {
   const [telemetryInfo, setTelemetryInfo] = useState<string | null>(null);
   const telemetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // LOT trailer (creation only — trailer identity is fixed once created)
+  // LOT trailer — editable on create AND edit (R21); prefilled from the
+  // ticket's embedded trailer record in edit mode.
   const [isLot, setIsLot] = useState(false);
   const [trailerNumber, setTrailerNumber] = useState("");
   const [lastPtiDate, setLastPtiDate] = useState("");
@@ -365,6 +366,10 @@ function NewPickupForm() {
         setFuelPct(t.fuel_percentage != null ? String(t.fuel_percentage) : "");
         setCoords({ lat: t.truck_latitude, lon: t.truck_longitude });
         setIsLot(t.is_lot_trailer);
+        // R21: LOT section prefill — trailer number + last PTI date come from
+        // the embedded trailer record
+        setTrailerNumber(t.trailer?.trailer_number ?? "");
+        setLastPtiDate(t.trailer ? toDateInputValue(t.trailer.last_pti_date) : "");
         setIsChassis(t.is_chassis);
         setPtiMaster(t.pti_verified);
         setPti({ ...emptyChecklist(), ...(t.pti_checklist ?? {}) });
@@ -458,6 +463,10 @@ function NewPickupForm() {
   function commonPayload() {
     return {
       truck_number: truckNumber.trim(),
+      // R21: LOT identity is part of both create and edit payloads
+      is_lot_trailer: isLot,
+      trailer_number: isLot ? trailerNumber.trim() : null,
+      last_pti_date_override: isLot && lastPtiDate ? `${lastPtiDate}T00:00:00Z` : null,
       driver_name: driverName.trim() || null,
       truck_location: truckLocation.trim() || null,
       truck_latitude: coords.lat,
@@ -486,9 +495,6 @@ function NewPickupForm() {
     return {
       ...commonPayload(),
       mc_id: mcId,
-      is_lot_trailer: isLot,
-      trailer_number: isLot ? trailerNumber.trim() : null,
-      last_pti_date_override: isLot && lastPtiDate ? `${lastPtiDate}T00:00:00Z` : null,
     };
   }
 
@@ -707,81 +713,80 @@ function NewPickupForm() {
           )}
         </section>
 
-        {/* LOT trailer — creation only */}
-        {!editId && (
-          <section className="rounded-lg border border-blue-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  LOT Trailer
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  LOT trailers skip the fleet lookup. PTI newer than 7 days may skip re-verification.
-                </p>
-              </div>
-              <Toggle
-                id="lot-toggle"
-                checked={isLot}
-                onChange={(v) => {
-                  setIsLot(v);
-                  scheduleTelemetry(mcId, truckNumber, v);
-                }}
-                label="LOT Trailer"
-              />
+        {/* LOT trailer — rendered on create AND edit (R21), prefilled from
+            the ticket's trailer record when editing */}
+        <section className="rounded-lg border border-blue-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                LOT Trailer
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                LOT trailers skip the fleet lookup. PTI newer than 7 days may skip re-verification.
+              </p>
             </div>
+            <Toggle
+              id="lot-toggle"
+              checked={isLot}
+              onChange={(v) => {
+                setIsLot(v);
+                scheduleTelemetry(mcId, truckNumber, v);
+              }}
+              label="LOT Trailer"
+            />
+          </div>
 
-            {isLot && (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="trailer-number" className="mb-1 block text-sm font-medium">
-                    Trailer Number <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    id="trailer-number"
-                    required={isLot}
-                    value={trailerNumber}
-                    onChange={(e) => setTrailerNumber(e.target.value)}
-                    onBlur={lookupTrailer}
-                    placeholder="e.g. LOT-1001"
-                    className={`${inputCls} font-mono`}
-                  />
-                  {trailerError && (
-                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{trailerError}</p>
-                  )}
-                </div>
-                <div>
-                  <label htmlFor="last-pti" className="mb-1 block text-sm font-medium">
-                    Last PTI Date
-                  </label>
-                  {trailerLoading ? (
-                    <Skeleton className="h-9 w-full" />
-                  ) : (
-                    <input
-                      id="last-pti"
-                      type="date"
-                      value={lastPtiDate}
-                      onChange={(e) => setLastPtiDate(e.target.value)}
-                      className={inputCls}
-                    />
-                  )}
-                  {ptiAgeDays !== null && !trailerLoading && (
-                    <p
-                      className={`mt-1 text-xs font-medium ${
-                        lotPtiFresh
-                          ? "text-emerald-700 dark:text-emerald-400"
-                          : "text-amber-700 dark:text-amber-400"
-                      }`}
-                    >
-                      {lotPtiFresh
-                        ? `PTI is ${ptiAgeDays} day(s) old — verification optional.`
-                        : `PTI is ${ptiAgeDays} day(s) old — the master PTI checkbox is required.`}
-                    </p>
-                  )}
-                </div>
+          {isLot && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="trailer-number" className="mb-1 block text-sm font-medium">
+                  Trailer Number <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="trailer-number"
+                  required={isLot}
+                  value={trailerNumber}
+                  onChange={(e) => setTrailerNumber(e.target.value)}
+                  onBlur={lookupTrailer}
+                  placeholder="e.g. LOT-1001"
+                  className={`${inputCls} font-mono`}
+                />
+                {trailerError && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{trailerError}</p>
+                )}
               </div>
-            )}
-          </section>
-        )}
+              <div>
+                <label htmlFor="last-pti" className="mb-1 block text-sm font-medium">
+                  Last PTI Date
+                </label>
+                {trailerLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <input
+                    id="last-pti"
+                    type="date"
+                    value={lastPtiDate}
+                    onChange={(e) => setLastPtiDate(e.target.value)}
+                    className={inputCls}
+                  />
+                )}
+                {ptiAgeDays !== null && !trailerLoading && (
+                  <p
+                    className={`mt-1 text-xs font-medium ${
+                      lotPtiFresh
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-amber-700 dark:text-amber-400"
+                    }`}
+                  >
+                    {lotPtiFresh
+                      ? `PTI is ${ptiAgeDays} day(s) old — verification optional.`
+                      : `PTI is ${ptiAgeDays} day(s) old — the master PTI checkbox is required.`}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
 
         {/* PTI checklist — structured, checkboxes RIGHT of labels, no uploads */}
         <section className="rounded-lg border border-blue-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

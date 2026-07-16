@@ -23,6 +23,33 @@ def _as_utc(dt: datetime) -> datetime:
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
+def resolve_trailer_by_number(
+    db: Session, trailer_number: str, last_pti_date_override: datetime | None
+) -> Trailer:
+    """Resolve a LOT trailer by number, registering it on the fly if unknown
+    (R7: LOT bypasses fleet validation). Persists any manual PTI override."""
+    number = trailer_number.strip()
+    trailer = db.scalar(select(Trailer).where(Trailer.trailer_number == number))
+    if trailer is None:
+        # Without a PTI date the trailer starts "stale" so the PTI gate still
+        # applies.
+        trailer = Trailer(
+            trailer_number=number,
+            last_pti_date=_as_utc(last_pti_date_override)
+            if last_pti_date_override
+            else datetime.now(timezone.utc) - LOT_PTI_WINDOW,
+            is_lot_trailer=True,
+        )
+        db.add(trailer)
+        db.flush()
+        return trailer
+
+    if last_pti_date_override is not None:
+        trailer.last_pti_date = _as_utc(last_pti_date_override)
+
+    return trailer
+
+
 def resolve_lot_trailer(db: Session, payload: TicketCreate) -> Trailer | None:
     """For LOT tickets, resolve (and require) the trailer record; persist any
     manual last_pti_date override. Raises 400/404. Returns None for standard."""
@@ -35,27 +62,7 @@ def resolve_lot_trailer(db: Session, payload: TicketCreate) -> Trailer | None:
             detail="LOT Trailer tickets require a trailer_number.",
         )
 
-    number = payload.trailer_number.strip()
-    trailer = db.scalar(select(Trailer).where(Trailer.trailer_number == number))
-    if trailer is None:
-        # R7: LOT trailers bypass fleet validation entirely — unknown trailers
-        # are registered on the fly from manual entry. Without a PTI date the
-        # trailer starts "stale" so the PTI gate still applies.
-        trailer = Trailer(
-            trailer_number=number,
-            last_pti_date=_as_utc(payload.last_pti_date_override)
-            if payload.last_pti_date_override
-            else datetime.now(timezone.utc) - LOT_PTI_WINDOW,
-            is_lot_trailer=True,
-        )
-        db.add(trailer)
-        db.flush()
-        return trailer
-
-    if payload.last_pti_date_override is not None:
-        trailer.last_pti_date = _as_utc(payload.last_pti_date_override)
-
-    return trailer
+    return resolve_trailer_by_number(db, payload.trailer_number, payload.last_pti_date_override)
 
 
 def _pti_gate_passed(ticket: PickupTicket) -> bool:
