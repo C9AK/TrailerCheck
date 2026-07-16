@@ -91,6 +91,11 @@ class PickupTicket(Base):
         Uuid, ForeignKey("users.id"), nullable=True
     )
 
+    # R22: set the FIRST time this ticket's consolidated auto shift-note is
+    # persisted. Once true, the system never regenerates the note — user
+    # deletions stay deleted and user edits are never overwritten.
+    auto_note_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # R11 escape hatch: flagged tickets the employee physically cannot fix are
     # escalated back to QC with a mandatory written reason; the exception data
     # is permanent, even after a Force Approve.

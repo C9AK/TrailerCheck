@@ -189,10 +189,12 @@ export interface ShiftNote {
   resolved_at: string | null;
 }
 
+// R22: ONE consolidated note per truck, listing every missing item
 export interface AutoNote {
+  ticket_id: string;
   truck_number: string;
   mc_name: string;
-  missing_item: string;
+  missing_items: string[];
   content: string;
 }
 

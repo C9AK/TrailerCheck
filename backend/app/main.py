@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
     _migrate_feed_ticket_nullable()
     _migrate_r17()
     _migrate_r21()
+    _migrate_r22()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     yield
@@ -84,6 +85,29 @@ def _migrate_r21() -> None:
                 text(f"ALTER TABLE pickup_tickets ADD COLUMN last_followed_up_at {col_type}")
             )
         print("R21 migration: added pickup_tickets.last_followed_up_at")
+
+
+def _migrate_r22() -> None:
+    """R22 in-place migration: auto_note_generated flag on pickup_tickets
+    (one-shot consolidated auto shift-note). Idempotent; no-op on a fresh DB."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    if "auto_note_generated" not in cols:
+        false_lit = "FALSE" if engine.dialect.name == "postgresql" else "0"
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE pickup_tickets ADD COLUMN auto_note_generated "
+                    f"BOOLEAN NOT NULL DEFAULT {false_lit}"
+                )
+            )
+        print("R22 migration: added pickup_tickets.auto_note_generated")
 
 
 def _migrate_feed_ticket_nullable() -> None:

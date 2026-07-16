@@ -34,11 +34,14 @@ class NoteOut(BaseModel):
 
 
 class AutoNoteOut(BaseModel):
-    """Computed (not yet persisted) handover note for a carryover gap."""
+    """Computed (not yet persisted) handover note. R22: ONE note per truck,
+    consolidating every missing item; ticket_id links back so publish can
+    mark the ticket's auto_note_generated flag."""
 
+    ticket_id: uuid.UUID
     truck_number: str
     mc_name: str
-    missing_item: str
+    missing_items: list[str]
     content: str
 
 

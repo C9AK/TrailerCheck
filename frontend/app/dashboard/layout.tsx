@@ -180,10 +180,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const drafts = await api<{ auto_notes: AutoNote[] }>("/api/notes/drafts");
         if (cancelled || drafts.auto_notes.length === 0) return;
         const first = drafts.auto_notes[0];
+        // R22: one consolidated note per truck — count both trucks and items
+        const items = drafts.auto_notes.reduce((n, a) => n + a.missing_items.length, 0);
         setToast({
           msg:
-            `Hourly check: ${drafts.auto_notes.length} item(s) still missing on your ` +
-            `carryover tickets — e.g. ${first.content}. Recheck them before handover.`,
+            `Hourly check: ${items} item(s) still missing across ` +
+            `${drafts.auto_notes.length} truck(s) — e.g. ${first.content}. ` +
+            `Recheck them before handover.`,
           tone: "warn",
         });
         localStorage.setItem(storageKey, String(Date.now()));

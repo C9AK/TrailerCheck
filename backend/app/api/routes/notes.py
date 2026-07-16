@@ -1,13 +1,16 @@
 ﻿"""Automated Shift Handover & Notes System.
 
 - Drafts: auto-notes computed live from the caller's AWAITING_DRIVER tickets
-  (one note per missing checklist item) plus any ticket in a later state that
-  still owes a scale ticket (R14: decoupled from APPROVED), + their manually
-  typed DRAFT notes.
-- Publish: persists auto-notes and flips manual drafts to PUBLISHED,
-  skipping duplicates already open on the global board.
+  (R22: ONE consolidated note per truck listing every missing item) plus any
+  ticket in a later state that still owes a scale ticket (R14: decoupled from
+  APPROVED), + their manually typed DRAFT notes.
+- Publish: persists auto-notes and flips manual drafts to PUBLISHED. R22:
+  persisting a ticket's auto-note is ONE-SHOT — the ticket's
+  auto_note_generated flag is set and the system never regenerates the note,
+  so user deletions stay deleted and user edits are never overwritten.
 - Global inbox: all PUBLISHED (unresolved) notes; anyone on shift can
-  resolve ("Done") or edit them.
+  resolve ("Done") or edit them; auto notes are editable/deletable exactly
+  like manual ones.
 """
 
 import uuid
@@ -25,23 +28,42 @@ from app.services.ticket_lifecycle import _pti_gate_passed
 
 router = APIRouter(tags=["notes"])
 
-MISSING_ITEMS: list[tuple[str, str]] = [
-    ("registration_verified", "Registration"),
-    ("inspection_paper_verified", "Inspection Paper"),
-    ("sticker_verified", "Sticker"),
-    ("bol_present", "BOL"),
-]
-
 _note_query = select(ShiftNote).options(
     joinedload(ShiftNote.creator), joinedload(ShiftNote.resolver)
 )
+
+
+def _missing_items(t: PickupTicket) -> list[str]:
+    """R22 trigger list: Inspection, Registration, BOL, PTI, Scale. The
+    sticker counts as missing ONLY when the inspection paper is missing too
+    (either document satisfies the QC gate)."""
+    if t.state != TicketState.AWAITING_DRIVER:
+        # Past AWAITING_DRIVER the only genuine follow-up is the scale
+        # ticket (checklist gaps were consciously waved through by QC).
+        return ["Scale Ticket"]
+    missing: list[str] = []
+    if not t.inspection_paper_verified:
+        missing.append("Inspection Paper")
+        if not t.sticker_verified:
+            missing.append("Inspection Sticker")
+    if not t.registration_verified:
+        missing.append("Registration")
+    if not t.bol_present:
+        missing.append("BOL")
+    if not _pti_gate_passed(t):
+        missing.append("PTI")
+    if t.needs_scale and not t.scale_ticket_received:
+        missing.append("Scale Ticket")
+    return missing
 
 
 def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
     """R14: notes are decoupled from the ticket lifecycle. AWAITING_DRIVER
     tickets get the full missing-item scan; tickets in ANY later state -
     including APPROVED - still surface an outstanding scale ticket, because
-    the truck may have left while dispatch still chases the driver for it."""
+    the truck may have left while dispatch still chases the driver for it.
+    R22: one consolidated note per truck; tickets whose auto-note was already
+    persisted once (auto_note_generated) are excluded forever."""
     tickets = (
         db.scalars(
             select(PickupTicket)
@@ -50,6 +72,7 @@ def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
             )
             .where(
                 PickupTicket.created_by == user.id,
+                PickupTicket.auto_note_generated.is_(False),
                 or_(
                     PickupTicket.state == TicketState.AWAITING_DRIVER,
                     and_(
@@ -67,25 +90,21 @@ def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
     )
     notes: list[AutoNoteOut] = []
     for t in tickets:
-        if t.state == TicketState.AWAITING_DRIVER:
-            missing = [label for field, label in MISSING_ITEMS if not getattr(t, field)]
-            if t.needs_scale and not t.scale_ticket_received:
-                missing.append("Scale Ticket")
-            if not _pti_gate_passed(t):
-                missing.append("PTI")
-        else:
-            # Past AWAITING_DRIVER the only genuine follow-up is the scale
-            # ticket (checklist gaps were consciously waved through by QC).
-            missing = ["Scale Ticket"]
-        for item in missing:
-            notes.append(
-                AutoNoteOut(
-                    truck_number=t.truck_number,
-                    mc_name=t.motor_carrier.name,
-                    missing_item=item,
-                    content=f"Truck {t.truck_number} - {t.motor_carrier.name}: Waiting on {item}",
-                )
+        missing = _missing_items(t)
+        if not missing:
+            continue
+        content = f"Truck {t.truck_number} has a missing {', '.join(missing)}"
+        if t.is_ca_fl_destination:
+            content += " — ALERT: CA/FL destination"
+        notes.append(
+            AutoNoteOut(
+                ticket_id=t.id,
+                truck_number=t.truck_number,
+                mc_name=t.motor_carrier.name,
+                missing_items=missing,
+                content=content,
             )
+        )
     return notes
 
 
@@ -137,8 +156,10 @@ def publish_shift_handover(
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     """The 'Publish Shift Handover' button: persist auto-notes + flip the
-    caller's manual drafts to PUBLISHED. Identical auto-notes already open on
-    the global board are skipped."""
+    caller's manual drafts to PUBLISHED. R22: persisting a ticket's auto-note
+    is one-shot — the ticket's auto_note_generated flag is set here, so the
+    note is never regenerated (deletions stay deleted, edits stay edited).
+    Identical auto-notes already open on the global board are skipped."""
     auto_notes = _compute_auto_notes(db, current_user)
 
     open_auto_contents = set(
@@ -155,19 +176,23 @@ def publish_shift_handover(
     for auto in auto_notes:
         if auto.content in open_auto_contents:
             skipped += 1
-            continue
-        db.add(
-            ShiftNote(
-                created_by=current_user.id,
-                content=auto.content,
-                truck_number=auto.truck_number,
-                mc_name=auto.mc_name,
-                is_auto_generated=True,
-                status=NoteStatus.PUBLISHED,
+        else:
+            db.add(
+                ShiftNote(
+                    created_by=current_user.id,
+                    content=auto.content,
+                    truck_number=auto.truck_number,
+                    mc_name=auto.mc_name,
+                    is_auto_generated=True,
+                    status=NoteStatus.PUBLISHED,
+                )
             )
-        )
-        open_auto_contents.add(auto.content)
-        published_auto += 1
+            open_auto_contents.add(auto.content)
+            published_auto += 1
+        # One-shot flag: set even on skip so the ticket never re-offers a note
+        ticket = db.get(PickupTicket, auto.ticket_id)
+        if ticket is not None:
+            ticket.auto_note_generated = True
 
     drafts = db.scalars(
         select(ShiftNote).where(
