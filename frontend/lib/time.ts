@@ -1,57 +1,65 @@
 /** R17: dispatch runs strictly on Central Time (America/Chicago).
- *  The backend stores UTC; EVERYTHING rendered goes through these helpers. */
+ *  The backend stores UTC; EVERYTHING rendered goes through these helpers.
+ *  R24: the DISPLAY time zone is now a per-device preference (CST or the
+ *  device's local zone — see store/timeStore). The fmtCst* helpers keep
+ *  their names but honor the preference; shift bucketing and the day/shift
+ *  filters below remain strictly CST (they're operational definitions). */
+
+import { useTimeStore } from "@/store/timeStore";
 
 export const DISPATCH_TZ = "America/Chicago";
 
-const dateTimeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: DISPATCH_TZ,
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
+type FmtKind = "dateTime" | "full" | "time" | "dateOnly";
 
-const fullDateTimeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: DISPATCH_TZ,
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
+const FMT_OPTIONS: Record<FmtKind, Intl.DateTimeFormatOptions> = {
+  dateTime: { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" },
+  full: {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  },
+  time: { hour: "numeric", minute: "2-digit", second: "2-digit" },
+  dateOnly: { month: "2-digit", day: "2-digit", year: "numeric" },
+};
 
-const timeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: DISPATCH_TZ,
-  hour: "numeric",
-  minute: "2-digit",
-  second: "2-digit",
-});
+// Formatters are expensive to build — cache one per kind × display mode.
+// Omitting timeZone makes Intl use the device's own zone ("local" mode).
+const fmtCache = new Map<string, Intl.DateTimeFormat>();
 
-const dateOnlyFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: DISPATCH_TZ,
-  month: "2-digit",
-  day: "2-digit",
-  year: "numeric",
-});
+function getFmt(kind: FmtKind): Intl.DateTimeFormat {
+  const mode = useTimeStore.getState().mode;
+  const key = `${kind}:${mode}`;
+  let fmt = fmtCache.get(key);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-US", {
+      ...(mode === "cst" ? { timeZone: DISPATCH_TZ } : {}),
+      ...FMT_OPTIONS[kind],
+    });
+    fmtCache.set(key, fmt);
+  }
+  return fmt;
+}
 
-/** "Jul 15, 3:42 PM" in Central Time. */
+/** "Jul 15, 3:42 PM" in the selected display time zone. */
 export function fmtCst(iso: string | Date): string {
-  return dateTimeFmt.format(typeof iso === "string" ? new Date(iso) : iso);
+  return getFmt("dateTime").format(typeof iso === "string" ? new Date(iso) : iso);
 }
 
-/** "Jul 15, 2026, 3:42 PM" in Central Time (history/archive rows). */
+/** "Jul 15, 2026, 3:42 PM" in the selected display time zone (history rows). */
 export function fmtCstFull(iso: string | Date): string {
-  return fullDateTimeFmt.format(typeof iso === "string" ? new Date(iso) : iso);
+  return getFmt("full").format(typeof iso === "string" ? new Date(iso) : iso);
 }
 
-/** "3:42:07 PM" in Central Time (live "updated" stamps). */
+/** "3:42:07 PM" in the selected display time zone (live "updated" stamps). */
 export function fmtCstTime(iso: string | Date): string {
-  return timeFmt.format(typeof iso === "string" ? new Date(iso) : iso);
+  return getFmt("time").format(typeof iso === "string" ? new Date(iso) : iso);
 }
 
-/** "07/15/2026" in Central Time — date-only, no time-of-day component. */
+/** "07/15/2026" in the selected display time zone — date only. */
 export function fmtCstDate(iso: string | Date): string {
-  return dateOnlyFmt.format(typeof iso === "string" ? new Date(iso) : iso);
+  return getFmt("dateOnly").format(typeof iso === "string" ? new Date(iso) : iso);
 }
 
 // ---------------------------------------------------------------------------

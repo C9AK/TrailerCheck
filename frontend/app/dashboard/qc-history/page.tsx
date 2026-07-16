@@ -154,7 +154,7 @@ function QCHistoryTable() {
                   <td className="px-3 py-2.5">{t.motor_carrier.name}</td>
                   <td className="px-3 py-2.5">{t.creator.username}</td>
                   <td className="px-3 py-2.5">
-                    <StateBadge state={t.state} />
+                    <StateBadge state={t.state} dropped={t.is_dropped} />
                   </td>
                   {outcome === "flagged" && (
                     <td className="px-3 py-2.5">

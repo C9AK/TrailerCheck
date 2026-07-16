@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { PackageX, Pencil, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -8,26 +8,32 @@ import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, StateBadge } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { fmtCstFull, matchesSearch } from "@/lib/time";
-import type { Ticket } from "@/lib/types";
+import { isActivePickup, type Ticket } from "@/lib/types";
 
 const inputCls =
   "rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-800 dark:border-slate-700 dark:bg-slate-800";
 
-export default function MyHistoryPage() {
+// R23: two sub-tabs — Active = still in play; All = the complete log
+type View = "active" | "all";
+
+export default function MyPickupsPage() {
   return (
     <RequireRole roles={["employee", "qc", "manager"]}>
-      <MyHistoryTable />
+      <MyPickupsTable />
     </RequireRole>
   );
 }
 
-function MyHistoryTable() {
+function MyPickupsTable() {
   const router = useRouter();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [onDate, setOnDate] = useState("");
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<View>("active");
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,7 +42,7 @@ function MyHistoryTable() {
       const qs = onDate ? `?on_date=${onDate}` : "";
       setTickets(await api<Ticket[]>(`/api/tickets/my-history${qs}`));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Failed to load your history.");
+      setError(e instanceof ApiError ? e.message : "Failed to load your pickups.");
     } finally {
       setLoading(false);
     }
@@ -57,13 +63,41 @@ function MyHistoryTable() {
     }
   }
 
+  // R23 "Dropped": trailer dropped — ends the lifecycle, ticket moves to the
+  // All My Pickups log with a DROPPED badge.
+  async function markDropped(t: Ticket) {
+    if (
+      !window.confirm(
+        `Mark truck ${t.truck_number} as DROPPED? This ends the pickup's lifecycle — it moves to your historical log.`
+      )
+    ) {
+      return;
+    }
+    setSavingId(t.id);
+    setError(null);
+    try {
+      const updated = await api<Ticket>(`/api/tickets/${t.id}/dropped`, { method: "POST" });
+      setTickets((prev) => prev.map((x) => (x.id === t.id ? updated : x)));
+      setNotice(`Truck ${t.truck_number}: marked as dropped — moved to All My Pickups.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not mark the ticket as dropped.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  const activeCount = tickets.filter(isActivePickup).length;
+  const visible = tickets.filter(
+    (t) => matchesSearch(t, search) && (view === "all" || isActivePickup(t))
+  );
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-mono text-xl font-semibold">My Pickup History</h1>
+          <h1 className="font-mono text-xl font-semibold">My Pickups</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Every ticket you created — including those now in QC, flagged, or approved
+            Every ticket you created — active work up front, the full log behind it
           </p>
         </div>
         <div className="flex items-end gap-2">
@@ -120,17 +154,52 @@ function MyHistoryTable() {
         </div>
       </div>
 
-      <ErrorBanner message={error} />
+      {/* R23: Active / All sub-tabs */}
+      <div className="mb-3 flex w-fit gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
+        {(
+          [
+            { key: "active", label: `Active Pickups (${activeCount})` },
+            { key: "all", label: `All My Pickups (${tickets.length})` },
+          ] as { key: View; label: string }[]
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setView(tab.key)}
+            className={`cursor-pointer rounded-md px-4 py-1.5 text-sm font-semibold transition-colors duration-150 ${
+              view === tab.key
+                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100"
+                : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      {!loading && tickets.length === 0 && !error && (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-          {onDate ? "No pickups on this day." : "You haven't created any tickets yet."}
+      <ErrorBanner message={error} />
+      {notice && (
+        <div
+          role="status"
+          className="mb-3 rounded border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        >
+          {notice}
         </div>
       )}
 
-      {tickets.length > 0 && (
+      {!loading && visible.length === 0 && !error && (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+          {view === "active"
+            ? "No active pickups — everything you created is wrapped up."
+            : onDate
+              ? "No pickups on this day."
+              : "You haven't created any tickets yet."}
+        </div>
+      )}
+
+      {visible.length > 0 && (
         // R19: constrained height keeps the horizontal scrollbar on-screen
-        <div className="max-h-[calc(100vh-230px)] overflow-auto rounded-lg border border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="max-h-[calc(100vh-280px)] overflow-auto rounded-lg border border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
               <tr className="border-b border-blue-100 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
@@ -145,7 +214,7 @@ function MyHistoryTable() {
               </tr>
             </thead>
             <tbody>
-              {tickets.filter((t) => matchesSearch(t, search)).map((t) => (
+              {visible.map((t) => (
                 <tr
                   key={t.id}
                   className="border-b border-slate-100 last:border-0 dark:border-slate-800"
@@ -157,7 +226,7 @@ function MyHistoryTable() {
                   <td className="px-3 py-2.5">{t.motor_carrier.name}</td>
                   <td className="px-3 py-2.5">{t.driver_name ?? "—"}</td>
                   <td className="px-3 py-2.5">
-                    <StateBadge state={t.state} />
+                    <StateBadge state={t.state} dropped={t.is_dropped} />
                   </td>
                   <td className="px-3 py-2.5 text-center font-mono text-xs">
                     {t.audit_flags.length > 0 ? (
@@ -184,6 +253,19 @@ function MyHistoryTable() {
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
                       </button>
+                      {/* R23: Dropped — active pickups only */}
+                      {isActivePickup(t) && (
+                        <button
+                          type="button"
+                          aria-label={`Mark truck ${t.truck_number} as dropped`}
+                          title="Dropped — trailer was dropped, nothing left to process"
+                          disabled={savingId === t.id}
+                          onClick={() => markDropped(t)}
+                          className="cursor-pointer rounded p-1.5 text-slate-400 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-40 dark:hover:bg-amber-950/40"
+                        >
+                          <PackageX className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         aria-label={`Delete truck ${t.truck_number}`}

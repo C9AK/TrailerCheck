@@ -59,3 +59,5 @@ class AuditEvent(str, enum.Enum):
     TICKET_APPROVED = "TICKET_APPROVED"
     TICKET_DELETED = "TICKET_DELETED"
     TICKET_UNRESOLVABLE = "TICKET_UNRESOLVABLE"
+    # R23: trailer dropped — dispatch can no longer process the pickup
+    TICKET_DROPPED = "TICKET_DROPPED"

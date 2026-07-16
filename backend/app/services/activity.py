@@ -47,6 +47,11 @@ def _render_message(ticket: PickupTicket, actor: User, event: AuditEvent) -> str
             f"{actor.username} marked truck {truck} ({mc}) UNRESOLVABLE and escalated it to QC "
             f"— reason: {ticket.unresolvable_reason or ''}"
         )
+    if event == AuditEvent.TICKET_DROPPED:
+        return (
+            f"{actor.username} marked truck {truck} ({mc}) as DROPPED — "
+            f"trailer dropped, pickup can no longer be processed"
+        )
     if event == AuditEvent.TICKET_DELETED:
         return f"{actor.username} deleted pickup ticket for truck {truck} ({mc})"
     return f"{actor.username} updated ticket for truck {truck} ({mc})"

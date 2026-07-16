@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Flag, RotateCcw, Send, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Flag, PackageX, RotateCcw, Send, Trash2, Truck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -8,6 +8,7 @@ import { ErrorBanner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { fmtCstFull, fmtCstTime } from "@/lib/time";
 import type { AuditEventType, FeedEntry } from "@/lib/types";
+import { useTimeStore } from "@/store/timeStore";
 
 const POLL_MS = 5000;
 
@@ -22,6 +23,8 @@ const EVENT_STYLE: Record<
   TICKET_APPROVED: { icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40" },
   TICKET_DELETED: { icon: Trash2, cls: "text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-900/40" },
   TICKET_UNRESOLVABLE: { icon: AlertTriangle, cls: "text-amber-700 bg-amber-100 dark:text-amber-300 dark:bg-amber-900/40" },
+  // R23: trailer dropped — lifecycle ended
+  TICKET_DROPPED: { icon: PackageX, cls: "text-slate-700 bg-slate-200 dark:text-slate-300 dark:bg-slate-700/60" },
 };
 
 export default function LiveFeedPage() {
@@ -33,6 +36,8 @@ export default function LiveFeedPage() {
 }
 
 function LiveFeed() {
+  // R24: timestamps follow the display time-zone preference
+  const tzLabel = useTimeStore((s) => s.mode) === "cst" ? "CST" : "local";
   const [entries, setEntries] = useState<FeedEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -81,7 +86,7 @@ function LiveFeed() {
             Immutable, timestamped record of every dispatch &amp; QC action
             {lastUpdated && (
               <span className="ml-2 font-mono text-xs">
-                (updated {fmtCstTime(lastUpdated)} CST)
+                (updated {fmtCstTime(lastUpdated)} {tzLabel})
               </span>
             )}
           </p>
@@ -113,7 +118,7 @@ function LiveFeed() {
               </span>
               <div className="min-w-0">
                 <p className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                  [{fmtCstFull(e.created_at)} CST]
+                  [{fmtCstFull(e.created_at)} {tzLabel}]
                 </p>
                 <p className="text-sm">{e.message}</p>
               </div>

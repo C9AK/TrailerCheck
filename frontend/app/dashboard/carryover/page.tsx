@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Ban, Flag, Loader2, Pencil, RefreshCw, Search, Send, Siren, TimerReset, Trash2, X } from "lucide-react";
+import { AlertCircle, Ban, Flag, Loader2, PackageX, Pencil, RefreshCw, Search, Send, Siren, TimerReset, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -18,7 +18,8 @@ import {
 } from "@/lib/time";
 import { CATEGORY_LABELS, type Ticket, type TicketState } from "@/lib/types";
 
-/** Active-board status badges — tickets stay visible until APPROVED. */
+/** R23: scale-chase board badges — every row is waiting on its scale ticket,
+ * whatever lifecycle state it's in (APPROVED included). */
 const ACTIVE_BADGE: Partial<Record<TicketState, { label: string; cls: string }>> = {
   AWAITING_DRIVER: {
     label: "Awaiting driver",
@@ -31,6 +32,10 @@ const ACTIVE_BADGE: Partial<Record<TicketState, { label: string; cls: string }>>
   RESOLVED: {
     label: "Back at QC",
     cls: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
+  },
+  APPROVED: {
+    label: "Approved — scale pending",
+    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   },
 };
 
@@ -134,9 +139,15 @@ function CarryoverTable() {
       });
       // Tickets stay on the board through PENDING_QC — edits update live for QC.
       setTickets((prev) => prev.map((t) => (t.id === ticket.id ? updated : t)));
-      if (ticket.state === "AWAITING_DRIVER" && updated.state === "PENDING_QC") {
+      // R23: rows leave the board the moment the scale ticket is checked
+      if (field === "scale_ticket_received" && value) {
+        setTickets((prev) => prev.filter((t) => t.id !== ticket.id));
         setNotice(
-          `Truck ${updated.truck_number}: complete — sent to QC. It stays here and remains editable until approved.`
+          `Truck ${updated.truck_number}: scale ticket received — off the carryover board.`
+        );
+      } else if (ticket.state === "AWAITING_DRIVER" && updated.state === "PENDING_QC") {
+        setNotice(
+          `Truck ${updated.truck_number}: complete — sent to QC. It stays here until the scale ticket arrives.`
         );
       }
     } catch (e) {
@@ -176,6 +187,30 @@ function CarryoverTable() {
       setNotice(`Truck ${updated.truck_number}: follow-up recorded — waiting timer restarted.`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not record the follow-up.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  // R23 "Dropped": trailer dropped — nothing left to process. Any user may
+  // press it; the ticket leaves every active board and lives on in history.
+  async function markDropped(ticket: Ticket) {
+    if (
+      !window.confirm(
+        `Mark truck ${ticket.truck_number} as DROPPED? This ends the pickup's lifecycle — it moves off all active boards into history.`
+      )
+    ) {
+      return;
+    }
+    setSavingId(ticket.id);
+    setError(null);
+    try {
+      await api<Ticket>(`/api/tickets/${ticket.id}/dropped`, { method: "POST" });
+      setTickets((prev) => prev.filter((t) => t.id !== ticket.id));
+      setFlagged((prev) => prev.filter((t) => t.id !== ticket.id));
+      setNotice(`Truck ${ticket.truck_number}: marked as dropped — moved to history.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not mark the ticket as dropped.");
     } finally {
       setSavingId(null);
     }
@@ -246,9 +281,10 @@ function CarryoverTable() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="font-mono text-xl font-semibold">Carryover / Active Board</h1>
+          <h1 className="font-mono text-xl font-semibold">Carryover / Scale Chase</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Your working sheet — tickets stay visible and editable until QC approves them
+            Flagged pickups + everything still waiting on a scale ticket — approved
+            or not, a row leaves only when its scale box is checked
           </p>
         </div>
         <button
@@ -454,6 +490,17 @@ function CarryoverTable() {
                         Open full form
                       </button>
                     )}
+                    {/* R23: Dropped — any user, ends the lifecycle */}
+                    <button
+                      type="button"
+                      disabled={savingId === t.id}
+                      onClick={() => markDropped(t)}
+                      title="Dropped — trailer was dropped, nothing left to process"
+                      className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-amber-950/40"
+                    >
+                      <PackageX className="h-3.5 w-3.5" aria-hidden="true" />
+                      Dropped
+                    </button>
                     {canModify(t) && (
                       <button
                         type="button"
@@ -477,7 +524,7 @@ function CarryoverTable() {
 
       {!loading && sorted.length === 0 && flagged.length === 0 && !error && (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-          No active tickets — everything has been approved.
+          Board clear — no flagged pickups and nothing waiting on a scale ticket.
         </div>
       )}
 
@@ -603,6 +650,17 @@ function CarryoverTable() {
                             <Pencil className="h-4 w-4" aria-hidden="true" />
                           </button>
                         )}
+                        {/* R23: Dropped — any user, ends the lifecycle */}
+                        <button
+                          type="button"
+                          aria-label={`Mark truck ${t.truck_number} as dropped`}
+                          title="Dropped — trailer was dropped, nothing left to process"
+                          disabled={savingId === t.id}
+                          onClick={() => markDropped(t)}
+                          className="cursor-pointer rounded p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-40 dark:hover:bg-amber-950/40"
+                        >
+                          <PackageX className="h-4 w-4" aria-hidden="true" />
+                        </button>
                         {canDelete(t) && (
                           <button
                             type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Minus, RefreshCw, Search } from "lucide-react";
+import { Activity, Check, Minus, PackageX, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -14,7 +14,8 @@ import {
   SHIFT_LABELS,
   type Shift,
 } from "@/lib/time";
-import type { Ticket } from "@/lib/types";
+import { isActivePickup, type Ticket } from "@/lib/types";
+import { useTimeStore } from "@/store/timeStore";
 
 const POLL_MS = 20_000;
 
@@ -42,11 +43,15 @@ function GlobalSheet() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
   // R17: search + CST day/shift filters
   const [search, setSearch] = useState("");
   const [day, setDay] = useState("");
   const [shift, setShift] = useState<Shift | "">("");
+  // R24: display time zone preference (CST vs device-local)
+  const timeMode = useTimeStore((s) => s.mode);
 
   const load = useCallback(async () => {
     try {
@@ -66,13 +71,42 @@ function GlobalSheet() {
     return () => clearInterval(id);
   }, [load]);
 
+  // R23 "Dropped": ANY user can end a pickup's lifecycle from the global
+  // active section — the row moves down into the historical sheet.
+  async function markDropped(t: Ticket) {
+    if (
+      !window.confirm(
+        `Mark truck ${t.truck_number} as DROPPED? This ends the pickup's lifecycle — it leaves every active board.`
+      )
+    ) {
+      return;
+    }
+    setSavingId(t.id);
+    setError(null);
+    try {
+      const updated = await api<Ticket>(`/api/tickets/${t.id}/dropped`, { method: "POST" });
+      setTickets((prev) => prev.map((x) => (x.id === t.id ? updated : x)));
+      setNotice(`Truck ${t.truck_number}: marked as dropped — moved to the historical sheet.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not mark the ticket as dropped.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  const matches = (t: Ticket) =>
+    matchesSearch(t, search) && matchesDayShift(t.created_at, day, shift);
+  // R23: global operations view — every active/pending pickup from EVERY user
+  const active = tickets.filter((t) => isActivePickup(t) && matches(t));
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="font-mono text-xl font-semibold">All Pickups — Global Sheet</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Every ticket across the whole team, live — times in CST
+            Every ticket across the whole team, live — times in{" "}
+            {timeMode === "cst" ? "CST" : "your local time"}
             {lastUpdated && (
               <span className="ml-2 font-mono text-xs">
                 (updated {fmtCstTime(lastUpdated)})
@@ -142,6 +176,109 @@ function GlobalSheet() {
       </div>
 
       <ErrorBanner message={error} />
+      {notice && (
+        <div
+          role="status"
+          className="mb-3 rounded border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        >
+          {notice}
+        </div>
+      )}
+
+      {/* R23: GLOBAL Active Pickups — every pending pickup from every user */}
+      <section className="mb-6">
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+          <Activity className="h-4 w-4" aria-hidden="true" />
+          Active Pickups — all employees ({active.length})
+        </h2>
+        {active.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+            Nothing in play right now — no active pickups anywhere in the system.
+          </p>
+        ) : (
+          <div className="max-h-[45vh] overflow-auto rounded-lg border-2 border-brand-200 bg-white dark:border-brand-900 dark:bg-slate-900">
+            <table className="w-full min-w-[1140px] text-left text-sm">
+              <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
+                <tr className="border-b border-blue-100 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                  <th className="px-3 py-2">Created</th>
+                  <th className="px-3 py-2">Truck #</th>
+                  <th className="px-3 py-2">MC</th>
+                  <th className="px-3 py-2">By</th>
+                  <th className="px-3 py-2">Status</th>
+                  {SHEET_CHECKS.map((c) => (
+                    <th key={c.key} className="px-2 py-2 text-center">
+                      {c.label}
+                    </th>
+                  ))}
+                  <th className="px-3 py-2 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {active.map((t) => (
+                  <tr
+                    key={t.id}
+                    className="border-b border-slate-100 last:border-0 dark:border-slate-800"
+                  >
+                    <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs">
+                      {fmtCst(t.created_at)}
+                    </td>
+                    <td className="px-3 py-1.5 font-mono font-semibold">{t.truck_number}</td>
+                    <td className="px-3 py-1.5">{t.motor_carrier.name}</td>
+                    <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400">
+                      {t.creator.username}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <StateBadge state={t.state} />
+                    </td>
+                    {SHEET_CHECKS.map((c) => {
+                      const na = c.key === "scale_ticket_received" && !t.needs_scale;
+                      const ok = Boolean(t[c.key]);
+                      return (
+                        <td key={c.key} className="px-2 py-1.5 text-center">
+                          {na ? (
+                            <span className="text-xs text-slate-300 dark:text-slate-600">
+                              n/a
+                            </span>
+                          ) : ok ? (
+                            <Check
+                              className="mx-auto h-4 w-4 text-emerald-600"
+                              role="img"
+                              aria-label={`${c.label}: done`}
+                            />
+                          ) : (
+                            <Minus
+                              className="mx-auto h-4 w-4 text-slate-300 dark:text-slate-600"
+                              role="img"
+                              aria-label={`${c.label}: missing`}
+                            />
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-1.5 text-center">
+                      {/* R23: Dropped — ANY user may press this here */}
+                      <button
+                        type="button"
+                        title="Dropped — trailer was dropped, nothing left to process"
+                        disabled={savingId === t.id}
+                        onClick={() => markDropped(t)}
+                        className="mx-auto flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-amber-950/40"
+                      >
+                        <PackageX className="h-3.5 w-3.5" aria-hidden="true" />
+                        Dropped
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        Full Sheet — every ticket ({tickets.length})
+      </h2>
 
       {!loading && tickets.length === 0 && !error && (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
@@ -169,10 +306,7 @@ function GlobalSheet() {
             </thead>
             <tbody>
               {tickets
-                .filter(
-                  (t) =>
-                    matchesSearch(t, search) && matchesDayShift(t.created_at, day, shift)
-                )
+                .filter(matches)
                 .map((t, i) => (
                 <tr
                   key={t.id}
@@ -189,7 +323,7 @@ function GlobalSheet() {
                     {t.creator.username}
                   </td>
                   <td className="px-3 py-1.5">
-                    <StateBadge state={t.state} />
+                    <StateBadge state={t.state} dropped={t.is_dropped} />
                   </td>
                   {SHEET_CHECKS.map((c) => {
                     const na = c.key === "scale_ticket_received" && !t.needs_scale;

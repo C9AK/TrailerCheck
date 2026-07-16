@@ -138,6 +138,8 @@ export interface Ticket {
   is_unresolvable: boolean;
   unresolvable_reason: string | null;
   is_chassis: boolean;
+  // R23: trailer dropped — lifecycle ended, historical views only
+  is_dropped: boolean;
   created_at: string;
   updated_at: string;
   audit_flags: AuditFlag[];
@@ -152,7 +154,17 @@ export type AuditEventType =
   | "TICKET_RESOLVED"
   | "TICKET_APPROVED"
   | "TICKET_DELETED"
-  | "TICKET_UNRESOLVABLE";
+  | "TICKET_UNRESOLVABLE"
+  | "TICKET_DROPPED";
+
+/** R23: a pickup still in play — drives the Active sections on My Pickups
+ * and All Pickups. Approved-but-missing-scale stays ACTIVE: the approval
+ * doesn't end the scale chase. Dropped ends everything. */
+export function isActivePickup(t: Ticket): boolean {
+  if (t.is_dropped) return false;
+  if (t.state === "APPROVED") return t.needs_scale && !t.scale_ticket_received;
+  return true;
+}
 
 export interface FeedEntry {
   id: string;

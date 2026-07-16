@@ -587,7 +587,7 @@ function NewPickupForm() {
         });
         // Approved tickets edited from history don't live on the carryover board
         router.push(
-          loadedState === "APPROVED" ? "/dashboard/my-history" : "/dashboard/carryover"
+          loadedState === "APPROVED" ? "/dashboard/my-pickups" : "/dashboard/carryover"
         );
         return;
       }

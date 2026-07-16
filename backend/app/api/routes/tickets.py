@@ -272,6 +272,30 @@ def delete_ticket(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/api/tickets/{ticket_id}/dropped", response_model=TicketOut)
+def mark_dropped(
+    ticket_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
+):
+    """R23 "Dropped": the truck dropped its trailer — dispatch can no longer
+    process the pickup. ANY user may mark it (global triage from the All
+    Pickups board). Ends the lifecycle immediately: the ticket disappears
+    from every active board/queue and lives on only in the historical views,
+    keeping its last state for the record."""
+    ticket = _get_ticket_or_404(db, ticket_id)
+    if ticket.is_dropped:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This ticket is already marked as dropped.",
+        )
+    ticket.is_dropped = True
+    record_event(db, ticket, current_user, AuditEvent.TICKET_DROPPED)
+    db.commit()
+    db.refresh(ticket)
+    return ticket
+
+
 @router.post("/api/tickets/{ticket_id}/resolve", response_model=TicketOut)
 def resolve_ticket(
     ticket_id: uuid.UUID,
@@ -353,7 +377,10 @@ def get_flagged(
     """Action Required queue. R8 Mistake Privacy: employees (and QC acting as
     creators, R14) see their OWN flagged tickets plus any URGENT flags (global
     triage); managers see all."""
-    q = _ticket_query.where(PickupTicket.state == TicketState.FLAGGED)
+    q = _ticket_query.where(
+        PickupTicket.state == TicketState.FLAGGED,
+        PickupTicket.is_dropped.is_(False),  # R23: dropped = lifecycle over
+    )
     if current_user.role != UserRole.manager:
         q = q.where(
             or_(
@@ -377,15 +404,21 @@ def get_carryover(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
-    """Employee active board. Tickets remain visible and editable through
-    PENDING_QC/RESOLVED — they only leave this board once APPROVED
-    (FLAGGED tickets are served by /api/tickets/flagged for their own section)."""
+    """R23: the Carryover board is the SCALE-CHASE board. It shows only
+    pickups still waiting on a scale ticket (needs_scale, not received) — in
+    ANY state INCLUDING APPROVED: a QC approval does not end the chase; the
+    ticket leaves only when the scale box is finally checked (or it's
+    dropped). FLAGGED tickets are served by /api/tickets/flagged for their
+    own Action Required section; parked drafts aren't in play yet."""
     return (
         db.scalars(
             _ticket_query.where(
-                PickupTicket.state.in_(
-                    [TicketState.AWAITING_DRIVER, TicketState.PENDING_QC, TicketState.RESOLVED]
-                )
+                PickupTicket.is_dropped.is_(False),
+                PickupTicket.needs_scale.is_(True),
+                PickupTicket.scale_ticket_received.is_(False),
+                PickupTicket.state.notin_(
+                    [TicketState.DRAFT_IN_PROGRESS, TicketState.FLAGGED]
+                ),
             ).order_by(PickupTicket.scale_requested_at.asc().nulls_last())
         )
         .unique()
@@ -438,9 +471,10 @@ def get_qc_queue(
         states.append(TicketState.AWAITING_DRIVER)
     tickets = (
         db.scalars(
-            _ticket_query.where(PickupTicket.state.in_(states)).order_by(
-                PickupTicket.updated_at.asc()
-            )
+            _ticket_query.where(
+                PickupTicket.state.in_(states),
+                PickupTicket.is_dropped.is_(False),  # R23: nothing to review
+            ).order_by(PickupTicket.updated_at.asc())
         )
         .unique()
         .all()
@@ -591,6 +625,12 @@ def approve_ticket(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Conflict of interest — you cannot approve a pickup you created.",
         )
+    # R23: dropped tickets are out of the lifecycle — nothing to approve
+    if ticket.is_dropped:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This ticket was dropped — its lifecycle has ended.",
+        )
     # AWAITING_DRIVER allowed: QC may consciously approve early.
     if ticket.state not in (
         TicketState.PENDING_QC,
@@ -622,6 +662,12 @@ def flag_ticket(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Conflict of interest — you cannot flag a pickup you created.",
+        )
+    # R23: dropped tickets are out of the lifecycle — nothing to flag
+    if ticket.is_dropped:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This ticket was dropped — its lifecycle has ended.",
         )
     if ticket.state not in (
         TicketState.PENDING_QC,

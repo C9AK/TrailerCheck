@@ -261,7 +261,7 @@ function ArchiveTable() {
                   <td className="px-3 py-2.5">{t.motor_carrier.name}</td>
                   <td className="px-3 py-2.5">{t.driver_name ?? "—"}</td>
                   <td className="px-3 py-2.5">
-                    <StateBadge state={t.state} />
+                    <StateBadge state={t.state} dropped={t.is_dropped} />
                   </td>
                   <td className="px-3 py-2.5 text-right font-mono text-xs">
                     {t.weight || "—"}

@@ -73,6 +73,7 @@ def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
             .where(
                 PickupTicket.created_by == user.id,
                 PickupTicket.auto_note_generated.is_(False),
+                PickupTicket.is_dropped.is_(False),  # R23: lifecycle over
                 or_(
                     PickupTicket.state == TicketState.AWAITING_DRIVER,
                     and_(

@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FileClock,
   Gauge,
+  Globe,
   History,
   LogOut,
   ShieldCheck,
@@ -25,6 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { AutoNote, Role, Ticket, User } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
+import { useTimeStore, type TimeMode } from "@/store/timeStore";
 
 const FLAG_POLL_MS = 15_000;
 const REMINDER_CHECK_MS = 5 * 60_000; // check every 5 min...
@@ -41,7 +43,7 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[
   { href: "/dashboard/all-pickups", label: "All Pickups", icon: Table2, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/notes", label: "Notes", icon: StickyNote, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["employee", "qc", "manager"] },
-  { href: "/dashboard/my-history", label: "My History", icon: History, roles: ["employee", "qc", "manager"] },
+  { href: "/dashboard/my-pickups", label: "My Pickups", icon: History, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/qc-review", label: "QC Review", icon: ShieldCheck, roles: ["qc", "manager"] },
   { href: "/dashboard/qc-history", label: "My Audits", icon: ClipboardCheck, roles: ["qc", "manager"] },
   { href: "/dashboard/manager/live-feed", label: "Live Feed", icon: Activity, roles: ["manager"] },
@@ -49,6 +51,43 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[
   { href: "/dashboard/manager/stats", label: "Stats", icon: BarChart3, roles: ["manager"] },
   { href: "/dashboard/admin", label: "Admin", icon: Users, roles: ["manager"] },
 ];
+
+/** R24: choose how times are displayed everywhere — dispatch CST or the
+ * device's own time zone (e.g. Jordan/Lebanon). Per-device preference. */
+function TimeZoneToggle({ compact = false }: { compact?: boolean }) {
+  const { mode, setMode } = useTimeStore();
+  const options: { key: TimeMode; label: string; title: string }[] = [
+    { key: "cst", label: "CST", title: "Show all times in Central Time (dispatch time)" },
+    { key: "local", label: "Local", title: "Show all times in this device's time zone" },
+  ];
+  return (
+    <div
+      className={`flex items-center gap-1 ${compact ? "" : "rounded border border-slate-200 p-1 dark:border-slate-700"}`}
+      role="group"
+      aria-label="Time zone display"
+    >
+      {!compact && (
+        <Globe className="ml-1 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+      )}
+      {options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          title={o.title}
+          aria-pressed={mode === o.key}
+          onClick={() => setMode(o.key)}
+          className={`cursor-pointer rounded px-2 py-1 font-mono text-xs font-semibold transition-colors duration-150 ${
+            mode === o.key
+              ? "bg-blue-800 text-white"
+              : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function ScoreBadge({ score }: { score: number }) {
   const tone =
@@ -72,6 +111,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const { token, role, username, hasHydrated, logout } = useAuthStore();
+  // R24: remount the page content when the display time zone flips so every
+  // rendered timestamp re-formats immediately.
+  const timeMode = useTimeStore((s) => s.mode);
   const [score, setScore] = useState<number | null>(null);
 
   // R8: flag notifications — poll the Action Required queue, badge the nav,
@@ -346,6 +388,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <p className="mb-2 truncate text-xs text-slate-500 dark:text-slate-400">
             {username} · <span className="font-mono uppercase">{role}</span>
           </p>
+          {/* R24: CST vs device-local time display */}
+          <div className="mb-2">
+            <TimeZoneToggle />
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -385,6 +431,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
           ))}
           <span className="ml-auto flex items-center gap-1">
+            <TimeZoneToggle compact />
             {(role === "employee" || role === "qc") && score !== null && (
               <ScoreBadge score={score} />
             )}
@@ -409,7 +456,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        <main className="min-w-0 flex-1 p-4 md:p-6 md:pt-3">{children}</main>
+        {/* R24: keyed by time mode — flipping CST/Local re-renders all times */}
+        <main key={timeMode} className="min-w-0 flex-1 p-4 md:p-6 md:pt-3">
+          {children}
+        </main>
 
         {/* Floating bottom-right notification (alerts red, reminders amber) */}
         {toast && (

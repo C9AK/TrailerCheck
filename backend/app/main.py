@@ -29,6 +29,7 @@ async def lifespan(app: FastAPI):
     _migrate_r17()
     _migrate_r21()
     _migrate_r22()
+    _migrate_r23()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     yield
@@ -108,6 +109,36 @@ def _migrate_r22() -> None:
                 )
             )
         print("R22 migration: added pickup_tickets.auto_note_generated")
+
+
+def _migrate_r23() -> None:
+    """R23 in-place migration: is_dropped flag on pickup_tickets + the
+    TICKET_DROPPED audit-event value (native enum on Postgres; SQLite stores
+    enums as plain VARCHAR — no change needed). Idempotent."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    if engine.dialect.name == "postgresql":
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(
+                text("ALTER TYPE audit_event ADD VALUE IF NOT EXISTS 'TICKET_DROPPED'")
+            )
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    if "is_dropped" not in cols:
+        false_lit = "FALSE" if engine.dialect.name == "postgresql" else "0"
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE pickup_tickets ADD COLUMN is_dropped "
+                    f"BOOLEAN NOT NULL DEFAULT {false_lit}"
+                )
+            )
+        print("R23 migration: added pickup_tickets.is_dropped")
 
 
 def _migrate_feed_ticket_nullable() -> None:

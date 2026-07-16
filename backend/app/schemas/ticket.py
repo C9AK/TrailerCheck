@@ -170,6 +170,8 @@ class TicketOut(BaseModel):
     resolved_by: uuid.UUID | None
     is_unresolvable: bool
     unresolvable_reason: str | None
+    # R23: trailer dropped — lifecycle ended, historical views only
+    is_dropped: bool
 
     created_at: datetime
     updated_at: datetime

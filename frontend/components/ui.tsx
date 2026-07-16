@@ -54,7 +54,15 @@ const STATE_STYLES: Record<TicketState, string> = {
   APPROVED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
-export function StateBadge({ state }: { state: TicketState }) {
+export function StateBadge({ state, dropped }: { state: TicketState; dropped?: boolean }) {
+  // R23: dropped overrides the state display — the lifecycle is over
+  if (dropped) {
+    return (
+      <span className="inline-flex items-center rounded bg-slate-700 px-2 py-0.5 font-mono text-xs font-semibold text-slate-100 dark:bg-slate-600">
+        DROPPED
+      </span>
+    );
+  }
   return (
     <span
       className={`inline-flex items-center rounded px-2 py-0.5 font-mono text-xs font-semibold ${STATE_STYLES[state]}`}

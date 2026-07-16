@@ -91,6 +91,11 @@ class PickupTicket(Base):
         Uuid, ForeignKey("users.id"), nullable=True
     )
 
+    # R23: the truck dropped its trailer — dispatch can no longer process the
+    # pickup. Ends the lifecycle: excluded from every active board and queue;
+    # the ticket keeps its last state for the historical record.
+    is_dropped: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # R22: set the FIRST time this ticket's consolidated auto shift-note is
     # persisted. Once true, the system never regenerates the note — user
     # deletions stay deleted and user edits are never overwritten.
