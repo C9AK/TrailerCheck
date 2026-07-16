@@ -11,6 +11,7 @@ import { ErrorBanner } from "@/components/ui";
 import { getTimerInfo, getTimerStart, useNow } from "@/hooks/useTicketTimer";
 import { api, ApiError, mediaUrl } from "@/lib/api";
 import {
+  fmtCst,
   matchesDayShift,
   matchesSearch,
   SHIFT_LABELS,
@@ -389,7 +390,8 @@ function CarryoverTable() {
                       )}
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
-                      {t.motor_carrier.name} · by {t.creator.username}
+                      {t.motor_carrier.name} · by {t.creator.username} ·{" "}
+                      {fmtCst(t.created_at)}
                     </span>
                   </div>
                   <div className="mb-2 flex flex-wrap gap-1.5">
@@ -532,10 +534,11 @@ function CarryoverTable() {
         // R19: vertical scroll happens INSIDE this wrapper so the horizontal
         // scrollbar stays pinned on-screen no matter which row you're on.
         <div className="max-h-[calc(100vh-230px)] overflow-auto rounded-lg border border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
               <tr className="border-b border-blue-100 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 <th className="px-3 py-2.5">Truck #</th>
+                <th className="px-3 py-2.5">Created</th>
                 <th className="px-3 py-2.5">Status</th>
                 <th className="px-3 py-2.5">MC</th>
                 <th className="px-3 py-2.5">Driver</th>
@@ -594,6 +597,10 @@ function CarryoverTable() {
                         )}
                         {t.truck_number}
                       </span>
+                    </td>
+                    {/* When the ticket was ORIGINALLY created (display TZ) */}
+                    <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
+                      {fmtCst(t.created_at)}
                     </td>
                     <td className="px-3 py-2.5">
                       <span
