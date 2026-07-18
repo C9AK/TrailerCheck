@@ -126,15 +126,24 @@ export function matchesDayShift(iso: string, day: string, shift: Shift | ""): bo
   return true;
 }
 
-/** Case-insensitive truck-number / MC-name search used by the list pages. */
+/** Case-insensitive truck-number / MC-name / pickup-number search used by
+ * the list pages. R27: "#142" or "142" both hit pickup #142. */
 export function matchesSearch(
-  t: { truck_number: string; motor_carrier: { name: string } },
+  t: {
+    truck_number: string;
+    motor_carrier: { name: string };
+    pickup_number?: number | null;
+  },
   query: string
 ): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
+  const numQuery = q.startsWith("#") ? q.slice(1) : q;
   return (
     t.truck_number.toLowerCase().includes(q) ||
-    t.motor_carrier.name.toLowerCase().includes(q)
+    t.motor_carrier.name.toLowerCase().includes(q) ||
+    (t.pickup_number != null &&
+      numQuery.length > 0 &&
+      String(t.pickup_number).includes(numQuery))
   );
 }

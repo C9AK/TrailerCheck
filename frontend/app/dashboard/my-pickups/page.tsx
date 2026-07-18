@@ -125,7 +125,7 @@ function MyPickupsTable() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Truck # or MC…"
+                placeholder="#, truck or MC…"
                 className={`${inputCls} w-44 pl-8`}
               />
             </span>
@@ -231,6 +231,7 @@ function MyPickupsTable() {
           <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
               <tr className="border-b border-blue-100 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                <th className="px-3 py-2.5">#</th>
                 <th className="px-3 py-2.5">Created</th>
                 <th className="px-3 py-2.5">Truck #</th>
                 <th className="px-3 py-2.5">MC</th>
@@ -247,6 +248,9 @@ function MyPickupsTable() {
                   key={t.id}
                   className="border-b border-slate-100 last:border-0 dark:border-slate-800"
                 >
+                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    {t.pickup_number != null ? `#${t.pickup_number}` : "—"}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
                     {fmtCstFull(t.created_at)}
                   </td>

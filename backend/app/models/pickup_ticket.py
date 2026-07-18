@@ -1,7 +1,19 @@
 ﻿import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, String, Text, Uuid, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -13,6 +25,12 @@ class PickupTicket(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid, primary_key=True, default=uuid.uuid4
+    )
+    # R27: human-friendly sequential pickup number (#1, #2, …) — assigned at
+    # creation (max+1), permanent for the ticket's life, shown on every board
+    # so dispatchers can reference "pickup #142" instead of truck numbers.
+    pickup_number: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True
     )
     created_by: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id"), nullable=False, index=True

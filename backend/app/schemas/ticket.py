@@ -129,6 +129,8 @@ class TicketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    # R27: permanent sequential pickup number, shown as "#N" on every board
+    pickup_number: int | None
     created_by: uuid.UUID
     creator: UserBrief
     mc_id: uuid.UUID

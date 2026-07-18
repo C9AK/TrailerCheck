@@ -124,6 +124,8 @@ export interface AuditFlag {
 
 export interface Ticket {
   id: string;
+  // R27: permanent sequential pickup number, shown as "#N" on every board
+  pickup_number: number | null;
   created_by: string;
   creator: UserBrief;
   mc_id: string;

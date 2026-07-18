@@ -237,6 +237,7 @@ function ArchiveTable() {
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead>
               <tr className="border-b border-blue-100 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                <th className="px-3 py-2.5">#</th>
                 <th className="px-3 py-2.5">Created</th>
                 <th className="px-3 py-2.5">Truck #</th>
                 <th className="px-3 py-2.5">MC</th>
@@ -254,6 +255,9 @@ function ArchiveTable() {
                   key={t.id}
                   className="border-b border-slate-100 last:border-0 dark:border-slate-800"
                 >
+                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    {t.pickup_number != null ? `#${t.pickup_number}` : "—"}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
                     {fmtCstFull(t.created_at)}
                   </td>

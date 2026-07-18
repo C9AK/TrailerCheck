@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
     _migrate_r22()
     _migrate_r23()
     _migrate_r25()
+    _migrate_r27()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     # R25: continuous Samsara movement watch for hazmat loads
@@ -173,6 +174,47 @@ def _migrate_r25() -> None:
                 )
             )
         print("R25 migration: added pickup_tickets.is_hazmat")
+
+
+def _migrate_r27() -> None:
+    """R27 in-place migration: pickup_number column + backfill of every
+    unnumbered ticket in creation order (continuing after the current max so
+    a partial backfill never double-assigns). Idempotent."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    with engine.begin() as conn:
+        if "pickup_number" not in cols:
+            conn.execute(
+                text("ALTER TABLE pickup_tickets ADD COLUMN pickup_number INTEGER")
+            )
+            print("R27 migration: added pickup_tickets.pickup_number")
+        start = (
+            conn.execute(
+                text("SELECT COALESCE(MAX(pickup_number), 0) FROM pickup_tickets")
+            ).scalar()
+            or 0
+        )
+        rows = conn.execute(
+            text(
+                "SELECT id FROM pickup_tickets WHERE pickup_number IS NULL "
+                "ORDER BY created_at"
+            )
+        ).fetchall()
+        for offset, (ticket_id,) in enumerate(rows, start=1):
+            conn.execute(
+                text(
+                    "UPDATE pickup_tickets SET pickup_number = :n WHERE id = :id"
+                ),
+                {"n": start + offset, "id": ticket_id},
+            )
+        if rows:
+            print(f"R27 migration: numbered {len(rows)} existing pickup(s)")
 
 
 def _migrate_feed_ticket_nullable() -> None:

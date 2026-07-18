@@ -88,6 +88,11 @@ def create_ticket(
 
     db.add(ticket)
     db.flush()  # assign ticket.id and load relations for the readiness check
+    # R27: sequential pickup number. max+1 inside the transaction — safe for
+    # the single-worker deployment this app runs on.
+    ticket.pickup_number = (
+        db.scalar(select(sa_func.max(PickupTicket.pickup_number))) or 0
+    ) + 1
     if payload.still_sending:
         # R17 "Still Sending": park the ticket so the dispatcher can juggle
         # several concurrent pickups; it enters the lifecycle on submit.
