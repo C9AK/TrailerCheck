@@ -137,23 +137,78 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   // R25: real-time alert stream (SSE) — the hazmat movement monitor pushes
-  // here the instant a watched truck starts moving. EventSource reconnects
-  // automatically on drops; the JWT rides in the query string (EventSource
-  // cannot send headers).
+  // here the instant a watched truck starts moving. The JWT rides in the
+  // query string (EventSource cannot send headers). The backend sends a
+  // keepalive comment every 15s as the heartbeat.
+  //
+  // R26 resilience: EventSource only retries TRANSIENT errors by itself —
+  // after a non-200 response, or when a backgrounded tab / sleeping laptop
+  // kills the socket, it lands in CLOSED and stays dead. Rebuild it with
+  // exponential backoff, and revive immediately when the tab becomes
+  // visible/focused again or the network comes back.
   useEffect(() => {
     if (!token) return;
-    const es = new EventSource(
-      `${API_BASE}/api/alerts/stream?token=${encodeURIComponent(token)}`
-    );
-    es.onmessage = (ev) => {
-      try {
-        const alert = JSON.parse(ev.data) as HazmatAlert;
-        if (alert.type === "hazmat_movement") setHazmatAlert(alert);
-      } catch {
-        /* malformed frame — ignore */
+    let es: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+    let cancelled = false;
+
+    const scheduleReconnect = () => {
+      if (cancelled || retryTimer) return;
+      const delay = Math.min(30_000, 1_000 * 2 ** attempt++);
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        connect();
+      }, delay);
+    };
+
+    const connect = () => {
+      if (cancelled) return;
+      es?.close();
+      es = new EventSource(
+        `${API_BASE}/api/alerts/stream?token=${encodeURIComponent(token)}`
+      );
+      es.onopen = () => {
+        attempt = 0; // healthy again — reset the backoff ladder
+      };
+      es.onmessage = (ev) => {
+        try {
+          const alert = JSON.parse(ev.data) as HazmatAlert;
+          if (alert.type === "hazmat_movement") setHazmatAlert(alert);
+        } catch {
+          /* malformed frame — ignore */
+        }
+      };
+      es.onerror = () => {
+        // CONNECTING = EventSource is already retrying on its own; CLOSED =
+        // it gave up for good — take over with our own backoff.
+        if (es?.readyState === EventSource.CLOSED) scheduleReconnect();
+      };
+    };
+
+    const revive = () => {
+      if (
+        !cancelled &&
+        document.visibilityState === "visible" &&
+        es?.readyState === EventSource.CLOSED &&
+        !retryTimer
+      ) {
+        connect();
       }
     };
-    return () => es.close();
+
+    document.addEventListener("visibilitychange", revive);
+    window.addEventListener("focus", revive);
+    window.addEventListener("online", revive);
+    connect();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      es?.close();
+      document.removeEventListener("visibilitychange", revive);
+      window.removeEventListener("focus", revive);
+      window.removeEventListener("online", revive);
+    };
   }, [token]);
 
   useEffect(() => {

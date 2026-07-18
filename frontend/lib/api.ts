@@ -22,7 +22,7 @@ export class ApiError extends Error {
 // failing the first request, and toast the user so they don't spam refresh.
 // ---------------------------------------------------------------------------
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
-const RETRY_DELAYS_MS = [3_000, 5_000, 8_000]; // up to 3 retries
+const RETRY_DELAYS_MS = [2_000, 4_000, 8_000]; // up to 3 retries, exponential backoff
 const ATTEMPT_TIMEOUT_MS = 30_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
