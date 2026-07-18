@@ -2,6 +2,7 @@
 
 import {
   CheckSquare,
+  ClipboardPaste,
   ExternalLink,
   FileCheck2,
   FileClock,
@@ -334,6 +335,8 @@ function NewPickupForm() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [docUploading, setDocUploading] = useState<TrailerDocType | null>(null);
   const docsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // R25b: clipboard paste — which paper slot is waiting for a Ctrl+V
+  const [pasteArmed, setPasteArmed] = useState<TrailerDocType | null>(null);
 
   // R25: hazmat load — UGL does not haul hazmat; arms the movement monitor
   const [isHazmat, setIsHazmat] = useState(false);
@@ -510,12 +513,15 @@ function NewPickupForm() {
     if (savedDocs.some((d) => d.doc_type === "registration")) setRegistrationVerified(true);
   }
 
-  async function attachTrailerDoc(docType: TrailerDocType, file: File | null) {
-    if (!file || !trailerNumber.trim()) return;
+  async function attachTrailerDoc(
+    docType: TrailerDocType,
+    source: File | { url: string } | null
+  ) {
+    if (!source || !trailerNumber.trim()) return;
     setDocUploading(docType);
     setError(null);
     try {
-      const doc = await uploadTrailerDocument(trailerNumber, docType, file);
+      const doc = await uploadTrailerDocument(trailerNumber, docType, source);
       setSavedDocs((prev) => [...prev.filter((d) => d.doc_type !== docType), doc]);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not save the trailer paper.");
@@ -523,6 +529,73 @@ function NewPickupForm() {
       setDocUploading(null);
     }
   }
+
+  // R25b: paste a COPIED paper instead of uploading — a copied screenshot /
+  // photo (image data) or a copied link both work. Clicking "Paste" first
+  // tries the direct async clipboard API (https/localhost); where the
+  // browser blocks that (plain-http LAN), it arms the slot and the document
+  // -level Ctrl+V listener below finishes the job.
+  async function armPaste(docType: TrailerDocType) {
+    try {
+      if (navigator.clipboard?.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          const type = item.types.find((t) => t.startsWith("image/"));
+          if (type) {
+            const blob = await item.getType(type);
+            const ext = type.split("/")[1] ?? "png";
+            attachTrailerDoc(
+              docType,
+              new File([blob], `pasted-${Date.now()}.${ext}`, { type })
+            );
+            return;
+          }
+        }
+        const text = (await navigator.clipboard.readText()).trim();
+        if (/^https?:\/\//i.test(text)) {
+          attachTrailerDoc(docType, { url: text });
+          return;
+        }
+      }
+    } catch {
+      /* clipboard read blocked — fall through to armed Ctrl+V mode */
+    }
+    setPasteArmed(docType);
+  }
+
+  useEffect(() => {
+    if (!pasteArmed) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const fileItem = items.find(
+        (i) =>
+          i.kind === "file" &&
+          (i.type.startsWith("image/") || i.type === "application/pdf")
+      );
+      const file = fileItem?.getAsFile() ?? null;
+      const text = (e.clipboardData?.getData("text") ?? "").trim();
+      if (file) {
+        e.preventDefault();
+        attachTrailerDoc(pasteArmed, file);
+      } else if (/^https?:\/\//i.test(text)) {
+        e.preventDefault();
+        attachTrailerDoc(pasteArmed, { url: text });
+      } else {
+        setError(
+          "Clipboard has no image or link — copy the paper (screenshot/photo or URL) first, then paste again."
+        );
+      }
+      setPasteArmed(null);
+    };
+    document.addEventListener("paste", onPaste);
+    // Auto-disarm so a forgotten armed slot doesn't swallow a later Ctrl+V
+    const timer = setTimeout(() => setPasteArmed(null), 20_000);
+    return () => {
+      document.removeEventListener("paste", onPaste);
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pasteArmed]);
 
   const ptiAgeDays = lastPtiDate
     ? Math.floor((Date.now() - new Date(`${lastPtiDate}T00:00:00Z`).getTime()) / 86_400_000)
@@ -938,31 +1011,50 @@ function NewPickupForm() {
               <div className="mt-2 flex flex-wrap gap-2">
                 {(["inspection", "registration"] as TrailerDocType[]).map((docType) => {
                   const existing = savedDocs.some((d) => d.doc_type === docType);
+                  const docLabel = docType === "inspection" ? "Inspection" : "Registration";
                   return (
-                    <label
-                      key={docType}
-                      className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-white dark:border-slate-600 dark:hover:bg-slate-700"
-                    >
-                      <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-                      {docUploading === docType
-                        ? "Saving…"
-                        : `${existing ? "Replace" : "Save"} ${
-                            docType === "inspection" ? "Inspection" : "Registration"
-                          } paper`}
-                      <input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        className="hidden"
+                    <span key={docType} className="flex items-center gap-1">
+                      <label className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-white dark:border-slate-600 dark:hover:bg-slate-700">
+                        <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                        {docUploading === docType
+                          ? "Saving…"
+                          : `${existing ? "Replace" : "Save"} ${docLabel} paper`}
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          className="hidden"
+                          disabled={docUploading !== null}
+                          onChange={(e) => {
+                            attachTrailerDoc(docType, e.target.files?.[0] ?? null);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      {/* R25b: paste a copied image or link instead of uploading */}
+                      <button
+                        type="button"
                         disabled={docUploading !== null}
-                        onChange={(e) => {
-                          attachTrailerDoc(docType, e.target.files?.[0] ?? null);
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
+                        onClick={() =>
+                          pasteArmed === docType ? setPasteArmed(null) : armPaste(docType)
+                        }
+                        title={`Paste a copied image or link as the ${docLabel} paper`}
+                        className={`flex cursor-pointer items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 disabled:opacity-40 ${
+                          pasteArmed === docType
+                            ? "animate-pulse border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
+                            : "border-slate-300 hover:bg-white dark:border-slate-600 dark:hover:bg-slate-700"
+                        }`}
+                      >
+                        <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
+                        {pasteArmed === docType ? "Press Ctrl+V now…" : "Paste"}
+                      </button>
+                    </span>
                   );
                 })}
               </div>
+              <p className="mt-1.5 text-[10px] text-slate-400 dark:text-slate-500">
+                Paste works with a copied screenshot/photo of the paper or a copied
+                link — click Paste, then Ctrl+V if it doesn&apos;t attach immediately.
+              </p>
             </div>
           )}
         </section>

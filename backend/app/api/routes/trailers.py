@@ -56,38 +56,60 @@ def list_trailer_documents(
 async def upload_trailer_document(
     trailer_number: str,
     doc_type: TrailerDocType = Form(...),
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    media_url: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Attach (or replace) a trailer's Inspection/Registration paper. Any role
     may upload — dispatchers are the ones holding the papers. Registers the
-    trailer on the fly if it isn't known yet (as a standard, non-LOT record)."""
+    trailer on the fly if it isn't known yet (as a standard, non-LOT record).
+    Accepts EITHER an uploaded file (picked or clipboard-pasted image) OR a
+    media_url pointing at an already-hosted document."""
     number = trailer_number.strip()
     if not number:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Trailer number is required."
         )
 
-    content_type = file.content_type or ""
-    if not content_type.startswith(_ALLOWED_DOC_TYPES):
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Only image or PDF files are accepted for trailer papers.",
-        )
+    if file is not None:
+        content_type = file.content_type or ""
+        if not content_type.startswith(_ALLOWED_DOC_TYPES):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Only image or PDF files are accepted for trailer papers.",
+            )
 
-    data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File exceeds the 100 MB limit.",
-        )
+        data = await file.read()
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="File exceeds the 100 MB limit.",
+            )
 
-    suffix = Path(file.filename or "").suffix.lower()[:10]
-    name = f"{uuid.uuid4().hex}{suffix}"
-    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-    (MEDIA_DIR / name).write_bytes(data)
-    media_url = f"/media/{name}"
+        suffix = Path(file.filename or "").suffix.lower()[:10]
+        name = f"{uuid.uuid4().hex}{suffix}"
+        MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+        (MEDIA_DIR / name).write_bytes(data)
+        media_url = f"/media/{name}"
+    else:
+        # Pasted link path — accept hosted URLs or existing /media references.
+        media_url = (media_url or "").strip()
+        if not media_url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide a file or a media_url for the trailer paper.",
+            )
+        if len(media_url) > 1000:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="media_url is too long (max 1000 characters).",
+            )
+        if not media_url.startswith(("http://", "https://", "/media/")):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="media_url must be an http(s) link or a /media/ path.",
+            )
 
     trailer = resolve_trailer_by_number(db, number, None, register_as_lot=False)
 

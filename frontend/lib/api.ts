@@ -97,16 +97,21 @@ export async function uploadMedia(file: File): Promise<{ url: string; media_type
 }
 
 /** R25: attach (or replace) a trailer's saved Inspection/Registration paper.
- *  Same no-retry rationale as uploadMedia. */
+ *  Takes a File (picked OR clipboard-pasted image) or an already-hosted URL
+ *  (pasted link). Same no-retry rationale as uploadMedia. */
 export async function uploadTrailerDocument(
   trailerNumber: string,
   docType: "inspection" | "registration",
-  file: File
+  source: File | { url: string }
 ): Promise<import("./types").TrailerDocument> {
   const { token } = useAuthStore.getState();
   const form = new FormData();
   form.append("doc_type", docType);
-  form.append("file", file);
+  if (source instanceof File) {
+    form.append("file", source);
+  } else {
+    form.append("media_url", source.url);
+  }
   const res = await fetch(
     `${API_BASE}/api/trailers/${encodeURIComponent(trailerNumber)}/documents`,
     {
