@@ -318,7 +318,7 @@ function CarryoverTable() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search #, truck or MC…"
+            placeholder="Search truck # or MC…"
             aria-label="Search by truck number or motor carrier"
             className="w-56 rounded border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
@@ -383,7 +383,7 @@ function CarryoverTable() {
             Action Required ({flagged.length})
           </h2>
           <div className="grid gap-3 lg:grid-cols-2">
-            {flagged.filter(matches).map((t) => {
+            {flagged.filter(matches).map((t, i) => {
               const categories = [...new Set(t.audit_flags.map((f) => f.error_category))];
               const noteList = [
                 ...new Set(
@@ -397,11 +397,10 @@ function CarryoverTable() {
                 >
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 font-mono font-semibold">
-                      {t.pickup_number != null && (
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          #{t.pickup_number}
-                        </span>
-                      )}
+                      {/* R27b: positional number within the visible cards */}
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {i + 1}
+                      </span>
                       {t.truck_number}
                       {t.is_hazmat && <HazmatBadge />}
                       {t.is_urgent_flag && (
@@ -576,7 +575,7 @@ function CarryoverTable() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((t) => {
+              {sorted.map((t, i) => {
                 const timer = getTimerInfo(getTimerStart(t), now);
                 const rowCls =
                   timer.tier === "critical"
@@ -589,8 +588,9 @@ function CarryoverTable() {
                     key={t.id}
                     className={`border-b border-slate-100 last:border-0 dark:border-slate-800 ${rowCls}`}
                   >
+                    {/* R27b: positional number over the visible, filtered list */}
                     <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      {t.pickup_number != null ? `#${t.pickup_number}` : "—"}
+                      {i + 1}
                     </td>
                     <td className="px-3 py-2.5 font-mono font-semibold">
                       <span className="flex items-center gap-1.5">

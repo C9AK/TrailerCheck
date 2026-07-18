@@ -221,7 +221,7 @@ function QCQueue() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search #, truck or MC…"
+            placeholder="Search truck # or MC…"
             aria-label="Search by truck number or motor carrier"
             className="w-56 rounded border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
@@ -313,7 +313,7 @@ function QCQueue() {
               ? +new Date(b.created_at) - +new Date(a.created_at)
               : +new Date(a.created_at) - +new Date(b.created_at)
           )
-          .map((t) => (
+          .map((t, i) => (
           <div
             key={t.id}
             className={`rounded-lg border bg-white p-4 dark:bg-slate-900 ${
@@ -324,11 +324,10 @@ function QCQueue() {
           >
             <div className="mb-3 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-mono text-base font-semibold">
-                {t.pickup_number != null && (
-                  <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                    #{t.pickup_number}
-                  </span>
-                )}
+                {/* R27b: positional number within the visible, filtered queue */}
+                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  {i + 1}
+                </span>
                 {t.truck_number}
                 {/* R25: hazmat loads called out for the auditor */}
                 {t.is_hazmat && <HazmatBadge />}

@@ -143,7 +143,7 @@ function GlobalSheet() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search #, truck or MC…"
+            placeholder="Search truck # or MC…"
             aria-label="Search by truck number or motor carrier"
             className="w-56 rounded border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
@@ -238,13 +238,14 @@ function GlobalSheet() {
                 </tr>
               </thead>
               <tbody>
-                {active.map((t) => (
+                {active.map((t, i) => (
                   <tr
                     key={t.id}
                     className="border-b border-slate-100 last:border-0 dark:border-slate-800"
                   >
+                    {/* R27b: positional number over the visible, filtered list */}
                     <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      {t.pickup_number != null ? `#${t.pickup_number}` : "—"}
+                      {i + 1}
                     </td>
                     <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs">
                       {fmtCst(t.created_at)}
@@ -347,8 +348,9 @@ function GlobalSheet() {
                     i % 2 === 1 ? "bg-slate-50/70 dark:bg-slate-800/40" : ""
                   }`}
                 >
+                  {/* R27b: positional number over the visible, filtered list */}
                   <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    {t.pickup_number != null ? `#${t.pickup_number}` : "—"}
+                    {i + 1}
                   </td>
                   <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs">
                     {fmtCst(t.created_at)}

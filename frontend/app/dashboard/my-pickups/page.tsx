@@ -125,7 +125,7 @@ function MyPickupsTable() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="#, truck or MC…"
+                placeholder="Truck # or MC…"
                 className={`${inputCls} w-44 pl-8`}
               />
             </span>
@@ -243,13 +243,15 @@ function MyPickupsTable() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((t) => (
+              {visible.map((t, i) => (
                 <tr
                   key={t.id}
                   className="border-b border-slate-100 last:border-0 dark:border-slate-800"
                 >
+                  {/* R27b: positional number — restarts at 1 for the visible,
+                      filtered list */}
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    {t.pickup_number != null ? `#${t.pickup_number}` : "—"}
+                    {i + 1}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
                     {fmtCstFull(t.created_at)}

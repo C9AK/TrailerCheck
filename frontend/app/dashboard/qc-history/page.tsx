@@ -143,13 +143,14 @@ function QCHistoryTable() {
               </tr>
             </thead>
             <tbody>
-              {items.map(({ processed_at, ticket: t }) => (
+              {items.map(({ processed_at, ticket: t }, i) => (
                 <tr
                   key={`${t.id}-${processed_at}`}
                   className="border-b border-slate-100 last:border-0 dark:border-slate-800"
                 >
+                  {/* R27b: positional number over the visible list */}
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    {t.pickup_number != null ? `#${t.pickup_number}` : "—"}
+                    {i + 1}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
                     {fmtCstFull(processed_at)}
