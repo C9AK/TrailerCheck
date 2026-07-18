@@ -96,6 +96,11 @@ class PickupTicket(Base):
     # the ticket keeps its last state for the historical record.
     is_dropped: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # R25: UGL does not haul hazmat — while True on an active ticket, the
+    # Samsara movement monitor watches the truck and blasts a global alert
+    # the moment it moves. Toggleable off if hazmat is removed from the load.
+    is_hazmat: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # R22: set the FIRST time this ticket's consolidated auto shift-note is
     # persisted. Once true, the system never regenerates the note — user
     # deletions stay deleted and user edits are never overwritten.

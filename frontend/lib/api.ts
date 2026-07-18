@@ -96,6 +96,38 @@ export async function uploadMedia(file: File): Promise<{ url: string; media_type
   return res.json();
 }
 
+/** R25: attach (or replace) a trailer's saved Inspection/Registration paper.
+ *  Same no-retry rationale as uploadMedia. */
+export async function uploadTrailerDocument(
+  trailerNumber: string,
+  docType: "inspection" | "registration",
+  file: File
+): Promise<import("./types").TrailerDocument> {
+  const { token } = useAuthStore.getState();
+  const form = new FormData();
+  form.append("doc_type", docType);
+  form.append("file", file);
+  const res = await fetch(
+    `${API_BASE}/api/trailers/${encodeURIComponent(trailerNumber)}/documents`,
+    {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: form,
+    }
+  );
+  if (!res.ok) {
+    let detail = `Upload failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      /* keep generic message */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { token, logout } = useAuthStore.getState();
   const headers: Record<string, string> = {

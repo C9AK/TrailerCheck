@@ -5,10 +5,15 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
-import { ErrorBanner, StateBadge } from "@/components/ui";
+import { ErrorBanner, HazmatBadge, StateBadge, StatusFilter } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { fmtCstFull, matchesSearch } from "@/lib/time";
-import { isActivePickup, type Ticket } from "@/lib/types";
+import {
+  isActivePickup,
+  matchesStatus,
+  type StatusFilterValue,
+  type Ticket,
+} from "@/lib/types";
 
 const inputCls =
   "rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-800 dark:border-slate-700 dark:bg-slate-800";
@@ -32,6 +37,8 @@ function MyPickupsTable() {
   const [notice, setNotice] = useState<string | null>(null);
   const [onDate, setOnDate] = useState("");
   const [search, setSearch] = useState("");
+  // R25: lifecycle status dropdown
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("");
   const [view, setView] = useState<View>("active");
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -88,7 +95,10 @@ function MyPickupsTable() {
 
   const activeCount = tickets.filter(isActivePickup).length;
   const visible = tickets.filter(
-    (t) => matchesSearch(t, search) && (view === "all" || isActivePickup(t))
+    (t) =>
+      matchesSearch(t, search) &&
+      matchesStatus(t, statusFilter) &&
+      (view === "all" || isActivePickup(t))
   );
 
   return (
@@ -119,6 +129,24 @@ function MyPickupsTable() {
                 className={`${inputCls} w-44 pl-8`}
               />
             </span>
+          </div>
+          <div>
+            <label htmlFor="hist-status" className="mb-1 block text-xs font-medium">
+              Status
+            </label>
+            <StatusFilter
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                "DRAFT_IN_PROGRESS",
+                "AWAITING_DRIVER",
+                "PENDING_QC",
+                "FLAGGED",
+                "RESOLVED",
+                "APPROVED",
+                "DROPPED",
+              ]}
+            />
           </div>
           <div>
             <label htmlFor="hist-date" className="mb-1 block text-xs font-medium">
@@ -222,7 +250,12 @@ function MyPickupsTable() {
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
                     {fmtCstFull(t.created_at)}
                   </td>
-                  <td className="px-3 py-2.5 font-mono font-semibold">{t.truck_number}</td>
+                  <td className="px-3 py-2.5 font-mono font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      {t.truck_number}
+                      {t.is_hazmat && <HazmatBadge />}
+                    </span>
+                  </td>
                   <td className="px-3 py-2.5">{t.motor_carrier.name}</td>
                   <td className="px-3 py-2.5">{t.driver_name ?? "—"}</td>
                   <td className="px-3 py-2.5">

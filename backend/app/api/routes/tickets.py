@@ -35,7 +35,7 @@ from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply
 from app.services.ticket_lifecycle import (
     get_last_pti_date,
     is_ready_for_qc,
-    resolve_lot_trailer,
+    resolve_ticket_trailer,
     resolve_trailer_by_number,
 )
 
@@ -64,8 +64,9 @@ def create_ticket(
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
     # R2: PTI no longer blocks creation — the ticket may sit in AWAITING_DRIVER
-    # unchecked. LOT trailers are resolved and persisted for the later gate.
-    trailer = resolve_lot_trailer(db, payload)
+    # unchecked. R25: ANY pickup with a trailer number links a persisted
+    # trailer record (papers persistence); LOT still requires one.
+    trailer = resolve_ticket_trailer(db, payload)
 
     ticket = PickupTicket(
         created_by=current_user.id,
@@ -158,25 +159,30 @@ def update_ticket(
     for field, value in updates.items():
         setattr(ticket, field, value)
 
-    # R21: apply LOT identity changes (edit form now carries the LOT section).
+    # R21/R25: apply trailer identity changes. Any pickup may carry a trailer
+    # number now (persistent papers); LOT still requires one. An explicit
+    # empty-string trailer_number unlinks a standard pickup's trailer.
     # Assign the relationship (not just trailer_id) so the PTI-gate check
     # below sees the fresh trailer without a round-trip.
     if lot_flag is not None or lot_trailer_number is not None or lot_pti_override is not None:
         wants_lot = ticket.is_lot_trailer if lot_flag is None else lot_flag
-        if not wants_lot:
-            ticket.is_lot_trailer = False
-            ticket.trailer = None
-        else:
-            number = (lot_trailer_number or "").strip() or (
-                ticket.trailer.trailer_number if ticket.trailer is not None else ""
+        number = (lot_trailer_number or "").strip() or (
+            ticket.trailer.trailer_number
+            if ticket.trailer is not None and lot_trailer_number is None
+            else ""
+        )
+        if wants_lot and not number:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="LOT Trailer tickets require a trailer_number.",
             )
-            if not number:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="LOT Trailer tickets require a trailer_number.",
-                )
-            ticket.trailer = resolve_trailer_by_number(db, number, lot_pti_override)
-            ticket.is_lot_trailer = True
+        if number:
+            ticket.trailer = resolve_trailer_by_number(
+                db, number, lot_pti_override, register_as_lot=wants_lot
+            )
+        else:
+            ticket.trailer = None
+        ticket.is_lot_trailer = wants_lot
 
     # R18: no re-derivation — the master pti_verified checkbox stands alone;
     # pti_checklist and is_chassis are informational.

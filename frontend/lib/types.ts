@@ -70,6 +70,31 @@ export interface Trailer {
   is_lot_trailer: boolean;
 }
 
+// R25: persistent trailer papers — saved once, reused on every future pickup
+export type TrailerDocType = "inspection" | "registration";
+
+export interface TrailerDocument {
+  id: string;
+  trailer_id: string;
+  doc_type: TrailerDocType;
+  media_url: string;
+  uploaded_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// R25: hazmat movement alert pushed over the SSE stream to every user
+export interface HazmatAlert {
+  type: "hazmat_movement";
+  ticket_id: string;
+  truck_number: string;
+  mc_name: string;
+  speed_mph: number;
+  location: string | null;
+  message: string;
+  created_at: string;
+}
+
 export interface Telemetry {
   driver_name: string;
   location: string;
@@ -140,6 +165,8 @@ export interface Ticket {
   is_chassis: boolean;
   // R23: trailer dropped — lifecycle ended, historical views only
   is_dropped: boolean;
+  // R25: hazmat load — under continuous Samsara movement watch while active
+  is_hazmat: boolean;
   created_at: string;
   updated_at: string;
   audit_flags: AuditFlag[];
@@ -164,6 +191,27 @@ export function isActivePickup(t: Ticket): boolean {
   if (t.is_dropped) return false;
   if (t.state === "APPROVED") return t.needs_scale && !t.scale_ticket_received;
   return true;
+}
+
+/** R25: value space of the per-tab Status dropdown. DROPPED is a flag, not a
+ * lifecycle state, but reads as a status to the user. */
+export type StatusFilterValue = "" | TicketState | "DROPPED";
+
+export const STATUS_FILTER_LABELS: Record<Exclude<StatusFilterValue, "">, string> = {
+  DRAFT: "Draft",
+  DRAFT_IN_PROGRESS: "Still Sending",
+  AWAITING_DRIVER: "Awaiting Driver",
+  PENDING_QC: "Sent to QC / Pending",
+  FLAGGED: "Flagged",
+  RESOLVED: "Resolved (back at QC)",
+  APPROVED: "Approved",
+  DROPPED: "Dropped",
+};
+
+export function matchesStatus(t: Ticket, status: StatusFilterValue): boolean {
+  if (!status) return true;
+  if (status === "DROPPED") return t.is_dropped;
+  return t.state === status && !t.is_dropped;
 }
 
 export interface FeedEntry {

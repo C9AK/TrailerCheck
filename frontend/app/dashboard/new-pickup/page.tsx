@@ -1,12 +1,24 @@
 "use client";
 
-import { CheckSquare, FileClock, Fuel, Loader2, MapPin, Trash2, Truck, User } from "lucide-react";
+import {
+  CheckSquare,
+  ExternalLink,
+  FileCheck2,
+  FileClock,
+  Fuel,
+  Loader2,
+  MapPin,
+  Trash2,
+  Truck,
+  Upload,
+  User,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, Skeleton, SuccessBanner, Toggle } from "@/components/ui";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, mediaUrl, uploadTrailerDocument } from "@/lib/api";
 import { emptyChecklist, PTI_SECTIONS, type PtiChecklist } from "@/lib/pti";
 import type {
   MotorCarrier,
@@ -14,6 +26,8 @@ import type {
   Ticket,
   Trailer,
   TrailerCondition,
+  TrailerDocType,
+  TrailerDocument,
 } from "@/lib/types";
 
 const CONDITIONS: TrailerCondition[] = ["Good", "Fair", "Damaged"];
@@ -306,13 +320,23 @@ function NewPickupForm() {
   const [telemetryInfo, setTelemetryInfo] = useState<string | null>(null);
   const telemetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // LOT trailer — editable on create AND edit (R21); prefilled from the
-  // ticket's embedded trailer record in edit mode.
+  // Trailer identity — R25: the trailer number is ALWAYS visible (papers
+  // persist per trailer across pickups); the LOT toggle only adds the PTI
+  // date logic on top. Prefilled from the embedded trailer record on edit.
   const [isLot, setIsLot] = useState(false);
   const [trailerNumber, setTrailerNumber] = useState("");
   const [lastPtiDate, setLastPtiDate] = useState("");
   const [trailerError, setTrailerError] = useState<string | null>(null);
   const [trailerLoading, setTrailerLoading] = useState(false);
+
+  // R25: saved trailer papers (inspection/registration) — instant access
+  const [savedDocs, setSavedDocs] = useState<TrailerDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docUploading, setDocUploading] = useState<TrailerDocType | null>(null);
+  const docsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // R25: hazmat load — UGL does not haul hazmat; arms the movement monitor
+  const [isHazmat, setIsHazmat] = useState(false);
 
   // Checklist
   const [pti, setPti] = useState<PtiChecklist>(emptyChecklist());
@@ -366,10 +390,12 @@ function NewPickupForm() {
         setFuelPct(t.fuel_percentage != null ? String(t.fuel_percentage) : "");
         setCoords({ lat: t.truck_latitude, lon: t.truck_longitude });
         setIsLot(t.is_lot_trailer);
-        // R21: LOT section prefill — trailer number + last PTI date come from
-        // the embedded trailer record
+        // R21: trailer prefill — number + last PTI date come from the
+        // embedded trailer record (any pickup since R25, not just LOT)
         setTrailerNumber(t.trailer?.trailer_number ?? "");
         setLastPtiDate(t.trailer ? toDateInputValue(t.trailer.last_pti_date) : "");
+        if (t.trailer) checkSavedDocs(t.trailer.trailer_number);
+        setIsHazmat(t.is_hazmat);
         setIsChassis(t.is_chassis);
         setPtiMaster(t.pti_verified);
         setPti({ ...emptyChecklist(), ...(t.pti_checklist ?? {}) });
@@ -447,6 +473,57 @@ function NewPickupForm() {
     }
   }
 
+  // R25: probe for saved papers as soon as a trailer number is known —
+  // debounced on typing, immediate on blur/prefill.
+  const checkSavedDocs = useCallback(async (num: string) => {
+    const trimmed = num.trim();
+    if (!trimmed) {
+      setSavedDocs([]);
+      return;
+    }
+    setDocsLoading(true);
+    try {
+      setSavedDocs(
+        await api<TrailerDocument[]>(
+          `/api/trailers/${encodeURIComponent(trimmed)}/documents`
+        )
+      );
+    } catch {
+      setSavedDocs([]); // lookup is best-effort — never blocks the form
+    } finally {
+      setDocsLoading(false);
+    }
+  }, []);
+
+  function scheduleDocsCheck(num: string) {
+    if (docsTimer.current) clearTimeout(docsTimer.current);
+    if (!num.trim()) {
+      setSavedDocs([]);
+      return;
+    }
+    docsTimer.current = setTimeout(() => checkSavedDocs(num), 600);
+  }
+
+  // R25: "Use Saved Papers" — tick the matching checklist boxes in one click
+  function useSavedPapers() {
+    if (savedDocs.some((d) => d.doc_type === "inspection")) setInspectionVerified(true);
+    if (savedDocs.some((d) => d.doc_type === "registration")) setRegistrationVerified(true);
+  }
+
+  async function attachTrailerDoc(docType: TrailerDocType, file: File | null) {
+    if (!file || !trailerNumber.trim()) return;
+    setDocUploading(docType);
+    setError(null);
+    try {
+      const doc = await uploadTrailerDocument(trailerNumber, docType, file);
+      setSavedDocs((prev) => [...prev.filter((d) => d.doc_type !== docType), doc]);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not save the trailer paper.");
+    } finally {
+      setDocUploading(null);
+    }
+  }
+
   const ptiAgeDays = lastPtiDate
     ? Math.floor((Date.now() - new Date(`${lastPtiDate}T00:00:00Z`).getTime()) / 86_400_000)
     : null;
@@ -463,9 +540,10 @@ function NewPickupForm() {
   function commonPayload() {
     return {
       truck_number: truckNumber.trim(),
-      // R21: LOT identity is part of both create and edit payloads
+      // R21/R25: trailer identity on every pickup — an empty string
+      // explicitly unlinks the trailer on edit
       is_lot_trailer: isLot,
-      trailer_number: isLot ? trailerNumber.trim() : null,
+      trailer_number: trailerNumber.trim(),
       last_pti_date_override: isLot && lastPtiDate ? `${lastPtiDate}T00:00:00Z` : null,
       driver_name: driverName.trim() || null,
       truck_location: truckLocation.trim() || null,
@@ -488,6 +566,7 @@ function NewPickupForm() {
       pti_checklist: pti,
       pti_verified: ptiMaster,
       is_chassis: isChassis,
+      is_hazmat: isHazmat,
     };
   }
 
@@ -508,6 +587,8 @@ function NewPickupForm() {
     setIsLot(false);
     setTrailerNumber("");
     setLastPtiDate("");
+    setSavedDocs([]);
+    setIsHazmat(false);
     setPti(emptyChecklist());
     setPtiMaster(false);
     setIsChassis(false);
@@ -713,48 +794,67 @@ function NewPickupForm() {
           )}
         </section>
 
-        {/* LOT trailer — rendered on create AND edit (R21), prefilled from
-            the ticket's trailer record when editing */}
+        {/* Trailer & saved papers — R25: the trailer number is ALWAYS visible
+            so inspection/registration papers persist across pickups; the LOT
+            toggle adds the 7-day PTI logic on top */}
         <section className="rounded-lg border border-blue-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                LOT Trailer
+                Trailer &amp; Papers
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                LOT trailers skip the fleet lookup. PTI newer than 7 days may skip re-verification.
+                Enter the trailer number to pull its saved papers — they persist
+                between pickups so nothing is re-uploaded.
               </p>
             </div>
-            <Toggle
-              id="lot-toggle"
-              checked={isLot}
-              onChange={(v) => {
-                setIsLot(v);
-                scheduleTelemetry(mcId, truckNumber, v);
-              }}
-              label="LOT Trailer"
-            />
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                LOT Trailer
+              </span>
+              <Toggle
+                id="lot-toggle"
+                checked={isLot}
+                onChange={(v) => {
+                  setIsLot(v);
+                  scheduleTelemetry(mcId, truckNumber, v);
+                  if (v) lookupTrailer();
+                }}
+                label="LOT Trailer"
+              />
+            </div>
           </div>
 
-          {isLot && (
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="trailer-number" className="mb-1 block text-sm font-medium">
-                  Trailer Number <span className="text-red-600">*</span>
-                </label>
-                <input
-                  id="trailer-number"
-                  required={isLot}
-                  value={trailerNumber}
-                  onChange={(e) => setTrailerNumber(e.target.value)}
-                  onBlur={lookupTrailer}
-                  placeholder="e.g. LOT-1001"
-                  className={`${inputCls} font-mono`}
-                />
-                {trailerError && (
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{trailerError}</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="trailer-number" className="mb-1 block text-sm font-medium">
+                Trailer Number{" "}
+                {isLot ? (
+                  <span className="text-red-600">*</span>
+                ) : (
+                  <span className="text-xs font-normal text-slate-500">(optional)</span>
                 )}
-              </div>
+              </label>
+              <input
+                id="trailer-number"
+                required={isLot}
+                value={trailerNumber}
+                onChange={(e) => {
+                  setTrailerNumber(e.target.value);
+                  scheduleDocsCheck(e.target.value);
+                }}
+                onBlur={() => {
+                  checkSavedDocs(trailerNumber);
+                  if (isLot) lookupTrailer();
+                }}
+                placeholder={isLot ? "e.g. LOT-1001" : "e.g. 53182"}
+                className={`${inputCls} font-mono`}
+              />
+              {trailerError && isLot && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{trailerError}</p>
+              )}
+            </div>
+            {isLot && (
               <div>
                 <label htmlFor="last-pti" className="mb-1 block text-sm font-medium">
                   Last PTI Date
@@ -783,6 +883,85 @@ function NewPickupForm() {
                       : `PTI is ${ptiAgeDays} day(s) old — the master PTI checkbox is required.`}
                   </p>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* R25: saved papers panel — instant access when the trailer returns */}
+          {trailerNumber.trim() && (
+            <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />
+                Saved papers for {trailerNumber.trim()}
+                {docsLoading && (
+                  <Loader2 className="h-3 w-3 animate-spin text-slate-400" aria-hidden="true" />
+                )}
+              </p>
+              {savedDocs.length > 0 ? (
+                <>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    {savedDocs.map((d) => (
+                      <a
+                        key={d.id}
+                        href={mediaUrl(d.media_url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+                        title={`Open the saved ${d.doc_type} paper`}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                        View {d.doc_type === "inspection" ? "Inspection" : "Registration"}
+                      </a>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={useSavedPapers}
+                      className="flex cursor-pointer items-center gap-1.5 rounded bg-brand-600 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors duration-150 hover:bg-brand-700"
+                      title="Mark the matching checklist boxes as verified using the saved papers"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                      Use Saved Papers
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Papers on file from a previous pickup — no re-upload needed.
+                  </p>
+                </>
+              ) : (
+                !docsLoading && (
+                  <p className="mb-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    No papers on file yet — save them once and they&apos;ll attach
+                    automatically the next time this trailer comes in.
+                  </p>
+                )
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(["inspection", "registration"] as TrailerDocType[]).map((docType) => {
+                  const existing = savedDocs.some((d) => d.doc_type === docType);
+                  return (
+                    <label
+                      key={docType}
+                      className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-white dark:border-slate-600 dark:hover:bg-slate-700"
+                    >
+                      <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                      {docUploading === docType
+                        ? "Saving…"
+                        : `${existing ? "Replace" : "Save"} ${
+                            docType === "inspection" ? "Inspection" : "Registration"
+                          } paper`}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        disabled={docUploading !== null}
+                        onChange={(e) => {
+                          attachTrailerDoc(docType, e.target.files?.[0] ?? null);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -921,6 +1100,36 @@ function NewPickupForm() {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Documents & Condition
           </h2>
+
+          {/* R25: hazmat toggle — on AND off (load can be re-classified).
+              While on + active, the Samsara watch alerts everyone on movement. */}
+          <label
+            className={`mb-3 flex cursor-pointer items-center justify-between gap-3 rounded border-2 px-3 py-2.5 transition-colors duration-150 ${
+              isHazmat
+                ? "border-orange-500 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/40"
+                : "border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800"
+            }`}
+          >
+            <span
+              className={`text-sm font-bold ${
+                isHazmat
+                  ? "text-orange-800 dark:text-orange-300"
+                  : "text-slate-700 dark:text-slate-300"
+              }`}
+            >
+              ☣ Hazmat load
+              <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                UGL does NOT haul hazmat — while on, the truck is movement-watched
+                and any motion alerts the whole team instantly
+              </span>
+            </span>
+            <Toggle
+              id="hazmat-toggle"
+              checked={isHazmat}
+              onChange={setIsHazmat}
+              label="Hazmat load"
+            />
+          </label>
 
           <label className="mb-3 flex cursor-pointer items-center gap-2.5 rounded border-2 border-amber-400 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-200">
             <input

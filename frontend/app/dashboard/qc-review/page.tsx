@@ -5,13 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import ConfirmationModal from "@/components/qc/ConfirmationModal";
-import { ErrorBanner, StateBadge, Toggle } from "@/components/ui";
+import { ErrorBanner, HazmatBadge, StateBadge, StatusFilter, Toggle } from "@/components/ui";
 import { api, ApiError, mediaUrl, uploadMedia } from "@/lib/api";
 import {
   CATEGORY_LABELS,
   ERROR_CATEGORIES,
+  matchesStatus,
   type ErrorCategory,
   type MediaType,
+  type StatusFilterValue,
   type Ticket,
 } from "@/lib/types";
 import { ptiKeyLabels } from "@/lib/pti";
@@ -43,6 +45,8 @@ function QCQueue() {
   const [search, setSearch] = useState("");
   const [shift, setShift] = useState<Shift | "">("");
   const [employee, setEmployee] = useState("");
+  // R25: lifecycle status filter (queue states only)
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("");
   const [sort, setSort] = useState<"newest" | "oldest">("oldest");
 
   // Approval friction modal
@@ -248,6 +252,12 @@ function QCQueue() {
             </option>
           ))}
         </select>
+        {/* R25: lifecycle status dropdown — the queue's three states */}
+        <StatusFilter
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={["PENDING_QC", "RESOLVED", "AWAITING_DRIVER"]}
+        />
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as "newest" | "oldest")}
@@ -257,13 +267,14 @@ function QCQueue() {
           <option value="oldest">Oldest first</option>
           <option value="newest">Newest first</option>
         </select>
-        {(search || shift || employee) && (
+        {(search || shift || employee || statusFilter) && (
           <button
             type="button"
             onClick={() => {
               setSearch("");
               setShift("");
               setEmployee("");
+              setStatusFilter("");
             }}
             className="cursor-pointer rounded px-2 py-1 text-xs font-medium text-slate-500 underline hover:text-slate-800 dark:hover:text-slate-200"
           >
@@ -294,6 +305,7 @@ function QCQueue() {
             (t) =>
               matchesSearch(t, search) &&
               matchesDayShift(t.created_at, "", shift) &&
+              matchesStatus(t, statusFilter) &&
               (!employee || t.creator.username === employee)
           )
           .sort((a, b) =>
@@ -313,6 +325,8 @@ function QCQueue() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-mono text-base font-semibold">
                 {t.truck_number}
+                {/* R25: hazmat loads called out for the auditor */}
+                {t.is_hazmat && <HazmatBadge />}
                 {/* R14: LOT trailers called out prominently for the auditor */}
                 {t.is_lot_trailer && (
                   <span className="flex items-center gap-1 rounded bg-blue-800 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">

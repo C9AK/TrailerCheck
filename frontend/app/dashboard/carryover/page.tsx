@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuthStore } from "@/store/authStore";
 
 import RequireRole from "@/components/RequireRole";
-import { ErrorBanner } from "@/components/ui";
+import { ErrorBanner, HazmatBadge, StatusFilter } from "@/components/ui";
 import { getTimerInfo, getTimerStart, useNow } from "@/hooks/useTicketTimer";
 import { api, ApiError, mediaUrl } from "@/lib/api";
 import {
@@ -17,7 +17,13 @@ import {
   SHIFT_LABELS,
   type Shift,
 } from "@/lib/time";
-import { CATEGORY_LABELS, type Ticket, type TicketState } from "@/lib/types";
+import {
+  CATEGORY_LABELS,
+  matchesStatus,
+  type StatusFilterValue,
+  type Ticket,
+  type TicketState,
+} from "@/lib/types";
 
 /** R23: scale-chase board badges — every row is waiting on its scale ticket,
  * whatever lifecycle state it's in (APPROVED included). */
@@ -68,10 +74,11 @@ function CarryoverTable() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
-  // R17: search + CST day/shift filters
+  // R17: search + CST day/shift filters; R25: lifecycle status filter
   const [search, setSearch] = useState("");
   const [day, setDay] = useState("");
   const [shiftFilter, setShiftFilter] = useState<Shift | "">("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("");
   const now = useNow();
   const router = useRouter();
   const { role, username } = useAuthStore();
@@ -112,9 +119,11 @@ function CarryoverTable() {
     load();
   }, [load]);
 
-  // R17: search + CST day/shift filters apply to both board sections
+  // R17: search + CST day/shift + R25 status filters apply to both sections
   const matches = (t: Ticket) =>
-    matchesSearch(t, search) && matchesDayShift(t.created_at, day, shiftFilter);
+    matchesSearch(t, search) &&
+    matchesDayShift(t.created_at, day, shiftFilter) &&
+    matchesStatus(t, statusFilter);
 
   // ≥120 min rows sort to the absolute top (04 §3), then by longest wait.
   const sorted = [...tickets.filter(matches)].sort((a, b) => {
@@ -334,13 +343,20 @@ function CarryoverTable() {
             </option>
           ))}
         </select>
-        {(search || day || shiftFilter) && (
+        {/* R25: lifecycle status dropdown */}
+        <StatusFilter
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={["FLAGGED", "AWAITING_DRIVER", "PENDING_QC", "RESOLVED", "APPROVED"]}
+        />
+        {(search || day || shiftFilter || statusFilter) && (
           <button
             type="button"
             onClick={() => {
               setSearch("");
               setDay("");
               setShiftFilter("");
+              setStatusFilter("");
             }}
             className="cursor-pointer rounded px-2 py-1 text-xs font-medium text-slate-500 underline hover:text-slate-800 dark:hover:text-slate-200"
           >
@@ -382,6 +398,7 @@ function CarryoverTable() {
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 font-mono font-semibold">
                       {t.truck_number}
+                      {t.is_hazmat && <HazmatBadge />}
                       {t.is_urgent_flag && (
                         <span className="flex animate-pulse items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-[11px] font-bold uppercase text-white">
                           <Siren className="h-3 w-3" aria-hidden="true" />
@@ -596,6 +613,7 @@ function CarryoverTable() {
                           />
                         )}
                         {t.truck_number}
+                        {t.is_hazmat && <HazmatBadge />}
                       </span>
                     </td>
                     {/* When the ticket was ORIGINALLY created (display TZ) */}

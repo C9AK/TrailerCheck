@@ -24,10 +24,14 @@ def _as_utc(dt: datetime) -> datetime:
 
 
 def resolve_trailer_by_number(
-    db: Session, trailer_number: str, last_pti_date_override: datetime | None
+    db: Session,
+    trailer_number: str,
+    last_pti_date_override: datetime | None,
+    register_as_lot: bool = True,
 ) -> Trailer:
-    """Resolve a LOT trailer by number, registering it on the fly if unknown
-    (R7: LOT bypasses fleet validation). Persists any manual PTI override."""
+    """Resolve a trailer by number, registering it on the fly if unknown
+    (R7: LOT bypasses fleet validation; R25: standard pickups register too so
+    their papers persist). Persists any manual PTI override."""
     number = trailer_number.strip()
     trailer = db.scalar(select(Trailer).where(Trailer.trailer_number == number))
     if trailer is None:
@@ -38,7 +42,7 @@ def resolve_trailer_by_number(
             last_pti_date=_as_utc(last_pti_date_override)
             if last_pti_date_override
             else datetime.now(timezone.utc) - LOT_PTI_WINDOW,
-            is_lot_trailer=True,
+            is_lot_trailer=register_as_lot,
         )
         db.add(trailer)
         db.flush()
@@ -50,19 +54,26 @@ def resolve_trailer_by_number(
     return trailer
 
 
-def resolve_lot_trailer(db: Session, payload: TicketCreate) -> Trailer | None:
-    """For LOT tickets, resolve (and require) the trailer record; persist any
-    manual last_pti_date override. Raises 400/404. Returns None for standard."""
-    if not payload.is_lot_trailer:
-        return None
-
-    if not payload.trailer_number:
+def resolve_ticket_trailer(db: Session, payload: TicketCreate) -> Trailer | None:
+    """Resolve the ticket's trailer record at creation. LOT tickets REQUIRE a
+    trailer_number (400 otherwise); R25: standard pickups link one too when
+    the dispatcher typed a trailer number, so its saved papers attach across
+    pickups. Returns None only when no trailer number was given."""
+    number = (payload.trailer_number or "").strip()
+    if payload.is_lot_trailer and not number:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="LOT Trailer tickets require a trailer_number.",
         )
+    if not number:
+        return None
 
-    return resolve_trailer_by_number(db, payload.trailer_number, payload.last_pti_date_override)
+    return resolve_trailer_by_number(
+        db,
+        number,
+        payload.last_pti_date_override,
+        register_as_lot=payload.is_lot_trailer,
+    )
 
 
 def _pti_gate_passed(ticket: PickupTicket) -> bool:

@@ -1,6 +1,10 @@
 "use client";
 
-import type { TicketState } from "@/lib/types";
+import {
+  STATUS_FILTER_LABELS,
+  type StatusFilterValue,
+  type TicketState,
+} from "@/lib/types";
 
 export function Skeleton({ className = "" }: { className?: string }) {
   return (
@@ -69,6 +73,45 @@ export function StateBadge({ state, dropped }: { state: TicketState; dropped?: b
     >
       {state === "DRAFT_IN_PROGRESS" ? "STILL SENDING" : state.replace(/_/g, " ")}
     </span>
+  );
+}
+
+/** R25: hazmat marker — the load is (or was) under Samsara movement watch. */
+export function HazmatBadge() {
+  return (
+    <span
+      title="Hazmat load — UGL does not haul hazmat; movement alerts are armed"
+      className="inline-flex items-center rounded bg-orange-600 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide text-white"
+    >
+      ☣ Hazmat
+    </span>
+  );
+}
+
+/** R25: per-tab Status dropdown — refine any pickup list by lifecycle state. */
+export function StatusFilter({
+  value,
+  onChange,
+  options,
+}: {
+  value: StatusFilterValue;
+  onChange: (v: StatusFilterValue) => void;
+  options: Exclude<StatusFilterValue, "">[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as StatusFilterValue)}
+      aria-label="Filter by status"
+      className="rounded border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+    >
+      <option value="">All statuses</option>
+      {options.map((s) => (
+        <option key={s} value={s}>
+          {STATUS_FILTER_LABELS[s]}
+        </option>
+      ))}
+    </select>
   );
 }
 

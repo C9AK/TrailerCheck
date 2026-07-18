@@ -13,7 +13,8 @@ class TicketCreate(BaseModel):
     mc_id: uuid.UUID
     truck_number: str = Field(min_length=1, max_length=100)
 
-    # LOT trailer inputs; trailer_number resolves to a persisted trailer_id
+    # Trailer identity — R25: trailer_number resolves to a persisted trailer
+    # record for ANY pickup (persistent papers), not just LOT trailers.
     is_lot_trailer: bool = False
     trailer_number: str | None = None
     last_pti_date_override: datetime | None = None
@@ -44,6 +45,9 @@ class TicketCreate(BaseModel):
     pti_checklist: dict[str, bool] | None = None
     pti_verified: bool = False
     is_chassis: bool = False
+    # R25: hazmat load — UGL does not haul hazmat; triggers Samsara movement
+    # monitoring while the ticket is active. Toggleable on AND off.
+    is_hazmat: bool = False
     # R17 "Still Sending": park the ticket as DRAFT_IN_PROGRESS instead of
     # entering the normal AWAITING/PENDING_QC lifecycle.
     still_sending: bool = False
@@ -87,6 +91,8 @@ class TicketUpdate(BaseModel):
     pti_checklist: dict[str, bool] | None = None
     pti_verified: bool | None = None
     is_chassis: bool | None = None
+    # R25: hazmat toggle — on and off both allowed (load re-classified)
+    is_hazmat: bool | None = None
     # R17: True keeps a DRAFT_IN_PROGRESS parked; False submits it into the
     # normal lifecycle. Not a column — consumed by the route, never setattr'd.
     still_sending: bool | None = None
@@ -172,6 +178,8 @@ class TicketOut(BaseModel):
     unresolvable_reason: str | None
     # R23: trailer dropped — lifecycle ended, historical views only
     is_dropped: bool
+    # R25: hazmat load under Samsara movement watch
+    is_hazmat: bool
 
     created_at: datetime
     updated_at: datetime

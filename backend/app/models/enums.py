@@ -45,6 +45,12 @@ class MediaType(str, enum.Enum):
     video = "video"
 
 
+class TrailerDocType(str, enum.Enum):
+    # R25: persistent trailer papers — re-usable across pickups
+    inspection = "inspection"
+    registration = "registration"
+
+
 class NoteStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     PUBLISHED = "PUBLISHED"

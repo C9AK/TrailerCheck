@@ -1,5 +1,6 @@
+import asyncio
 import traceback
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import (
     admin,
+    alerts,
     auth,
     export,
     feed,
@@ -16,10 +18,12 @@ from app.api.routes import (
     notes,
     telemetry,
     tickets,
+    trailers,
     uploads,
 )
 from app.api.routes.uploads import MEDIA_DIR
 from app.core.database import Base, engine
+from app.services.hazmat_monitor import hazmat_monitor_loop
 
 
 @asynccontextmanager
@@ -30,9 +34,15 @@ async def lifespan(app: FastAPI):
     _migrate_r21()
     _migrate_r22()
     _migrate_r23()
+    _migrate_r25()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
+    # R25: continuous Samsara movement watch for hazmat loads
+    monitor_task = asyncio.create_task(hazmat_monitor_loop())
     yield
+    monitor_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await monitor_task
 
 
 def _migrate_r17() -> None:
@@ -139,6 +149,30 @@ def _migrate_r23() -> None:
                 )
             )
         print("R23 migration: added pickup_tickets.is_dropped")
+
+
+def _migrate_r25() -> None:
+    """R25 in-place migration: is_hazmat flag on pickup_tickets (Samsara
+    movement watch). The trailer_documents table itself is additive and
+    created by create_all. Idempotent; no-op on a fresh database."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    if "is_hazmat" not in cols:
+        false_lit = "FALSE" if engine.dialect.name == "postgresql" else "0"
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE pickup_tickets ADD COLUMN is_hazmat "
+                    f"BOOLEAN NOT NULL DEFAULT {false_lit}"
+                )
+            )
+        print("R25 migration: added pickup_tickets.is_hazmat")
 
 
 def _migrate_feed_ticket_nullable() -> None:
@@ -262,6 +296,8 @@ app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(telemetry.router)
 app.include_router(lookups.router)
+app.include_router(trailers.router)
+app.include_router(alerts.router)
 app.include_router(tickets.router)
 app.include_router(uploads.router)
 app.include_router(feed.router)

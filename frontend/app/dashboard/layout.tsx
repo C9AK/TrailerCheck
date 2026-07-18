@@ -23,8 +23,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { api } from "@/lib/api";
-import type { AutoNote, Role, Ticket, User } from "@/lib/types";
+import { api, API_BASE } from "@/lib/api";
+import type { AutoNote, HazmatAlert, Role, Ticket, User } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useTimeStore, type TimeMode } from "@/store/timeStore";
 
@@ -125,6 +125,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const knownFlagIds = useRef<Set<string> | null>(null);
   // R13: QC gets notified when a flagged pickup comes back RESOLVED
   const knownResolvedIds = useRef<Set<string> | null>(null);
+  // R25: live hazmat movement alert — full-width red banner for EVERY user
+  const [hazmatAlert, setHazmatAlert] = useState<HazmatAlert | null>(null);
 
   // R14: the API client fires this event while retrying against a sleeping
   // Render instance — surface it through the existing toast UI.
@@ -133,6 +135,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.addEventListener("tc-toast", onToast);
     return () => window.removeEventListener("tc-toast", onToast);
   }, []);
+
+  // R25: real-time alert stream (SSE) — the hazmat movement monitor pushes
+  // here the instant a watched truck starts moving. EventSource reconnects
+  // automatically on drops; the JWT rides in the query string (EventSource
+  // cannot send headers).
+  useEffect(() => {
+    if (!token) return;
+    const es = new EventSource(
+      `${API_BASE}/api/alerts/stream?token=${encodeURIComponent(token)}`
+    );
+    es.onmessage = (ev) => {
+      try {
+        const alert = JSON.parse(ev.data) as HazmatAlert;
+        if (alert.type === "hazmat_movement") setHazmatAlert(alert);
+      } catch {
+        /* malformed frame — ignore */
+      }
+    };
+    return () => es.close();
+  }, [token]);
 
   useEffect(() => {
     // R14: QC creates pickups too — they get the same flag notifications.
@@ -300,6 +322,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh">
+      {/* R25: HAZMAT MOVEMENT — impossible-to-miss global banner. Stays up
+          until dismissed; re-broadcasts refresh it while the truck rolls. */}
+      {hazmatAlert && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed inset-x-0 top-0 z-[60] flex items-center justify-center gap-3 border-b-4 border-red-800 bg-red-600 px-4 py-3 text-white shadow-2xl"
+        >
+          <span
+            className="h-3 w-3 shrink-0 animate-ping rounded-full bg-white"
+            aria-hidden="true"
+          />
+          <span className="text-sm font-bold sm:text-base">{hazmatAlert.message}</span>
+          <button
+            type="button"
+            aria-label="Dismiss hazmat alert"
+            onClick={() => setHazmatAlert(null)}
+            className="ml-2 shrink-0 cursor-pointer rounded border border-white/60 px-2 py-0.5 text-xs font-semibold hover:bg-red-700"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Sticky sidebar: stays pinned to the viewport while the page scrolls,
           so the logout footer is always visible; the nav list scrolls
           internally if it ever outgrows the screen. */}

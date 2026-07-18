@@ -4,7 +4,7 @@ import { Activity, Check, Minus, PackageX, RefreshCw, Search } from "lucide-reac
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
-import { ErrorBanner, StateBadge } from "@/components/ui";
+import { ErrorBanner, HazmatBadge, StateBadge, StatusFilter } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import {
   fmtCst,
@@ -14,7 +14,12 @@ import {
   SHIFT_LABELS,
   type Shift,
 } from "@/lib/time";
-import { isActivePickup, type Ticket } from "@/lib/types";
+import {
+  isActivePickup,
+  matchesStatus,
+  type StatusFilterValue,
+  type Ticket,
+} from "@/lib/types";
 import { useTimeStore } from "@/store/timeStore";
 
 const POLL_MS = 20_000;
@@ -46,10 +51,11 @@ function GlobalSheet() {
   const [notice, setNotice] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
-  // R17: search + CST day/shift filters
+  // R17: search + CST day/shift filters; R25: lifecycle status filter
   const [search, setSearch] = useState("");
   const [day, setDay] = useState("");
   const [shift, setShift] = useState<Shift | "">("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("");
   // R24: display time zone preference (CST vs device-local)
   const timeMode = useTimeStore((s) => s.mode);
 
@@ -95,7 +101,9 @@ function GlobalSheet() {
   }
 
   const matches = (t: Ticket) =>
-    matchesSearch(t, search) && matchesDayShift(t.created_at, day, shift);
+    matchesSearch(t, search) &&
+    matchesDayShift(t.created_at, day, shift) &&
+    matchesStatus(t, statusFilter);
   // R23: global operations view — every active/pending pickup from EVERY user
   const active = tickets.filter((t) => isActivePickup(t) && matches(t));
 
@@ -160,13 +168,28 @@ function GlobalSheet() {
             </option>
           ))}
         </select>
-        {(search || day || shift) && (
+        {/* R25: lifecycle status dropdown */}
+        <StatusFilter
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            "DRAFT_IN_PROGRESS",
+            "AWAITING_DRIVER",
+            "PENDING_QC",
+            "FLAGGED",
+            "RESOLVED",
+            "APPROVED",
+            "DROPPED",
+          ]}
+        />
+        {(search || day || shift || statusFilter) && (
           <button
             type="button"
             onClick={() => {
               setSearch("");
               setDay("");
               setShift("");
+              setStatusFilter("");
             }}
             className="cursor-pointer rounded px-2 py-1 text-xs font-medium text-slate-500 underline hover:text-slate-800 dark:hover:text-slate-200"
           >
@@ -222,7 +245,12 @@ function GlobalSheet() {
                     <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs">
                       {fmtCst(t.created_at)}
                     </td>
-                    <td className="px-3 py-1.5 font-mono font-semibold">{t.truck_number}</td>
+                    <td className="px-3 py-1.5 font-mono font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        {t.truck_number}
+                        {t.is_hazmat && <HazmatBadge />}
+                      </span>
+                    </td>
                     <td className="px-3 py-1.5">{t.motor_carrier.name}</td>
                     <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400">
                       {t.creator.username}
@@ -317,7 +345,12 @@ function GlobalSheet() {
                   <td className="whitespace-nowrap px-3 py-1.5 font-mono text-xs">
                     {fmtCst(t.created_at)}
                   </td>
-                  <td className="px-3 py-1.5 font-mono font-semibold">{t.truck_number}</td>
+                  <td className="px-3 py-1.5 font-mono font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      {t.truck_number}
+                      {t.is_hazmat && <HazmatBadge />}
+                    </span>
+                  </td>
                   <td className="px-3 py-1.5">{t.motor_carrier.name}</td>
                   <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400">
                     {t.creator.username}
