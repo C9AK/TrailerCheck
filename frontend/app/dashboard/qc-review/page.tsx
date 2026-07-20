@@ -365,6 +365,8 @@ function QCQueue() {
 
             <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
               <Detail label="MC" value={t.motor_carrier.name} />
+              {/* R28: trailer number — linked on any pickup since R25, not just LOT */}
+              <Detail label="Trailer #" value={t.trailer?.trailer_number ?? "—"} />
               <Detail label="Created by" value={t.creator.username} />
               <Detail label="Driver" value={t.driver_name ?? "—"} />
               <Detail label="Location" value={t.truck_location ?? "—"} />
