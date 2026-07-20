@@ -125,7 +125,7 @@ function MyPickupsTable() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Truck # or MC…"
+                placeholder="Truck #, trailer # or MC…"
                 className={`${inputCls} w-44 pl-8`}
               />
             </span>

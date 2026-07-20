@@ -221,7 +221,7 @@ function QCQueue() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search truck # or MC…"
+            placeholder="Search truck #, trailer # or MC…"
             aria-label="Search by truck number or motor carrier"
             className="w-56 rounded border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
