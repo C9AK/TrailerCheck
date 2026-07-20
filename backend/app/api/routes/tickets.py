@@ -120,11 +120,15 @@ def update_ticket(
 
     # R7 RBAC: employees may only edit their OWN tickets; managers edit any
     # ticket in any state (including APPROVED). R14: QC creates pickups under
-    # the same ownership rules as employees.
+    # the same ownership rules as employees for tickets THEY created.
+    # R30: QC may also make minor corrections on ANY pickup (like a manager)
+    # so a small missing checkbox doesn't require flagging the ticket and
+    # tying up the employee — approve/flag conflict-of-interest is unaffected
+    # (still enforced separately on those two endpoints).
     # R8 exception: urgent-flagged tickets are open for team triage — any
     # employee may fix them.
     if (
-        current_user.role != UserRole.manager
+        current_user.role not in (UserRole.manager, UserRole.qc)
         and ticket.created_by != current_user.id
         and not (ticket.state == TicketState.FLAGGED and ticket.is_urgent_flag)
     ):
@@ -133,15 +137,15 @@ def update_ticket(
             detail="You can only edit tickets you created.",
         )
     # R17: the CREATOR may edit their own ticket even after approval (My
-    # History corrections); everyone else still needs manager rights.
+    # History corrections); R30: QC gets the same reach as a manager here too.
     if (
         ticket.state == TicketState.APPROVED
-        and current_user.role != UserRole.manager
+        and current_user.role not in (UserRole.manager, UserRole.qc)
         and ticket.created_by != current_user.id
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="APPROVED is a terminal state — only its creator or a manager can edit it.",
+            detail="APPROVED is a terminal state — only its creator, QC, or a manager can edit it.",
         )
 
     updates = payload.model_dump(exclude_unset=True)
@@ -226,10 +230,10 @@ def follow_up_ticket(
     """R21 "Followed up": the dispatcher chased the driver/scale again. Stamps
     last_followed_up_at so the Carryover waiting timer and the 2h/4h overdue
     signals restart from now — scale_requested_at keeps the original request
-    time on record. Same ownership rules as editing the ticket."""
+    time on record. Same ownership rules as editing the ticket (R30: QC too)."""
     ticket = _get_ticket_or_404(db, ticket_id)
     if (
-        current_user.role != UserRole.manager
+        current_user.role not in (UserRole.manager, UserRole.qc)
         and ticket.created_by != current_user.id
         and not (ticket.state == TicketState.FLAGGED and ticket.is_urgent_flag)
     ):

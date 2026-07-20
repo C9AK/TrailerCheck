@@ -84,13 +84,22 @@ function CarryoverTable() {
   const { role, username } = useAuthStore();
 
   // R7 RBAC: employees may edit/delete only their OWN tickets; managers any.
-  // R8: urgent-flagged tickets are open for team triage.
+  // R8: urgent-flagged tickets are open for team triage. This governs the
+  // FLAG-WORKFLOW actions (resend-to-QC, Mark Unresolvable) which speak on
+  // the employee's behalf — backend keeps these creator/manager/urgent only.
   const canModify = useCallback(
     (t: Ticket) =>
       role === "manager" ||
       t.creator.username === username ||
       (t.state === "FLAGGED" && t.is_urgent_flag),
     [role, username]
+  );
+  // R30: QC may make quick field corrections on ANY pickup — a small missing
+  // checkbox no longer needs a full flag round-trip that busies the employee.
+  // Governs inline checkbox edits, the full-form Edit link, and Follow up.
+  const canQuickEdit = useCallback(
+    (t: Ticket) => role === "qc" || canModify(t),
+    [role, canModify]
   );
   // R16: QC may DELETE any pickup (editing others' stays manager-only)
   const canDelete = useCallback(
@@ -484,7 +493,7 @@ function CarryoverTable() {
                           <input
                             type="checkbox"
                             checked={Boolean(t[f.key])}
-                            disabled={savingId === t.id || !canModify(t)}
+                            disabled={savingId === t.id || !canQuickEdit(t)}
                             onChange={(e) => patchFlagged(t, f.key, e.target.checked)}
                             className="h-4 w-4 cursor-pointer accent-brand-600 disabled:opacity-40"
                           />
@@ -503,7 +512,7 @@ function CarryoverTable() {
                       <Send className="h-3.5 w-3.5" aria-hidden="true" />
                       Fixed — resend to QC
                     </button>
-                    {canModify(t) && (
+                    {canQuickEdit(t) && (
                       <button
                         type="button"
                         onClick={() => router.push(`/dashboard/new-pickup?edit=${t.id}`)}
@@ -595,7 +604,7 @@ function CarryoverTable() {
                     <td className="px-3 py-2.5 font-mono font-semibold">
                       <span className="flex items-center gap-1.5">
                         {/* R21: Followed up — restart the waiting timer */}
-                        {timer.minutes !== null && canModify(t) && (
+                        {timer.minutes !== null && canQuickEdit(t) && (
                           <button
                             type="button"
                             aria-label={`Followed up on truck ${t.truck_number} — restart the waiting timer`}
@@ -649,7 +658,7 @@ function CarryoverTable() {
                       const disabled =
                         savingId === t.id ||
                         (scaleField && !t.needs_scale) ||
-                        !canModify(t);
+                        !canQuickEdit(t);
                       return (
                         <td key={f.key} className="px-3 py-2.5 text-center">
                           <input
@@ -658,8 +667,8 @@ function CarryoverTable() {
                             checked={checked}
                             disabled={disabled}
                             title={
-                              !canModify(t)
-                                ? "Only the creator (or a manager) can edit this ticket"
+                              !canQuickEdit(t)
+                                ? "Only the creator, QC, or a manager can edit this ticket"
                                 : undefined
                             }
                             onChange={(e) => patchField(t, f.key, e.target.checked)}
@@ -673,7 +682,7 @@ function CarryoverTable() {
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <span className="flex justify-center gap-1">
-                        {canModify(t) && (
+                        {canQuickEdit(t) && (
                           <button
                             type="button"
                             aria-label={`Edit truck ${t.truck_number}`}

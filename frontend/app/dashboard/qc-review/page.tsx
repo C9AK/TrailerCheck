@@ -1,6 +1,20 @@
 "use client";
 
-import { CheckCircle2, Flag, History, Paperclip, RefreshCw, Search, ShieldAlert, Siren, Trash2, Warehouse, X } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  FileCheck2,
+  Flag,
+  History,
+  Paperclip,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  Siren,
+  Trash2,
+  Warehouse,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -15,6 +29,7 @@ import {
   type MediaType,
   type StatusFilterValue,
   type Ticket,
+  type TrailerDocument,
 } from "@/lib/types";
 import { ptiKeyLabels } from "@/lib/pti";
 import {
@@ -63,6 +78,9 @@ function QCQueue() {
   const [mediaUrlInput, setMediaUrlInput] = useState("");
   const [uploading, setUploading] = useState(false);
   const [flagBusy, setFlagBusy] = useState(false);
+  // R30: quick inline checklist edits — fix a small miss directly instead of
+  // flagging the ticket and busying the employee.
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const needsSeverity = flagCategories.includes("Didnt_Text_In_Group");
 
@@ -130,6 +148,26 @@ function QCQueue() {
       setError(e instanceof ApiError ? e.message : "Approval failed.");
     } finally {
       setApproveBusy(false);
+    }
+  }
+
+  // R30: quick field fix — no flag, no employee round-trip. Any checklist
+  // box QC can directly see is wrong gets corrected here; the state machine
+  // still promotes AWAITING_DRIVER -> PENDING_QC on the backend if this
+  // completes the readiness gate.
+  async function patchField(ticket: Ticket, field: string, value: boolean) {
+    setSavingId(ticket.id);
+    setError(null);
+    try {
+      const updated = await api<Ticket>(`/api/tickets/${ticket.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ [field]: value }),
+      });
+      setTickets((prev) => prev.map((x) => (x.id === ticket.id ? updated : x)));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Update failed.");
+    } finally {
+      setSavingId(null);
     }
   }
 
@@ -385,15 +423,30 @@ function QCQueue() {
               />
             </dl>
 
+            {/* R25/R30: saved trailer papers — visible & one click away, no
+                re-upload/re-ask needed just to double-check them here */}
+            {t.trailer && <TrailerPapers trailerNumber={t.trailer.trailer_number} />}
+
+            {/* R30: editable inline — a small miss gets fixed directly here
+                instead of a full Flag, so the employee isn't tied up for it */}
             <div className="mb-3 flex flex-wrap gap-1.5 text-xs">
-              <CheckPill ok={t.registration_verified} label="Registration" />
-              <CheckPill ok={t.inspection_paper_verified} label="Inspection" />
-              <CheckPill ok={t.sticker_verified} label="Sticker" />
-              <CheckPill ok={t.bol_present} label="BOL" />
-              <CheckPill ok={t.pti_verified} label="PTI" />
-              <CheckPill ok={t.eld_mentioned} label="ELD" />
-              <CheckPill ok={t.checklist_sent} label="Checklist" />
-              {t.needs_scale && <CheckPill ok={t.scale_ticket_received} label="Scale ticket" />}
+              {QC_INLINE_FIELDS.map((f) => (
+                <EditableCheckPill
+                  key={f.key}
+                  ok={Boolean(t[f.key])}
+                  label={f.label}
+                  disabled={savingId === t.id}
+                  onChange={(v) => patchField(t, f.key, v)}
+                />
+              ))}
+              {t.needs_scale && (
+                <EditableCheckPill
+                  ok={t.scale_ticket_received}
+                  label="Scale ticket"
+                  disabled={savingId === t.id}
+                  onChange={(v) => patchField(t, "scale_ticket_received", v)}
+                />
+              )}
               {t.is_ca_fl_destination && (
                 <span className="rounded bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                   CA/FL destination
@@ -789,16 +842,94 @@ function PtiLog({ checklist }: { checklist: Record<string, boolean> | null }) {
   );
 }
 
-function CheckPill({ ok, label }: { ok: boolean; label: string }) {
+// R30: checklist fields QC can fix inline. weight/condition/notes stay
+// text/free-form and are edited only via "Open full form" elsewhere.
+const QC_INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
+  { key: "registration_verified", label: "Registration" },
+  { key: "inspection_paper_verified", label: "Inspection" },
+  { key: "sticker_verified", label: "Sticker" },
+  { key: "bol_present", label: "BOL" },
+  { key: "pti_verified", label: "PTI" },
+  { key: "eld_mentioned", label: "ELD" },
+  { key: "checklist_sent", label: "Checklist" },
+];
+
+/** R30: same look as the old read-only CheckPill, now an inline checkbox —
+ * QC corrects a small miss on the spot instead of flagging the ticket. */
+function EditableCheckPill({
+  ok,
+  label,
+  disabled,
+  onChange,
+}: {
+  ok: boolean;
+  label: string;
+  disabled: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
-    <span
-      className={`rounded px-2 py-0.5 font-medium ${
+    <label
+      className={`flex items-center gap-1.5 rounded px-2 py-0.5 font-medium transition-colors duration-150 ${
         ok
           ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
           : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-      }`}
+      } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
     >
+      <input
+        type="checkbox"
+        checked={ok}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 accent-current"
+      />
       {label}: {ok ? "OK" : "Missing"}
-    </span>
+    </label>
+  );
+}
+
+/** R25/R30: saved trailer papers (inspection/registration), one click away
+ * for QC — no re-upload or asking the employee just to double-check them.
+ * Silent no-render when there's nothing on file yet, to keep clean cards
+ * from being cluttered. */
+function TrailerPapers({ trailerNumber }: { trailerNumber: string }) {
+  const [docs, setDocs] = useState<TrailerDocument[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDocs(null);
+    api<TrailerDocument[]>(`/api/trailers/${encodeURIComponent(trailerNumber)}/documents`)
+      .then((d) => {
+        if (!cancelled) setDocs(d);
+      })
+      .catch(() => {
+        if (!cancelled) setDocs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trailerNumber]);
+
+  if (!docs || docs.length === 0) return null;
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs dark:border-emerald-900 dark:bg-emerald-950/20">
+      <span className="flex items-center gap-1.5 font-semibold text-emerald-800 dark:text-emerald-300">
+        <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />
+        Saved papers:
+      </span>
+      {docs.map((d) => (
+        <a
+          key={d.id}
+          href={mediaUrl(d.media_url)}
+          target="_blank"
+          rel="noreferrer"
+          title={`Open the saved ${d.doc_type} paper`}
+          className="flex items-center gap-1 rounded bg-white px-2 py-0.5 font-medium text-emerald-700 hover:bg-emerald-100 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          {d.doc_type === "inspection" ? "Inspection" : "Registration"}
+        </a>
+      ))}
+    </div>
   );
 }
