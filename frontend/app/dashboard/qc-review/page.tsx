@@ -155,7 +155,7 @@ function QCQueue() {
   // box QC can directly see is wrong gets corrected here; the state machine
   // still promotes AWAITING_DRIVER -> PENDING_QC on the backend if this
   // completes the readiness gate.
-  async function patchField(ticket: Ticket, field: string, value: boolean) {
+  async function patchField(ticket: Ticket, field: string, value: boolean | string) {
     setSavingId(ticket.id);
     setError(null);
     try {
@@ -403,8 +403,16 @@ function QCQueue() {
 
             <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
               <Detail label="MC" value={t.motor_carrier.name} />
-              {/* R28: trailer number — linked on any pickup since R25, not just LOT */}
-              <Detail label="Trailer #" value={t.trailer?.trailer_number ?? "—"} />
+              {/* R28/R31: trailer number — linked on any pickup since R25,
+                  not just LOT; quick-editable so a typo doesn't need the
+                  full form */}
+              <EditableDetail
+                label="Trailer #"
+                value={t.trailer?.trailer_number ?? ""}
+                placeholder="—"
+                disabled={savingId === t.id}
+                onCommit={(v) => patchField(t, "trailer_number", v)}
+              />
               <Detail label="Created by" value={t.creator.username} />
               <Detail label="Driver" value={t.driver_name ?? "—"} />
               <Detail label="Location" value={t.truck_location ?? "—"} />
@@ -413,7 +421,14 @@ function QCQueue() {
                 label="Fuel"
                 value={t.fuel_percentage != null ? `${t.fuel_percentage.toFixed(0)}%` : "—"}
               />
-              <Detail label="Weight" value={t.weight || "—"} />
+              {/* R31: quick-editable weight */}
+              <EditableDetail
+                label="Weight"
+                value={t.weight ?? ""}
+                placeholder="—"
+                disabled={savingId === t.id}
+                onCommit={(v) => patchField(t, "weight", v)}
+              />
               <Detail label="Condition" value={t.trailer_condition ?? "—"} />
               {/* R20: historical context — last time this truck/trailer had
                   a verified PTI, so QC isn't reviewing blind */}
@@ -424,8 +439,10 @@ function QCQueue() {
             </dl>
 
             {/* R25/R30: saved trailer papers — visible & one click away, no
-                re-upload/re-ask needed just to double-check them here */}
-            {t.trailer && <TrailerPapers trailerNumber={t.trailer.trailer_number} />}
+                re-upload/re-ask needed just to double-check them here.
+                Renders even when empty (R31) so "no papers on file" reads as
+                a real, visible state instead of silently vanishing. */}
+            <TrailerPapers trailerNumber={t.trailer?.trailer_number ?? null} />
 
             {/* R30: editable inline — a small miss gets fixed directly here
                 instead of a full Flag, so the employee isn't tied up for it */}
@@ -808,6 +825,48 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** R31: same layout as Detail, but the value is a click-to-edit text field —
+ * commits on blur/Enter, only when it actually changed. Local draft state
+ * re-syncs whenever the server value changes underneath it (e.g. another
+ * user's edit lands via polling). */
+function EditableDetail({
+  label,
+  value,
+  onCommit,
+  disabled,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onCommit: (v: string) => void;
+  disabled: boolean;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd>
+        <input
+          value={draft}
+          disabled={disabled}
+          placeholder={placeholder}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            const trimmed = draft.trim();
+            if (trimmed !== value.trim()) onCommit(trimmed);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+          className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 font-medium focus:border-slate-300 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:focus:border-slate-600 dark:focus:bg-slate-900"
+        />
+      </dd>
+    </div>
+  );
+}
+
 const PTI_LABELS = ptiKeyLabels();
 
 /** R18: what the employee logged from the PTI video — read-only for QC;
@@ -887,32 +946,87 @@ function EditableCheckPill({
   );
 }
 
-/** R25/R30: saved trailer papers (inspection/registration), one click away
- * for QC — no re-upload or asking the employee just to double-check them.
- * Silent no-render when there's nothing on file yet, to keep clean cards
- * from being cluttered. */
-function TrailerPapers({ trailerNumber }: { trailerNumber: string }) {
+/** R25/R30/R31: saved trailer papers (inspection/registration), one click
+ * away for QC — no re-upload or asking the employee just to double-check
+ * them. Always renders a visible state (loading / no trailer linked / none
+ * on file / links) rather than silently vanishing, so a real absence of
+ * papers can't be mistaken for the feature not working. */
+function TrailerPapers({ trailerNumber }: { trailerNumber: string | null }) {
   const [docs, setDocs] = useState<TrailerDocument[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (!trailerNumber) {
+      setDocs(null);
+      setFailed(false);
+      return;
+    }
     let cancelled = false;
     setDocs(null);
+    setFailed(false);
     api<TrailerDocument[]>(`/api/trailers/${encodeURIComponent(trailerNumber)}/documents`)
       .then((d) => {
         if (!cancelled) setDocs(d);
       })
       .catch(() => {
-        if (!cancelled) setDocs([]);
+        if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
     };
   }, [trailerNumber]);
 
-  if (!docs || docs.length === 0) return null;
+  const boxCls =
+    "mb-3 flex flex-wrap items-center gap-2 rounded border px-2.5 py-1.5 text-xs";
+
+  if (!trailerNumber) {
+    return (
+      <div
+        className={`${boxCls} border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400`}
+      >
+        <FileCheck2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        No trailer number on this pickup — add one above to attach/see saved papers.
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div
+        className={`${boxCls} border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300`}
+      >
+        <FileCheck2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        Couldn&apos;t check saved papers for trailer {trailerNumber} — try Refresh.
+      </div>
+    );
+  }
+
+  if (docs === null) {
+    return (
+      <div
+        className={`${boxCls} border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500`}
+      >
+        <FileCheck2 className="h-3.5 w-3.5 shrink-0 animate-pulse" aria-hidden="true" />
+        Checking saved papers for trailer {trailerNumber}…
+      </div>
+    );
+  }
+
+  if (docs.length === 0) {
+    return (
+      <div
+        className={`${boxCls} border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400`}
+      >
+        <FileCheck2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        No papers on file yet for trailer {trailerNumber}.
+      </div>
+    );
+  }
 
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs dark:border-emerald-900 dark:bg-emerald-950/20">
+    <div
+      className={`${boxCls} border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20`}
+    >
       <span className="flex items-center gap-1.5 font-semibold text-emerald-800 dark:text-emerald-300">
         <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />
         Saved papers:

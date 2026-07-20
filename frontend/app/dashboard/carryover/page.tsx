@@ -144,7 +144,7 @@ function CarryoverTable() {
     return (tb.minutes ?? -1) - (ta.minutes ?? -1);
   });
 
-  async function patchField(ticket: Ticket, field: string, value: boolean) {
+  async function patchField(ticket: Ticket, field: string, value: boolean | string) {
     setSavingId(ticket.id);
     setError(null);
     // Optimistic inline update — no modal, immediate PATCH (04 §3)
@@ -573,6 +573,9 @@ function CarryoverTable() {
                 <th className="px-3 py-2.5">Status</th>
                 <th className="px-3 py-2.5">MC</th>
                 <th className="px-3 py-2.5">Driver</th>
+                {/* R31: quick-editable — no full form needed for a typo fix */}
+                <th className="px-3 py-2.5">Trailer #</th>
+                <th className="px-3 py-2.5">Weight</th>
                 <th className="px-3 py-2.5">Waiting</th>
                 {INLINE_FIELDS.map((f) => (
                   <th key={f.key} className="px-3 py-2.5 text-center">
@@ -649,6 +652,25 @@ function CarryoverTable() {
                     </td>
                     <td className="px-3 py-2.5">{t.motor_carrier.name}</td>
                     <td className="px-3 py-2.5">{t.driver_name ?? "—"}</td>
+                    {/* R31: quick-editable trailer # / weight */}
+                    <td className="px-3 py-2.5">
+                      <InlineTextCell
+                        value={t.trailer?.trailer_number ?? ""}
+                        placeholder="—"
+                        disabled={savingId === t.id || !canQuickEdit(t)}
+                        onCommit={(v) => patchField(t, "trailer_number", v)}
+                        className="font-mono"
+                      />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <InlineTextCell
+                        value={t.weight ?? ""}
+                        placeholder="—"
+                        disabled={savingId === t.id || !canQuickEdit(t)}
+                        onCommit={(v) => patchField(t, "weight", v)}
+                        className="font-mono"
+                      />
+                    </td>
                     <td className="px-3 py-2.5 font-mono text-xs">
                       {timer.minutes === null ? "—" : `${timer.minutes} min`}
                     </td>
@@ -798,5 +820,43 @@ function CarryoverTable() {
         </div>
       )}
     </div>
+  );
+}
+
+/** R31: click-to-edit text cell (trailer #, weight) — commits on blur/Enter,
+ * only when the value actually changed, so a stray click doesn't fire a
+ * needless PATCH. Local draft state re-syncs whenever the server value
+ * changes underneath it (e.g. another user's edit lands via polling). */
+function InlineTextCell({
+  value,
+  onCommit,
+  disabled,
+  placeholder,
+  className = "",
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+  disabled: boolean;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <input
+      value={draft}
+      disabled={disabled}
+      placeholder={placeholder}
+      title={disabled ? "Only the creator, QC, or a manager can edit this ticket" : undefined}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const trimmed = draft.trim();
+        if (trimmed !== value.trim()) onCommit(trimmed);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      className={`w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs focus:border-slate-300 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:focus:border-slate-600 dark:focus:bg-slate-900 ${className}`}
+    />
   );
 }
