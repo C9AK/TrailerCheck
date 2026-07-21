@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
     _migrate_r25()
     _migrate_r27()
     _migrate_r34()
+    _migrate_r35()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     # R25: continuous Samsara movement watch for hazmat loads
@@ -241,6 +242,39 @@ def _migrate_r34() -> None:
                     )
                 )
                 print(f"R34 migration: added pickup_tickets.{col}")
+
+
+def _migrate_r35() -> None:
+    """R35 in-place migration: kpra_group column on pickup_tickets — replaces
+    the old single is_ca_fl_destination flag with the 3 real KPRA
+    (Kingpin-to-Rear-Axle) distance-to-center limits by destination state
+    group. The old boolean column is left in place (unused, harmless) rather
+    than dropped, so existing data is never destroyed; its True rows are
+    backfilled into the new column as the CA/FL 40ft group (the only group
+    the old flag ever represented). Idempotent."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    if "kpra_group" in cols:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE pickup_tickets ADD COLUMN kpra_group VARCHAR(20)"))
+        if "is_ca_fl_destination" in cols:
+            true_lit = "TRUE" if engine.dialect.name == "postgresql" else "1"
+            result = conn.execute(
+                text(
+                    "UPDATE pickup_tickets SET kpra_group = 'CA_FL_40FT' "
+                    f"WHERE is_ca_fl_destination = {true_lit}"
+                )
+            )
+            print(f"R35 migration: backfilled {result.rowcount} ticket(s) into CA_FL_40FT")
+    print("R35 migration: added pickup_tickets.kpra_group")
 
 
 def _migrate_feed_ticket_nullable() -> None:

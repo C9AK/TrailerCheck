@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models import NoteStatus, PickupTicket, ShiftNote, TicketState, User, UserRole
+from app.models.enums import KPRA_GROUP_LABELS
 from app.schemas.note import AutoNoteOut, DraftsOut, NoteCreate, NoteOut, NoteUpdate, PublishResult
 from app.services.ticket_lifecycle import _pti_gate_passed
 
@@ -95,8 +96,10 @@ def _compute_auto_notes(db: Session, user: User) -> list[AutoNoteOut]:
         if not missing:
             continue
         content = f"Truck {t.truck_number} has a missing {', '.join(missing)}"
-        if t.is_ca_fl_destination:
-            content += " — ALERT: CA/FL destination"
+        # R35: any of the 3 KPRA destination groups warrants the same alert —
+        # not just CA/FL anymore.
+        if t.kpra_group:
+            content += f" — ALERT: KPRA destination ({KPRA_GROUP_LABELS[t.kpra_group]})"
         notes.append(
             AutoNoteOut(
                 ticket_id=t.id,

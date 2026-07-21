@@ -2,6 +2,7 @@ from app.models.audit_log import AuditLog
 from app.models.enums import (
     AuditEvent,
     ErrorCategory,
+    KpraGroup,
     MediaType,
     NoteStatus,
     TicketState,
@@ -28,6 +29,7 @@ __all__ = [
     "MediaType",
     "NoteStatus",
     "ShiftNote",
+    "KpraGroup",
     "TicketState",
     "TrailerCondition",
     "TrailerDocType",

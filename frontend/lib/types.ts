@@ -11,6 +11,16 @@ export type TicketState =
 
 export type TrailerCondition = "Good" | "Fair" | "Damaged";
 
+// R35: destination-based KPRA (Kingpin-to-Rear-Axle) law group — replaces
+// the old single is_ca_fl_destination flag with the 3 real distance limits.
+export type KpraGroup = "CA_FL_40FT" | "GROUP_41FT" | "GROUP_43FT";
+
+export const KPRA_GROUP_LABELS: Record<KpraGroup, string> = {
+  CA_FL_40FT: "CA/FL — 40ft to center",
+  GROUP_41FT: "TN/SC/NC/VA/WV/MD/PA/VT/NH/NJ/AL/RI — 41ft to center",
+  GROUP_43FT: "CT/NY/WI/MN/IN — 43ft to center",
+};
+
 export type ErrorCategory =
   | "Missing_BOL"
   | "Incorrect_Weight"
@@ -145,7 +155,7 @@ export interface Ticket {
   registration_verified: boolean;
   inspection_paper_verified: boolean;
   sticker_verified: boolean;
-  is_ca_fl_destination: boolean;
+  kpra_group: KpraGroup | null;
   bol_present: boolean;
   eld_mentioned: boolean;
   checklist_sent: boolean;

@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.enums import ErrorCategory, MediaType, TicketState, TrailerCondition
+from app.models.enums import ErrorCategory, KpraGroup, MediaType, TicketState, TrailerCondition
 from app.schemas.motor_carrier import MCBrief
 from app.schemas.trailer import TrailerOut
 from app.schemas.user import UserBrief
@@ -31,7 +31,9 @@ class TicketCreate(BaseModel):
     registration_verified: bool = False
     inspection_paper_verified: bool = False
     sticker_verified: bool = False
-    is_ca_fl_destination: bool = False
+    # R35: destination-based KPRA law group (CA/FL 40ft, or the 41ft/43ft
+    # groups) — replaces the old single is_ca_fl_destination flag.
+    kpra_group: KpraGroup | None = None
     bol_present: bool = False
     eld_mentioned: bool = False  # R17
     checklist_sent: bool = False  # R17
@@ -82,7 +84,7 @@ class TicketUpdate(BaseModel):
     registration_verified: bool | None = None
     inspection_paper_verified: bool | None = None
     sticker_verified: bool | None = None
-    is_ca_fl_destination: bool | None = None
+    kpra_group: KpraGroup | None = None
     bol_present: bool | None = None
     eld_mentioned: bool | None = None  # R17
     checklist_sent: bool | None = None  # R17
@@ -159,7 +161,7 @@ class TicketOut(BaseModel):
     registration_verified: bool
     inspection_paper_verified: bool
     sticker_verified: bool
-    is_ca_fl_destination: bool
+    kpra_group: KpraGroup | None
     bol_present: bool
     eld_mentioned: bool
     checklist_sent: bool

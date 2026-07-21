@@ -24,6 +24,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.models.enums import KPRA_GROUP_LABELS
 
 router = APIRouter(tags=["export"])
 
@@ -43,7 +44,7 @@ CATEGORY_LABELS: dict[ErrorCategory, str] = {
 HEADERS = [
     "Created At (UTC)", "Truck #", "Motor Carrier", "Created By", "Driver",
     "Truck Model", "Location", "Fuel %", "Weight", "Trailer Condition",
-    "Condition Notes", "LOT Trailer", "CA/FL Destination", "Registration",
+    "Condition Notes", "LOT Trailer", "KPRA Destination Group", "Registration",
     "Inspection Paper", "Sticker", "BOL", "PTI Verified",
     "Needs Scale", "Scale Ticket Received", "State", "Flag Categories",
     "Flag Notes", "Flagged By", "Approved By", "Approved At (UTC)",
@@ -126,7 +127,7 @@ def export_pickups(
             t.trailer_condition.value if t.trailer_condition else "",
             t.condition_notes or "",
             _yn(t.is_lot_trailer),
-            _yn(t.is_ca_fl_destination),
+            KPRA_GROUP_LABELS.get(t.kpra_group, "") if t.kpra_group else "",
             _yn(t.registration_verified),
             _yn(t.inspection_paper_verified),
             _yn(t.sticker_verified),

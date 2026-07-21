@@ -64,7 +64,11 @@ class PickupTicket(Base):
     registration_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     inspection_paper_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sticker_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    is_ca_fl_destination: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # R35: destination-based KPRA law group — replaces the old single
+    # is_ca_fl_destination flag with the 3 real distance-to-center limits.
+    # Plain string (validated by the KpraGroup enum at the API layer) rather
+    # than a DB-native enum, so adding it is a simple ALTER TABLE ADD COLUMN.
+    kpra_group: Mapped[str | None] = mapped_column(String(20), nullable=True)
     bol_present: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # R17: extra checkout confirmations (informational — not QC gates)
     eld_mentioned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

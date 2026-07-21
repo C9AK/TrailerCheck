@@ -51,6 +51,22 @@ class TrailerDocType(str, enum.Enum):
     registration = "registration"
 
 
+class KpraGroup(str, enum.Enum):
+    """R35: destination-based Kingpin-to-Rear-Axle law groups — replaces the
+    old single is_ca_fl_destination flag with the 3 real distance limits."""
+
+    CA_FL_40FT = "CA_FL_40FT"  # CA/FL — 40ft to center
+    GROUP_41FT = "GROUP_41FT"  # TN/SC/NC/VA/WV/MD/PA/VT/NH/NJ/AL/RI — 41ft
+    GROUP_43FT = "GROUP_43FT"  # CT/NY/WI/MN/IN — 43ft
+
+
+KPRA_GROUP_LABELS: dict["KpraGroup", str] = {
+    KpraGroup.CA_FL_40FT: "CA/FL — 40ft to center",
+    KpraGroup.GROUP_41FT: "TN/SC/NC/VA/WV/MD/PA/VT/NH/NJ/AL/RI — 41ft to center",
+    KpraGroup.GROUP_43FT: "CT/NY/WI/MN/IN — 43ft to center",
+}
+
+
 class NoteStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     PUBLISHED = "PUBLISHED"

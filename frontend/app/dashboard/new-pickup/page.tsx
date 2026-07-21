@@ -21,17 +21,21 @@ import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, Skeleton, SuccessBanner, Toggle } from "@/components/ui";
 import { api, ApiError, mediaUrl, uploadTrailerDocument } from "@/lib/api";
 import { emptyChecklist, PTI_SECTIONS, type PtiChecklist } from "@/lib/pti";
-import type {
-  MotorCarrier,
-  Telemetry,
-  Ticket,
-  Trailer,
-  TrailerCondition,
-  TrailerDocType,
-  TrailerDocument,
+import {
+  KPRA_GROUP_LABELS,
+  type KpraGroup,
+  type MotorCarrier,
+  type Telemetry,
+  type Ticket,
+  type Trailer,
+  type TrailerCondition,
+  type TrailerDocType,
+  type TrailerDocument,
 } from "@/lib/types";
 
 const CONDITIONS: TrailerCondition[] = ["Good", "Fair", "Damaged"];
+// R35: destination-based KPRA law — 3 real distance-to-center limits
+const KPRA_GROUPS: KpraGroup[] = ["CA_FL_40FT", "GROUP_41FT", "GROUP_43FT"];
 
 function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
@@ -353,7 +357,8 @@ function NewPickupForm() {
   const [registrationVerified, setRegistrationVerified] = useState(false);
   const [inspectionVerified, setInspectionVerified] = useState(false);
   const [stickerVerified, setStickerVerified] = useState(false);
-  const [caFlDestination, setCaFlDestination] = useState(false);
+  // R35: destination-based KPRA law group — 3 real distance-to-center limits
+  const [kpraGroup, setKpraGroup] = useState<KpraGroup | null>(null);
   const [bolPresent, setBolPresent] = useState(false);
   // R17: extra checkout confirmations
   const [eldMentioned, setEldMentioned] = useState(false);
@@ -410,7 +415,7 @@ function NewPickupForm() {
         setRegistrationVerified(t.registration_verified);
         setInspectionVerified(t.inspection_paper_verified);
         setStickerVerified(t.sticker_verified);
-        setCaFlDestination(t.is_ca_fl_destination);
+        setKpraGroup(t.kpra_group);
         setBolPresent(t.bol_present);
         setEldMentioned(t.eld_mentioned);
         setChecklistSent(t.checklist_sent);
@@ -632,7 +637,7 @@ function NewPickupForm() {
       registration_verified: registrationVerified,
       inspection_paper_verified: inspectionVerified,
       sticker_verified: stickerVerified,
-      is_ca_fl_destination: caFlDestination,
+      kpra_group: kpraGroup,
       bol_present: bolPresent,
       eld_mentioned: eldMentioned,
       checklist_sent: checklistSent,
@@ -677,7 +682,7 @@ function NewPickupForm() {
     setRegistrationVerified(false);
     setInspectionVerified(false);
     setStickerVerified(false);
-    setCaFlDestination(false);
+    setKpraGroup(null);
     setBolPresent(false);
     setEldMentioned(false);
     setChecklistSent(false);
@@ -1262,15 +1267,32 @@ function NewPickupForm() {
             />
           </label>
 
-          <label className="mb-3 flex cursor-pointer items-center gap-2.5 rounded border-2 border-amber-400 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-200">
-            <input
-              type="checkbox"
-              checked={caFlDestination}
-              onChange={(e) => setCaFlDestination(e.target.checked)}
-              className="h-5 w-5 accent-amber-600"
-            />
-            CA / FL destination
-          </label>
+          {/* R35: destination-based KPRA law — 3 real distance-to-center
+              limits, mutually exclusive (a load has one destination) */}
+          <div className="mb-3 rounded border-2 border-amber-400 bg-amber-50 px-3 py-2.5 dark:border-amber-600 dark:bg-amber-950/40">
+            <p className="mb-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+              KPRA destination group
+              <span className="ml-2 text-xs font-normal text-amber-700 dark:text-amber-400">
+                click again to clear
+              </span>
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {KPRA_GROUPS.map((g) => (
+                <label
+                  key={g}
+                  className="flex cursor-pointer items-center gap-2.5 text-sm text-amber-900 dark:text-amber-200"
+                >
+                  <input
+                    type="checkbox"
+                    checked={kpraGroup === g}
+                    onChange={() => setKpraGroup(kpraGroup === g ? null : g)}
+                    className="h-5 w-5 shrink-0 accent-amber-600"
+                  />
+                  {KPRA_GROUP_LABELS[g]}
+                </label>
+              ))}
+            </div>
+          </div>
 
           <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
             Inspection paper <span className="font-semibold">or</span> sticker — one of the

@@ -24,6 +24,7 @@ import { api, ApiError, mediaUrl, uploadMedia } from "@/lib/api";
 import {
   CATEGORY_LABELS,
   ERROR_CATEGORIES,
+  KPRA_GROUP_LABELS,
   matchesStatus,
   type ErrorCategory,
   type MediaType,
@@ -476,9 +477,10 @@ function QCQueue() {
                     onChange={(v) => patchField(t, f.key, v)}
                   />
                 ))}
-              {t.is_ca_fl_destination && (
+              {/* R35: destination-based KPRA law group (3 real limits) */}
+              {t.kpra_group && (
                 <span className="rounded bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                  CA/FL destination
+                  KPRA: {KPRA_GROUP_LABELS[t.kpra_group]}
                 </span>
               )}
             </div>
