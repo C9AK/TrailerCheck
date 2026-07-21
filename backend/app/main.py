@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI):
     _migrate_r27()
     _migrate_r34()
     _migrate_r35()
+    _migrate_r37()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     # R25: continuous Samsara movement watch for hazmat loads
@@ -275,6 +276,33 @@ def _migrate_r35() -> None:
             )
             print(f"R35 migration: backfilled {result.rowcount} ticket(s) into CA_FL_40FT")
     print("R35 migration: added pickup_tickets.kpra_group")
+
+
+def _migrate_r37() -> None:
+    """R37 fix: R35 left the old is_ca_fl_destination column in place after
+    removing it from the ORM model, reasoning that an unreferenced column is
+    harmless. It is NOT harmless — the physical column still carries its
+    original NOT NULL constraint with no server-side default, so the moment
+    the ORM stopped populating it, every single INSERT started failing with
+    psycopg2.errors.NotNullViolation (this broke ticket/draft creation
+    entirely on Postgres). R35's backfill of is_ca_fl_destination=True rows
+    into kpra_group already ran before this point, so the data is safe —
+    drop the column outright (both Postgres and SQLite 3.35+ support
+    DROP COLUMN natively; no table-rebuild needed). Idempotent."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    if "is_ca_fl_destination" not in cols:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE pickup_tickets DROP COLUMN is_ca_fl_destination"))
+    print("R37 migration: dropped pickup_tickets.is_ca_fl_destination (superseded by kpra_group)")
 
 
 def _migrate_feed_ticket_nullable() -> None:
