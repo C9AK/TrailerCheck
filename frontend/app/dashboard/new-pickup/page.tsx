@@ -346,6 +346,9 @@ function NewPickupForm() {
   // R18: the MASTER PTI checkbox — verification depends on this alone; the
   // granular checklist below is just a log of what the video showed.
   const [ptiMaster, setPtiMaster] = useState(false);
+  // R34: PTI-not-sent-yet follow-up log — informational only
+  const [ptiDriverCalled, setPtiDriverCalled] = useState(false);
+  const [ptiDispatcherInformed, setPtiDispatcherInformed] = useState(false);
   const [isChassis, setIsChassis] = useState(false);
   const [registrationVerified, setRegistrationVerified] = useState(false);
   const [inspectionVerified, setInspectionVerified] = useState(false);
@@ -401,6 +404,8 @@ function NewPickupForm() {
         setIsHazmat(t.is_hazmat);
         setIsChassis(t.is_chassis);
         setPtiMaster(t.pti_verified);
+        setPtiDriverCalled(t.pti_driver_called);
+        setPtiDispatcherInformed(t.pti_dispatcher_informed);
         setPti({ ...emptyChecklist(), ...(t.pti_checklist ?? {}) });
         setRegistrationVerified(t.registration_verified);
         setInspectionVerified(t.inspection_paper_verified);
@@ -638,6 +643,8 @@ function NewPickupForm() {
       scale_ticket_received: needsScale ? scaleReceived : false,
       pti_checklist: pti,
       pti_verified: ptiMaster,
+      pti_driver_called: ptiDriverCalled,
+      pti_dispatcher_informed: ptiDispatcherInformed,
       is_chassis: isChassis,
       is_hazmat: isHazmat,
     };
@@ -664,6 +671,8 @@ function NewPickupForm() {
     setIsHazmat(false);
     setPti(emptyChecklist());
     setPtiMaster(false);
+    setPtiDriverCalled(false);
+    setPtiDispatcherInformed(false);
     setIsChassis(false);
     setRegistrationVerified(false);
     setInspectionVerified(false);
@@ -1098,6 +1107,36 @@ function NewPickupForm() {
               className="h-5 w-5 shrink-0 accent-brand-600"
             />
           </label>
+
+          {/* R34: PTI wasn't sent yet — log the follow-up so there's a
+              record of chasing the driver, without gating anything */}
+          {!ptiMaster && (
+            <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/30">
+              <p className="mb-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                PTI not sent yet — log your follow-up:
+              </p>
+              <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={ptiDriverCalled}
+                    onChange={(e) => setPtiDriverCalled(e.target.checked)}
+                    className="h-4 w-4 accent-brand-600"
+                  />
+                  Driver called
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={ptiDispatcherInformed}
+                    onChange={(e) => setPtiDispatcherInformed(e.target.checked)}
+                    className="h-4 w-4 accent-brand-600"
+                  />
+                  Informed dispatcher
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* R12: chassis toggle — shows the chassis rows in the video log
               (informational since R18) */}

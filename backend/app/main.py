@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI):
     _migrate_r23()
     _migrate_r25()
     _migrate_r27()
+    _migrate_r34()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     # R25: continuous Samsara movement watch for hazmat loads
@@ -215,6 +216,31 @@ def _migrate_r27() -> None:
             )
         if rows:
             print(f"R27 migration: numbered {len(rows)} existing pickup(s)")
+
+
+def _migrate_r34() -> None:
+    """R34 in-place migration: pti_driver_called + pti_dispatcher_informed
+    columns on pickup_tickets — the "PTI wasn't sent yet" follow-up log.
+    Idempotent; no-op on a fresh database."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "pickup_tickets" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("pickup_tickets")}
+    false_lit = "FALSE" if engine.dialect.name == "postgresql" else "0"
+    with engine.begin() as conn:
+        for col in ("pti_driver_called", "pti_dispatcher_informed"):
+            if col not in cols:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE pickup_tickets ADD COLUMN {col} "
+                        f"BOOLEAN NOT NULL DEFAULT {false_lit}"
+                    )
+                )
+                print(f"R34 migration: added pickup_tickets.{col}")
 
 
 def _migrate_feed_ticket_nullable() -> None:

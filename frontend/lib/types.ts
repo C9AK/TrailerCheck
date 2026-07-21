@@ -160,6 +160,9 @@ export interface Ticket {
   submitted_to_qc_at: string | null;
   pti_checklist: Record<string, boolean> | null;
   pti_verified: boolean;
+  // R34: follow-up log for when PTI wasn't sent yet — informational only
+  pti_driver_called: boolean;
+  pti_dispatcher_informed: boolean;
   is_urgent_flag: boolean;
   resolved_by: string | null;
   is_unresolvable: boolean;

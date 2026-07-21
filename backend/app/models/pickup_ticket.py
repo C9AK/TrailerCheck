@@ -101,6 +101,12 @@ class PickupTicket(Base):
     pti_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # R12: chassis tickets require the Chassis PTI section (locks + zip ties)
     is_chassis: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # R34: follow-up log for when PTI wasn't sent yet — informational, like
+    # eld_mentioned/checklist_sent (never gates the QC transition).
+    pti_driver_called: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    pti_dispatcher_informed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
 
     # R8 triage: urgent flags bypass Mistake Privacy (visible/fixable by all
     # employees); resolved_by records exactly who fixed the flag.

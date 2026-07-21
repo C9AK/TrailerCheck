@@ -45,6 +45,9 @@ class TicketCreate(BaseModel):
     pti_checklist: dict[str, bool] | None = None
     pti_verified: bool = False
     is_chassis: bool = False
+    # R34: follow-up log for when PTI wasn't sent yet — informational only.
+    pti_driver_called: bool = False
+    pti_dispatcher_informed: bool = False
     # R25: hazmat load — UGL does not haul hazmat; triggers Samsara movement
     # monitoring while the ticket is active. Toggleable on AND off.
     is_hazmat: bool = False
@@ -91,6 +94,9 @@ class TicketUpdate(BaseModel):
     pti_checklist: dict[str, bool] | None = None
     pti_verified: bool | None = None
     is_chassis: bool | None = None
+    # R34: follow-up log for when PTI wasn't sent yet — informational only.
+    pti_driver_called: bool | None = None
+    pti_dispatcher_informed: bool | None = None
     # R25: hazmat toggle — on and off both allowed (load re-classified)
     is_hazmat: bool | None = None
     # R17: True keeps a DRAFT_IN_PROGRESS parked; False submits it into the
@@ -174,6 +180,9 @@ class TicketOut(BaseModel):
     pti_checklist: dict[str, bool] | None
     pti_verified: bool
     is_chassis: bool
+    # R34: follow-up log for when PTI wasn't sent yet — informational only.
+    pti_driver_called: bool
+    pti_dispatcher_informed: bool
     is_urgent_flag: bool
     resolved_by: uuid.UUID | None
     is_unresolvable: bool

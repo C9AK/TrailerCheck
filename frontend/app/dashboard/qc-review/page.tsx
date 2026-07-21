@@ -464,6 +464,18 @@ function QCQueue() {
                   onChange={(v) => patchField(t, "scale_ticket_received", v)}
                 />
               )}
+              {/* R34: PTI wasn't sent yet — the follow-up log matters only
+                  while PTI is still unverified */}
+              {!t.pti_verified &&
+                QC_PTI_FOLLOWUP_FIELDS.map((f) => (
+                  <EditableCheckPill
+                    key={f.key}
+                    ok={Boolean(t[f.key])}
+                    label={f.label}
+                    disabled={savingId === t.id}
+                    onChange={(v) => patchField(t, f.key, v)}
+                  />
+                ))}
               {t.is_ca_fl_destination && (
                 <span className="rounded bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                   CA/FL destination
@@ -911,6 +923,12 @@ const QC_INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
   { key: "pti_verified", label: "PTI" },
   { key: "eld_mentioned", label: "ELD" },
   { key: "checklist_sent", label: "Checklist" },
+];
+
+// R34: PTI-not-sent-yet follow-up log — only meaningful while PTI is unverified
+const QC_PTI_FOLLOWUP_FIELDS: { key: keyof Ticket & string; label: string }[] = [
+  { key: "pti_driver_called", label: "Driver Called" },
+  { key: "pti_dispatcher_informed", label: "Informed Dispatcher" },
 ];
 
 /** R30: same look as the old read-only CheckPill, now an inline checkbox —
