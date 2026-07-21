@@ -1,6 +1,7 @@
 "use client";
 
-import { Activity, Check, Minus, PackageX, RefreshCw, Search } from "lucide-react";
+import { Activity, Check, Minus, PackageX, Pencil, RefreshCw, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -20,6 +21,7 @@ import {
   type StatusFilterValue,
   type Ticket,
 } from "@/lib/types";
+import { useAuthStore } from "@/store/authStore";
 import { useTimeStore } from "@/store/timeStore";
 
 const POLL_MS = 20_000;
@@ -45,6 +47,8 @@ export default function AllPickupsPage() {
 }
 
 function GlobalSheet() {
+  const router = useRouter();
+  const { role } = useAuthStore();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -289,17 +293,32 @@ function GlobalSheet() {
                       );
                     })}
                     <td className="px-3 py-1.5 text-center">
-                      {/* R23: Dropped — ANY user may press this here */}
-                      <button
-                        type="button"
-                        title="Dropped — trailer was dropped, nothing left to process"
-                        disabled={savingId === t.id}
-                        onClick={() => markDropped(t)}
-                        className="mx-auto flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-amber-950/40"
-                      >
-                        <PackageX className="h-3.5 w-3.5" aria-hidden="true" />
-                        Dropped
-                      </button>
+                      <span className="flex items-center justify-center gap-1">
+                        {/* R33: manager full-details/edit access on ANY pickup,
+                            any state — including after approval */}
+                        {role === "manager" && (
+                          <button
+                            type="button"
+                            aria-label={`Edit truck ${t.truck_number}`}
+                            title="Open the full pickup form — view or edit every detail"
+                            onClick={() => router.push(`/dashboard/new-pickup?edit=${t.id}`)}
+                            className="cursor-pointer rounded border border-slate-300 p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        )}
+                        {/* R23: Dropped — ANY user may press this here */}
+                        <button
+                          type="button"
+                          title="Dropped — trailer was dropped, nothing left to process"
+                          disabled={savingId === t.id}
+                          onClick={() => markDropped(t)}
+                          className="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-amber-950/40"
+                        >
+                          <PackageX className="h-3.5 w-3.5" aria-hidden="true" />
+                          Dropped
+                        </button>
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -336,6 +355,8 @@ function GlobalSheet() {
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right">Weight</th>
+                {/* R33: manager-only edit access, even on APPROVED tickets */}
+                {role === "manager" && <th className="px-3 py-2 text-center">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -394,6 +415,21 @@ function GlobalSheet() {
                   <td className="px-3 py-1.5 text-right font-mono text-xs">
                     {t.weight || "—"}
                   </td>
+                  {/* R33: manager full-details/edit access on ANY pickup, any
+                      state — including after approval */}
+                  {role === "manager" && (
+                    <td className="px-3 py-1.5 text-center">
+                      <button
+                        type="button"
+                        aria-label={`Edit truck ${t.truck_number}`}
+                        title="Open the full pickup form — view or edit every detail"
+                        onClick={() => router.push(`/dashboard/new-pickup?edit=${t.id}`)}
+                        className="cursor-pointer rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
