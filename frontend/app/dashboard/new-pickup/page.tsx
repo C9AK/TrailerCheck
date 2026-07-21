@@ -1272,9 +1272,6 @@ function NewPickupForm() {
           <div className="mb-3 rounded border-2 border-amber-400 bg-amber-50 px-3 py-2.5 dark:border-amber-600 dark:bg-amber-950/40">
             <p className="mb-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
               KPRA destination group
-              <span className="ml-2 text-xs font-normal text-amber-700 dark:text-amber-400">
-                click again to clear
-              </span>
             </p>
             <div className="flex flex-col gap-1.5">
               {KPRA_GROUPS.map((g) => (
