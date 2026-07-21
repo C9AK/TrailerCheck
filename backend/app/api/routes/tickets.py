@@ -63,6 +63,16 @@ def create_ticket(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.employee, UserRole.qc, UserRole.manager)),
 ):
+    # R36: validate mc_id BEFORE inserting — a stale/deleted MC (e.g. a
+    # cached dropdown pointing at an MC that's since been removed) would
+    # otherwise blow up as a raw IntegrityError/500 on the FK constraint
+    # instead of a clean 404. update_ticket already had this check; create
+    # never did.
+    if db.get(MotorCarrier, payload.mc_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Motor carrier not found."
+        )
+
     # R2: PTI no longer blocks creation — the ticket may sit in AWAITING_DRIVER
     # unchecked. R25: ANY pickup with a trailer number links a persisted
     # trailer record (papers persistence); LOT still requires one.
