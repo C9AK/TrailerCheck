@@ -54,6 +54,44 @@ def resolve_trailer_by_number(
     return trailer
 
 
+def rename_or_relink_trailer(
+    db: Session,
+    ticket: PickupTicket,
+    new_number: str,
+    last_pti_date_override: datetime | None,
+    register_as_lot: bool,
+) -> Trailer:
+    """R39: editing an ALREADY-LINKED ticket's trailer number is, in practice,
+    almost always a typo fix (QC/Carryover quick-edit) — not a request to
+    swap onto a genuinely different physical trailer. resolve_trailer_by_number
+    would find-or-create a DIFFERENT Trailer row for the new number and
+    re-point the ticket at it, silently orphaning the old trailer's saved
+    documents (they stay attached to the old number, which now has no
+    ticket referencing it). Instead, rename the EXISTING trailer record in
+    place — same id, so its persisted documents follow automatically — unless
+    the corrected number already belongs to a DIFFERENT known trailer, in
+    which case link to that one (it already has its own identity/papers,
+    which is the right outcome there, and renaming over it would collide
+    with trailer_number's unique constraint anyway)."""
+    number = new_number.strip()
+    current = ticket.trailer
+    if current is None or current.trailer_number == number:
+        return resolve_trailer_by_number(
+            db, number, last_pti_date_override, register_as_lot=register_as_lot
+        )
+
+    clash = db.scalar(select(Trailer).where(Trailer.trailer_number == number))
+    if clash is not None:
+        if last_pti_date_override is not None:
+            clash.last_pti_date = _as_utc(last_pti_date_override)
+        return clash
+
+    current.trailer_number = number
+    if last_pti_date_override is not None:
+        current.last_pti_date = _as_utc(last_pti_date_override)
+    return current
+
+
 def resolve_ticket_trailer(db: Session, payload: TicketCreate) -> Trailer | None:
     """Resolve the ticket's trailer record at creation. LOT tickets REQUIRE a
     trailer_number (400 otherwise); R25: standard pickups link one too when

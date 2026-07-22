@@ -35,8 +35,8 @@ from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply
 from app.services.ticket_lifecycle import (
     get_last_pti_date,
     is_ready_for_qc,
+    rename_or_relink_trailer,
     resolve_ticket_trailer,
-    resolve_trailer_by_number,
 )
 
 
@@ -196,8 +196,11 @@ def update_ticket(
                 detail="LOT Trailer tickets require a trailer_number.",
             )
         if number:
-            ticket.trailer = resolve_trailer_by_number(
-                db, number, lot_pti_override, register_as_lot=wants_lot
+            # R39: renames the ticket's ALREADY-linked trailer in place
+            # (typo fix — documents stay attached) rather than resolving a
+            # different Trailer row and orphaning the old one's papers.
+            ticket.trailer = rename_or_relink_trailer(
+                db, ticket, number, lot_pti_override, register_as_lot=wants_lot
             )
         else:
             ticket.trailer = None
