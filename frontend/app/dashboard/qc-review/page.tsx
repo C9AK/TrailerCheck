@@ -6,6 +6,7 @@ import {
   FileCheck2,
   Flag,
   History,
+  PackageX,
   Paperclip,
   RefreshCw,
   Search,
@@ -35,6 +36,7 @@ import {
 import { ptiKeyLabels } from "@/lib/pti";
 import {
   fmtCstDate,
+  fmtCstFull,
   matchesDayShift,
   matchesSearch,
   SHIFT_LABELS,
@@ -184,6 +186,26 @@ function QCQueue() {
       setNotice(`Truck ${t.truck_number}: pickup deleted.`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Delete failed.");
+    }
+  }
+
+  // R38: trailer dropped — ends the lifecycle without an audit verdict; any
+  // role may press it (same as Carryover/All Pickups/My Pickups).
+  async function markDropped(t: Ticket) {
+    if (
+      !window.confirm(
+        `Mark truck ${t.truck_number} as DROPPED? This ends the pickup's lifecycle — it leaves the QC queue.`
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await api<Ticket>(`/api/tickets/${t.id}/dropped`, { method: "POST" });
+      setTickets((prev) => prev.filter((x) => x.id !== t.id));
+      setNotice(`Truck ${t.truck_number}: marked as dropped — off the QC queue.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not mark the ticket as dropped.");
     }
   }
 
@@ -403,6 +425,10 @@ function QCQueue() {
             )}
 
             <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+              {/* R38: when this pickup was created, not just when it was
+                  last touched — QC couldn't see this before without opening
+                  the full form */}
+              <Detail label="Created" value={fmtCstFull(t.created_at)} />
               <Detail label="MC" value={t.motor_carrier.name} />
               {/* R28/R31: trailer number — linked on any pickup since R25,
                   not just LOT; quick-editable so a typo doesn't need the
@@ -574,6 +600,16 @@ function QCQueue() {
                   <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
                   Your pickup — another QC or a manager must audit it.
                 </p>
+                {/* R38: Dropped — ends the lifecycle, no audit verdict needed */}
+                <button
+                  type="button"
+                  aria-label={`Mark truck ${t.truck_number} as dropped`}
+                  title="Dropped — trailer was dropped, nothing left to process"
+                  onClick={() => markDropped(t)}
+                  className="cursor-pointer rounded border border-slate-300 p-2 text-slate-500 transition-colors duration-150 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:hover:bg-amber-950/40"
+                >
+                  <PackageX className="h-4 w-4" aria-hidden="true" />
+                </button>
                 <button
                   type="button"
                   aria-label={`Delete truck ${t.truck_number}`}
@@ -609,12 +645,22 @@ function QCQueue() {
                 <Flag className="h-4 w-4" aria-hidden="true" />
                 Flag
               </button>
+              {/* R38: Dropped — ends the lifecycle, no audit verdict needed */}
+              <button
+                type="button"
+                aria-label={`Mark truck ${t.truck_number} as dropped`}
+                title="Dropped — trailer was dropped, nothing left to process"
+                onClick={() => markDropped(t)}
+                className="ml-auto cursor-pointer rounded border border-slate-300 p-2 text-slate-500 transition-colors duration-150 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:hover:bg-amber-950/40"
+              >
+                <PackageX className="h-4 w-4" aria-hidden="true" />
+              </button>
               <button
                 type="button"
                 aria-label={`Delete truck ${t.truck_number}`}
                 title="Delete this pickup"
                 onClick={() => deleteTicket(t)}
-                className="ml-auto cursor-pointer rounded border border-slate-300 p-2 text-slate-500 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:hover:bg-red-950/40"
+                className="cursor-pointer rounded border border-slate-300 p-2 text-slate-500 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:hover:bg-red-950/40"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
               </button>
