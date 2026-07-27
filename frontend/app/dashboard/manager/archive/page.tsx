@@ -58,13 +58,17 @@ function ArchiveTable() {
     }
   }
 
-  async function exportDay() {
+  // R40: exports the full From/To range (previously only sent `date`, so a
+  // multi-day range silently came back as just the first day).
+  async function exportRange() {
     if (!startDate) return;
     setExporting(true);
     setError(null);
     try {
       const { token } = useAuthStore.getState();
-      const res = await fetch(`${API_BASE}/api/export/pickups?date=${startDate}`, {
+      const params = new URLSearchParams({ start_date: startDate });
+      if (endDate) params.set("end_date", endDate);
+      const res = await fetch(`${API_BASE}/api/export/pickups?${params}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!res.ok) {
@@ -81,7 +85,10 @@ function ArchiveTable() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `pickups_${startDate}.csv`;
+      a.download =
+        endDate && endDate !== startDate
+          ? `pickups_${startDate}_to_${endDate}.csv`
+          : `pickups_${startDate}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -209,18 +216,25 @@ function ArchiveTable() {
         </button>
         <button
           type="button"
-          onClick={exportDay}
+          onClick={exportRange}
           disabled={!startDate || exporting}
-          title={startDate ? `Download pickups_${startDate}.csv` : "Pick a 'From' date first"}
+          title={
+            startDate
+              ? endDate && endDate !== startDate
+                ? `Download pickups_${startDate}_to_${endDate}.csv`
+                : `Download pickups_${startDate}.csv`
+              : "Pick a 'From' date first"
+          }
           className="flex cursor-pointer items-center gap-2 rounded bg-amber-600 px-3 py-2 text-sm font-semibold text-white transition-colors duration-150 hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <FileDown className="h-4 w-4" aria-hidden="true" />
-          {exporting ? "Exporting…" : "Export Daily Pickups"}
+          {exporting ? "Exporting…" : "Export Pickups"}
         </button>
       </div>
       {!startDate && (
         <p className="-mt-2 mb-4 text-xs text-slate-500 dark:text-slate-400">
-          Select a &quot;From&quot; date to enable the daily CSV export.
+          Select a &quot;From&quot; date to enable the CSV export — add a &quot;To&quot; date to
+          export a range.
         </p>
       )}
 
