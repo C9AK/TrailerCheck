@@ -18,6 +18,7 @@ from app.api.routes import (
     notes,
     telemetry,
     tickets,
+    trailer_issues,
     trailers,
     uploads,
 )
@@ -465,6 +466,7 @@ app.include_router(uploads.router)
 app.include_router(feed.router)
 app.include_router(export.router)
 app.include_router(notes.router)
+app.include_router(trailer_issues.router)
 app.include_router(leaderboard.router)
 
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)

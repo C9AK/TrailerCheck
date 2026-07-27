@@ -15,6 +15,7 @@ import {
   Table2,
   Timer,
   Trash2,
+  TriangleAlert,
   Trophy,
   Truck,
   Users,
@@ -25,7 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import GuardedLink from "@/components/GuardedLink";
 import UnsavedChangesModal from "@/components/UnsavedChangesModal";
 import { api, API_BASE } from "@/lib/api";
-import type { AutoNote, HazmatAlert, Role, Ticket, User } from "@/lib/types";
+import type { AutoNote, HazmatAlert, Role, Ticket, TrailerIssue, User } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useFormGuardStore } from "@/store/formGuardStore";
 import { useTimeStore, type TimeMode } from "@/store/timeStore";
@@ -33,6 +34,9 @@ import { useTimeStore, type TimeMode } from "@/store/timeStore";
 const FLAG_POLL_MS = 15_000;
 const REMINDER_CHECK_MS = 5 * 60_000; // check every 5 min...
 const REMINDER_EVERY_MS = 60 * 60_000; // ...but nag at most hourly
+// R44: trailer-issue follow-up nag — not urgent like a flag, so a much
+// longer throttle than the missing-items reminder above.
+const TRAILER_ISSUE_REMINDER_MS = 2 * 60 * 60_000; // at most every 2 hours
 
 interface Toast {
   msg: string;
@@ -44,6 +48,7 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[
   { href: "/dashboard/carryover", label: "Carryover", icon: Timer, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/all-pickups", label: "All Pickups", icon: Table2, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/notes", label: "Notes", icon: StickyNote, roles: ["employee", "qc", "manager"] },
+  { href: "/dashboard/trailer-issues", label: "Trailer Issues", icon: TriangleAlert, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/my-pickups", label: "My Pickups", icon: History, roles: ["employee", "qc", "manager"] },
   { href: "/dashboard/qc-review", label: "QC Review", icon: ShieldCheck, roles: ["qc", "manager"] },
@@ -131,6 +136,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const knownResolvedIds = useRef<Set<string> | null>(null);
   // R25: live hazmat movement alert — full-width red banner for EVERY user
   const [hazmatAlert, setHazmatAlert] = useState<HazmatAlert | null>(null);
+  // R44: open trailer issues — badges the nav item, nags every ~2 hours
+  const [trailerIssueCount, setTrailerIssueCount] = useState(0);
 
   // R14: the API client fires this event while retrying against a sleeping
   // Render instance — surface it through the existing toast UI.
@@ -325,6 +332,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [token, role, username]);
 
+  // R44: trailer issues — badges the nav item for everyone, and nags
+  // employees/QC at most every ~2 hours while any stay open (localStorage-
+  // throttled, same pattern as the missing-items reminder above). QC
+  // reported these as non-punitive, so this is a follow-up nudge, not an
+  // urgent alert — no toast for managers, who can just check the page.
+  useEffect(() => {
+    if (!token || !role) return;
+    const storageKey = `tc-trailer-issue-reminder-${username}`;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const issues = await api<TrailerIssue[]>("/api/trailer-issues");
+        if (cancelled) return;
+        setTrailerIssueCount(issues.length);
+        if (issues.length > 0 && (role === "employee" || role === "qc")) {
+          const last = Number(localStorage.getItem(storageKey) || 0);
+          if (Date.now() - last >= TRAILER_ISSUE_REMINDER_MS) {
+            const first = issues[0];
+            setToast({
+              msg:
+                `${issues.length} open trailer issue(s) — e.g. truck ${first.truck_number}: ` +
+                `"${first.description}". Check Trailer Issues and follow up.`,
+              tone: "warn",
+            });
+            localStorage.setItem(storageKey, String(Date.now()));
+          }
+        }
+      } catch {
+        /* transient — keep last known state */
+      }
+    };
+    poll();
+    const id = setInterval(poll, FLAG_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [token, role, username]);
+
   // R17: keep the Active Drafts panel fresh (poll + refetch on navigation,
   // so a just-saved draft appears the moment the form redirects away).
   useEffect(() => {
@@ -427,7 +473,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="Main navigation">
           {items.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
-            const showBadge = href === "/dashboard/carryover" && flagCount > 0;
+            const showFlagBadge = href === "/dashboard/carryover" && flagCount > 0;
+            // R44: calmer, non-pulsing badge — a follow-up nudge, not an
+            // urgent "needs action" flag.
+            const showIssueBadge =
+              href === "/dashboard/trailer-issues" && trailerIssueCount > 0;
             return (
               <GuardedLink
                 key={href}
@@ -441,12 +491,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 {label}
-                {showBadge && (
+                {showFlagBadge && (
                   <span
                     className="ml-auto flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-red-600 px-1.5 font-mono text-xs font-bold text-white"
                     title={`${flagCount} flagged ticket(s) need action`}
                   >
                     {flagCount}
+                  </span>
+                )}
+                {showIssueBadge && (
+                  <span
+                    className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 font-mono text-xs font-bold text-white"
+                    title={`${trailerIssueCount} open trailer issue(s)`}
+                  >
+                    {trailerIssueCount}
                   </span>
                 )}
               </GuardedLink>

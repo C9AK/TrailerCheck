@@ -6,6 +6,7 @@ import {
   FileCheck2,
   Flag,
   History,
+  Loader2,
   PackageX,
   Paperclip,
   RefreshCw,
@@ -13,6 +14,7 @@ import {
   ShieldAlert,
   Siren,
   Trash2,
+  TriangleAlert,
   Warehouse,
   X,
 } from "lucide-react";
@@ -84,6 +86,12 @@ function QCQueue() {
   // R30: quick inline checklist edits — fix a small miss directly instead of
   // flagging the ticket and busying the employee.
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  // R44: report a trailer problem that ISN'T the employee's fault — never a
+  // flag, never touches their score, doesn't block approval.
+  const [reportingIssueId, setReportingIssueId] = useState<string | null>(null);
+  const [issueDescription, setIssueDescription] = useState("");
+  const [issueBusy, setIssueBusy] = useState(false);
 
   const needsSeverity = flagCategories.includes("Didnt_Text_In_Group");
 
@@ -206,6 +214,28 @@ function QCQueue() {
       setNotice(`Truck ${t.truck_number}: marked as dropped — off the QC queue.`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not mark the ticket as dropped.");
+    }
+  }
+
+  // R44: neutral trailer-problem report — no scoring, no state change, no
+  // "own pickup" restriction (this isn't an audit verdict on the employee).
+  async function submitTrailerIssue(ticket: Ticket) {
+    setIssueBusy(true);
+    setError(null);
+    try {
+      await api(`/api/tickets/${ticket.id}/trailer-issue`, {
+        method: "POST",
+        body: JSON.stringify({ description: issueDescription.trim() }),
+      });
+      setNotice(
+        `Trailer issue logged for truck ${ticket.truck_number} — visible to the whole team until resolved.`
+      );
+      setReportingIssueId(null);
+      setIssueDescription("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not report the trailer issue.");
+    } finally {
+      setIssueBusy(false);
     }
   }
 
@@ -600,6 +630,20 @@ function QCQueue() {
                   <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
                   Your pickup — another QC or a manager must audit it.
                 </p>
+                {/* R44: not an audit verdict — reporting a trailer problem
+                    is allowed even on your own pickup */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportingIssueId(reportingIssueId === t.id ? null : t.id);
+                    setIssueDescription("");
+                  }}
+                  title="Report a trailer problem — doesn't affect the employee's score"
+                  className="flex cursor-pointer items-center gap-1.5 rounded border border-amber-400 px-3 py-2 text-sm font-semibold text-amber-700 transition-colors duration-150 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                >
+                  <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+                  Trailer Issue
+                </button>
                 {/* R38: Dropped — ends the lifecycle, no audit verdict needed */}
                 <button
                   type="button"
@@ -645,6 +689,20 @@ function QCQueue() {
                 <Flag className="h-4 w-4" aria-hidden="true" />
                 Flag
               </button>
+              {/* R44: neutral trailer-problem report — no scoring impact,
+                  doesn't block approval, employee did nothing wrong */}
+              <button
+                type="button"
+                onClick={() => {
+                  setReportingIssueId(reportingIssueId === t.id ? null : t.id);
+                  setIssueDescription("");
+                }}
+                title="Report a trailer problem — doesn't affect the employee's score"
+                className="flex cursor-pointer items-center gap-1.5 rounded border border-amber-400 px-3 py-2 text-sm font-semibold text-amber-700 transition-colors duration-150 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40"
+              >
+                <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+                Trailer Issue
+              </button>
               {/* R38: Dropped — ends the lifecycle, no audit verdict needed */}
               <button
                 type="button"
@@ -665,6 +723,51 @@ function QCQueue() {
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
+            )}
+
+            {/* R44: inline trailer-issue report — free text, no category,
+                no penalty. Available regardless of who created the ticket. */}
+            {reportingIssueId === t.id && (
+              <div className="mt-3 space-y-2.5 rounded border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+                <label
+                  htmlFor={`issue-desc-${t.id}`}
+                  className="block text-xs font-medium"
+                >
+                  What&apos;s wrong with the trailer?{" "}
+                  <span className="text-red-600">*</span>
+                  <span className="ml-2 font-normal text-slate-500 dark:text-slate-400">
+                    Doesn&apos;t affect {t.creator.username}&apos;s score — the employee did
+                    nothing wrong.
+                  </span>
+                </label>
+                <textarea
+                  id={`issue-desc-${t.id}`}
+                  rows={3}
+                  value={issueDescription}
+                  onChange={(e) => setIssueDescription(e.target.value)}
+                  placeholder="e.g. Cracked frame near the rear axle, needs a shop look before its next load"
+                  className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={issueBusy || issueDescription.trim().length < 3}
+                    onClick={() => submitTrailerIssue(t)}
+                    className="flex cursor-pointer items-center gap-1.5 rounded bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {issueBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+                    Report Issue
+                  </button>
+                  <button
+                    type="button"
+                    disabled={issueBusy}
+                    onClick={() => setReportingIssueId(null)}
+                    className="cursor-pointer rounded border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             )}
 
             {flaggingId === t.id && (

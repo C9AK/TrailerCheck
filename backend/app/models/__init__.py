@@ -18,6 +18,7 @@ from app.models.pickup_ticket import PickupTicket
 from app.models.qc_audit_flag import QCAuditFlag
 from app.models.trailer import Trailer
 from app.models.trailer_document import TrailerDocument
+from app.models.trailer_issue import TrailerIssue
 from app.models.user import User
 
 __all__ = [
@@ -39,5 +40,6 @@ __all__ = [
     "QCAuditFlag",
     "Trailer",
     "TrailerDocument",
+    "TrailerIssue",
     "User",
 ]

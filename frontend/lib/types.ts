@@ -270,6 +270,25 @@ export interface ShiftNote {
   resolved_at: string | null;
 }
 
+// R44: a QC-reported trailer problem — NOT a flag, never touches the
+// employee's score; broadcast to the whole team until someone resolves it.
+export interface TrailerIssue {
+  id: string;
+  ticket_id: string | null;
+  trailer_id: string | null;
+  truck_number: string;
+  trailer_number: string | null;
+  mc_name: string;
+  description: string;
+  reported_by: string;
+  reporter: UserBrief;
+  is_resolved: boolean;
+  resolved_by: string | null;
+  resolver: UserBrief | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
 // R22: ONE consolidated note per truck, listing every missing item
 export interface AutoNote {
   ticket_id: string;

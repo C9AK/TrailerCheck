@@ -18,6 +18,7 @@ from app.models import (
     PickupTicket,
     QCAuditFlag,
     TicketState,
+    TrailerIssue,
     User,
     UserRole,
 )
@@ -270,7 +271,9 @@ def delete_ticket(
     """R7/R16 RBAC: managers AND QC delete any pickup; employees only their
     own. The deletion is recorded in both the audit log and the immutable
     feed; existing audit-log AND feed rows are detached (ticket_id -> NULL),
-    never destroyed — QC flags + their media cascade away with the ticket."""
+    never destroyed — QC flags + their media cascade away with the ticket.
+    R44: trailer issues are ALSO detached, never cascaded — the issue is
+    about the trailer, not the ticket, so it must outlive it."""
     ticket = _get_ticket_or_404(db, ticket_id)
     if (
         current_user.role == UserRole.employee
@@ -293,6 +296,9 @@ def delete_ticket(
         update(LiveActivityFeed)
         .where(LiveActivityFeed.ticket_id == ticket.id)
         .values(ticket_id=None)
+    )
+    db.execute(
+        update(TrailerIssue).where(TrailerIssue.ticket_id == ticket.id).values(ticket_id=None)
     )
     db.expire(ticket, ["audit_logs"])
     db.delete(ticket)
