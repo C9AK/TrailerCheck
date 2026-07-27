@@ -19,13 +19,15 @@ import {
   Truck,
   Users,
 } from "lucide-react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import GuardedLink from "@/components/GuardedLink";
+import UnsavedChangesModal from "@/components/UnsavedChangesModal";
 import { api, API_BASE } from "@/lib/api";
 import type { AutoNote, HazmatAlert, Role, Ticket, User } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
+import { useFormGuardStore } from "@/store/formGuardStore";
 import { useTimeStore, type TimeMode } from "@/store/timeStore";
 
 const FLAG_POLL_MS = 15_000;
@@ -114,6 +116,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // R24: remount the page content when the display time zone flips so every
   // rendered timestamp re-formats immediately.
   const timeMode = useTimeStore((s) => s.mode);
+  // R41: unsaved-changes guard — checked before any nav trigger in this file
+  const requestNavigation = useFormGuardStore((s) => s.requestNavigation);
   const [score, setScore] = useState<number | null>(null);
 
   // R8: flag notifications — poll the Action Required queue, badge the nav,
@@ -377,6 +381,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh">
+      {/* R41: rendered globally so it can intercept navigation triggered from
+          anywhere (sidebar, logout, Active Drafts) regardless of which page
+          registered the unsaved-changes guard. */}
+      <UnsavedChangesModal />
+
       {/* R25: HAZMAT MOVEMENT — impossible-to-miss global banner. Stays up
           until dismissed; re-broadcasts refresh it while the truck rolls. */}
       {hazmatAlert && (
@@ -420,7 +429,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             const active = pathname === href;
             const showBadge = href === "/dashboard/carryover" && flagCount > 0;
             return (
-              <Link
+              <GuardedLink
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
@@ -440,7 +449,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {flagCount}
                   </span>
                 )}
-              </Link>
+              </GuardedLink>
             );
           })}
         </nav>
@@ -461,7 +470,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <button
                     type="button"
                     title={`Resume draft for truck ${d.truck_number} (${d.motor_carrier.name})`}
-                    onClick={() => router.push(`/dashboard/new-pickup?edit=${d.id}`)}
+                    onClick={() =>
+                      requestNavigation(() =>
+                        router.push(`/dashboard/new-pickup?edit=${d.id}`)
+                      )
+                    }
                     className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 text-left transition-colors duration-150"
                   >
                     <span className="truncate font-mono font-semibold">{d.truck_number}</span>
@@ -495,10 +508,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <button
             type="button"
-            onClick={() => {
-              logout();
-              router.replace("/login");
-            }}
+            onClick={() =>
+              requestNavigation(() => {
+                logout();
+                router.replace("/login");
+              })
+            }
             className="flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-slate-700 transition-colors duration-150 hover:bg-red-50 hover:text-red-700 dark:text-slate-300 dark:hover:bg-red-950/40 dark:hover:text-red-400"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -519,7 +534,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="h-12 w-auto shrink-0"
           />
           {items.map(({ href, label }) => (
-            <Link
+            <GuardedLink
               key={href}
               href={href}
               className={`whitespace-nowrap rounded px-3 py-2 text-sm font-medium ${
@@ -529,7 +544,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               }`}
             >
               {label}
-            </Link>
+            </GuardedLink>
           ))}
           <span className="ml-auto flex items-center gap-1">
             <TimeZoneToggle compact />
@@ -539,10 +554,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               type="button"
               aria-label="Log out"
-              onClick={() => {
-                logout();
-                router.replace("/login");
-              }}
+              onClick={() =>
+                requestNavigation(() => {
+                  logout();
+                  router.replace("/login");
+                })
+              }
               className="cursor-pointer rounded p-2 text-slate-600 dark:text-slate-300"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />

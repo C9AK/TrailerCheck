@@ -32,6 +32,7 @@ import {
   type TrailerDocType,
   type TrailerDocument,
 } from "@/lib/types";
+import { useFormGuardStore } from "@/store/formGuardStore";
 
 const CONDITIONS: TrailerCondition[] = ["Good", "Fair", "Damaged"];
 // R35: destination-based KPRA law — 3 real distance-to-center limits
@@ -375,6 +376,60 @@ function NewPickupForm() {
   // R17: state of the ticket loaded in edit mode (drives draft/redirect logic)
   const [loadedState, setLoadedState] = useState<Ticket["state"] | null>(null);
 
+  // R41: unsaved-changes guard — see store/formGuardStore.ts. A snapshot of
+  // every field the user can actually type/toggle, compared against a
+  // "clean" baseline that's re-captured whenever the form is deliberately
+  // reset or loaded (never on ordinary re-renders).
+  const formSnapshot = JSON.stringify({
+    mcId, truckNumber, driverName, truckLocation, truckModel, fuelPct,
+    isLot, trailerNumber, lastPtiDate, isHazmat,
+    pti, ptiMaster, ptiDriverCalled, ptiDispatcherInformed, isChassis,
+    registrationVerified, inspectionVerified, stickerVerified, kpraGroup,
+    bolPresent, eldMentioned, checklistSent, weight, condition, conditionNotes,
+    needsScale, scaleReceived,
+  });
+  const [formVersion, setFormVersion] = useState(0);
+  const baselineSnapshotRef = useRef<string>(formSnapshot);
+  const isDirtyRef = useRef(false);
+  const setDirty = useFormGuardStore((s) => s.setDirty);
+  const registerGuardHandlers = useFormGuardStore((s) => s.registerHandlers);
+  const clearGuardHandlers = useFormGuardStore((s) => s.clearHandlers);
+  const requestNavigation = useFormGuardStore((s) => s.requestNavigation);
+
+  // Re-captures the baseline the moment resetForm()/the edit-mode load
+  // commits — must run BEFORE the dirty-comparison effect below (React runs
+  // effects in declaration order), so a deliberate reset/load never reads
+  // as "dirty" against its own just-loaded values.
+  useEffect(() => {
+    baselineSnapshotRef.current = formSnapshot;
+    if (isDirtyRef.current) {
+      isDirtyRef.current = false;
+      setDirty(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formVersion]);
+
+  useEffect(() => {
+    const dirty = formSnapshot !== baselineSnapshotRef.current;
+    if (dirty !== isDirtyRef.current) {
+      isDirtyRef.current = dirty;
+      setDirty(dirty);
+    }
+  }, [formSnapshot, setDirty]);
+
+  // Browser-level safety net (tab close / refresh / typed URL) — Next.js App
+  // Router has no hook for this; the native confirmation is the best a
+  // browser allows here (no custom buttons possible during beforeunload).
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!isDirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
   const visibleSections = PTI_SECTIONS.filter((s) => !s.chassisOnly || isChassis);
   const visibleKeys = visibleSections.flatMap((s) =>
     s.rows.flatMap((r) => (r.key ? [r.key] : [`${r.pair}_left`, `${r.pair}_right`]))
@@ -424,6 +479,8 @@ function NewPickupForm() {
         setConditionNotes(t.condition_notes ?? "");
         setNeedsScale(t.needs_scale);
         setScaleReceived(t.scale_ticket_received);
+        // R41: the just-loaded values are the clean baseline, not an edit
+        setFormVersion((v) => v + 1);
       })
       .catch((e) =>
         setError(e instanceof ApiError ? e.message : "Failed to load the ticket.")
@@ -692,11 +749,16 @@ function NewPickupForm() {
     setNeedsScale(false);
     setScaleReceived(false);
     setLoadedState(null);
+    // R41: a deliberate reset is the new clean baseline, not an edit
+    setFormVersion((v) => v + 1);
   }
 
-  // R17 "Still Sending": park the ticket as a draft and clear the form so the
-  // dispatcher can start the next concurrent pickup immediately.
-  async function saveDraft() {
+  // R41: the actual network call, shared by the toolbar's "Save Draft"
+  // button and the unsaved-changes guard's "Save as Draft" action. Returns
+  // success/failure instead of throwing so the toolbar button (which just
+  // shows the inline error banner) and the guard (which needs to know
+  // whether it's safe to navigate away) can each react appropriately.
+  async function performSaveDraft(): Promise<boolean> {
     setError(null);
     setSuccess(null);
     setSubmitting(true);
@@ -706,24 +768,65 @@ function NewPickupForm() {
           method: "PATCH",
           body: JSON.stringify({ ...commonPayload(), mc_id: mcId, still_sending: true }),
         });
-        resetForm();
-        router.replace("/dashboard/new-pickup");
       } else {
         await api<Ticket>("/api/tickets", {
           method: "POST",
           body: JSON.stringify({ ...createPayload(), still_sending: true }),
         });
-        resetForm();
       }
-      setSuccess(
-        "Draft saved (Still Sending) — resume it anytime from Active Drafts in the sidebar."
-      );
+      return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save the draft.");
+      return false;
     } finally {
       setSubmitting(false);
     }
   }
+
+  // R17 "Still Sending": park the ticket as a draft and clear the form so the
+  // dispatcher can start the next concurrent pickup immediately.
+  async function saveDraft() {
+    const ok = await performSaveDraft();
+    if (!ok) return;
+    if (editId) {
+      resetForm();
+      router.replace("/dashboard/new-pickup");
+    } else {
+      resetForm();
+    }
+    setSuccess(
+      "Draft saved (Still Sending) — resume it anytime from Active Drafts in the sidebar."
+    );
+  }
+
+  // R41: unsaved-changes guard registration. guardRef always holds the
+  // LATEST closures (reassigned every render, below) so the stable
+  // guardedSaveDraft/guardedDiscard functions (registered once on mount)
+  // never operate on stale state.
+  const guardRef = useRef<{
+    performSaveDraft: () => Promise<boolean>;
+    resetForm: () => void;
+  }>({ performSaveDraft, resetForm });
+  guardRef.current = { performSaveDraft, resetForm };
+
+  const guardedSaveDraft = useCallback(async () => {
+    const ok = await guardRef.current.performSaveDraft();
+    if (!ok) {
+      throw new Error(
+        "Could not save the draft — check the required fields (Motor Carrier, Truck Number) and try again."
+      );
+    }
+    guardRef.current.resetForm();
+  }, []);
+
+  const guardedDiscard = useCallback(() => {
+    guardRef.current.resetForm();
+  }, []);
+
+  useEffect(() => {
+    registerGuardHandlers({ saveDraft: guardedSaveDraft, discard: guardedDiscard });
+    return () => clearGuardHandlers();
+  }, [registerGuardHandlers, clearGuardHandlers, guardedSaveDraft, guardedDiscard]);
 
   // R20: discard a parked draft outright — load canceled, no longer needed
   async function discardDraft() {
@@ -1482,7 +1585,9 @@ function NewPickupForm() {
           {editId && (
             <button
               type="button"
-              onClick={() => router.push("/dashboard/carryover")}
+              onClick={() =>
+                requestNavigation(() => router.push("/dashboard/carryover"))
+              }
               className="cursor-pointer rounded border border-slate-300 px-5 py-2.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
             >
               Cancel
