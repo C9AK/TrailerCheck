@@ -27,3 +27,11 @@ class TrailerDocumentOut(BaseModel):
     uploaded_by: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+
+class LastUsedOut(BaseModel):
+    """R43: which truck had this trailer last, and when — shown as a small
+    info line the moment a trailer number is entered, LOT or not."""
+
+    truck_number: str
+    created_at: datetime

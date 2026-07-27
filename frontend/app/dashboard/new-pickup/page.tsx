@@ -21,6 +21,7 @@ import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, Skeleton, SuccessBanner, Toggle } from "@/components/ui";
 import { api, ApiError, mediaUrl, uploadTrailerDocument } from "@/lib/api";
 import { emptyChecklist, PTI_SECTIONS, type PtiChecklist } from "@/lib/pti";
+import { fmtCstDate } from "@/lib/time";
 import {
   KPRA_GROUP_LABELS,
   type KpraGroup,
@@ -31,6 +32,7 @@ import {
   type TrailerCondition,
   type TrailerDocType,
   type TrailerDocument,
+  type TrailerLastUsed,
 } from "@/lib/types";
 import { useFormGuardStore } from "@/store/formGuardStore";
 
@@ -339,9 +341,12 @@ function NewPickupForm() {
   const [savedDocs, setSavedDocs] = useState<TrailerDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docUploading, setDocUploading] = useState<TrailerDocType | null>(null);
+  const [docDeleting, setDocDeleting] = useState<string | null>(null);
   const docsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // R25b: clipboard paste — which paper slot is waiting for a Ctrl+V
   const [pasteArmed, setPasteArmed] = useState<TrailerDocType | null>(null);
+  // R43: "who had this trailer last" — LOT or not
+  const [lastUsed, setLastUsed] = useState<TrailerLastUsed | null>(null);
 
   // R25: hazmat load — UGL does not haul hazmat; arms the movement monitor
   const [isHazmat, setIsHazmat] = useState(false);
@@ -460,7 +465,10 @@ function NewPickupForm() {
         // embedded trailer record (any pickup since R25, not just LOT)
         setTrailerNumber(t.trailer?.trailer_number ?? "");
         setLastPtiDate(t.trailer ? toDateInputValue(t.trailer.last_pti_date) : "");
-        if (t.trailer) checkSavedDocs(t.trailer.trailer_number);
+        if (t.trailer) {
+          checkSavedDocs(t.trailer.trailer_number);
+          checkLastUsed(t.trailer.trailer_number);
+        }
         setIsHazmat(t.is_hazmat);
         setIsChassis(t.is_chassis);
         setPtiMaster(t.pti_verified);
@@ -565,19 +573,62 @@ function NewPickupForm() {
     }
   }, []);
 
+  // R43: "who had this trailer last" — LOT or not, same trigger points as
+  // checkSavedDocs. Excludes the ticket currently being edited so resuming
+  // a draft doesn't just show itself as the "last" user.
+  const checkLastUsed = useCallback(
+    async (num: string) => {
+      const trimmed = num.trim();
+      if (!trimmed) {
+        setLastUsed(null);
+        return;
+      }
+      try {
+        const qs = editId ? `?exclude_ticket_id=${editId}` : "";
+        setLastUsed(
+          await api<TrailerLastUsed | null>(
+            `/api/trailers/${encodeURIComponent(trimmed)}/last-used${qs}`
+          )
+        );
+      } catch {
+        setLastUsed(null); // best-effort — never blocks the form
+      }
+    },
+    [editId]
+  );
+
   function scheduleDocsCheck(num: string) {
     if (docsTimer.current) clearTimeout(docsTimer.current);
     if (!num.trim()) {
       setSavedDocs([]);
+      setLastUsed(null);
       return;
     }
-    docsTimer.current = setTimeout(() => checkSavedDocs(num), 600);
+    docsTimer.current = setTimeout(() => {
+      checkSavedDocs(num);
+      checkLastUsed(num);
+    }, 600);
   }
 
   // R25: "Use Saved Papers" — tick the matching checklist boxes in one click
   function useSavedPapers() {
     if (savedDocs.some((d) => d.doc_type === "inspection")) setInspectionVerified(true);
     if (savedDocs.some((d) => d.doc_type === "registration")) setRegistrationVerified(true);
+  }
+
+  // R43: remove a saved paper outright (wrong upload, outdated document)
+  async function deleteTrailerDoc(doc: TrailerDocument) {
+    if (!window.confirm(`Delete the saved ${doc.doc_type} paper for this trailer?`)) return;
+    setDocDeleting(doc.id);
+    setError(null);
+    try {
+      await api<void>(`/api/trailers/documents/${doc.id}`, { method: "DELETE" });
+      setSavedDocs((prev) => prev.filter((d) => d.id !== doc.id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete the saved paper.");
+    } finally {
+      setDocDeleting(null);
+    }
   }
 
   async function attachTrailerDoc(
@@ -730,6 +781,7 @@ function NewPickupForm() {
     setTrailerNumber("");
     setLastPtiDate("");
     setSavedDocs([]);
+    setLastUsed(null);
     setIsHazmat(false);
     setPti(emptyChecklist());
     setPtiMaster(false);
@@ -1035,6 +1087,7 @@ function NewPickupForm() {
                 }}
                 onBlur={() => {
                   checkSavedDocs(trailerNumber);
+                  checkLastUsed(trailerNumber);
                   if (isLot) lookupTrailer();
                 }}
                 placeholder={isLot ? "e.g. LOT-1001" : "e.g. 53182"}
@@ -1042,6 +1095,14 @@ function NewPickupForm() {
               />
               {trailerError && isLot && (
                 <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{trailerError}</p>
+              )}
+              {/* R43: "who had this trailer last" — LOT or not */}
+              {lastUsed && (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Last used by truck{" "}
+                  <span className="font-mono font-semibold">{lastUsed.truck_number}</span> on{" "}
+                  {fmtCstDate(lastUsed.created_at)}
+                </p>
               )}
             </div>
             {isLot && (
@@ -1091,17 +1152,32 @@ function NewPickupForm() {
                 <>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     {savedDocs.map((d) => (
-                      <a
+                      <span
                         key={d.id}
-                        href={mediaUrl(d.media_url)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
-                        title={`Open the saved ${d.doc_type} paper`}
+                        className="flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 pl-2.5 pr-1 py-1 dark:border-emerald-800 dark:bg-emerald-950/40"
                       >
-                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                        View {d.doc_type === "inspection" ? "Inspection" : "Registration"}
-                      </a>
+                        <a
+                          href={mediaUrl(d.media_url)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 hover:underline dark:text-emerald-300"
+                          title={`Open the saved ${d.doc_type} paper`}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                          View {d.doc_type === "inspection" ? "Inspection" : "Registration"}
+                        </a>
+                        {/* R43: remove a wrong/outdated saved paper outright */}
+                        <button
+                          type="button"
+                          aria-label={`Delete the saved ${d.doc_type} paper`}
+                          title="Delete this saved paper"
+                          disabled={docDeleting === d.id}
+                          onClick={() => deleteTrailerDoc(d)}
+                          className="cursor-pointer rounded p-1 text-emerald-700 hover:bg-red-100 hover:text-red-700 disabled:opacity-40 dark:text-emerald-300 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </span>
                     ))}
                     <button
                       type="button"

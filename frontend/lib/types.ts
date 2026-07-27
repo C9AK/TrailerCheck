@@ -93,6 +93,12 @@ export interface TrailerDocument {
   updated_at: string;
 }
 
+// R43: "who had this trailer last" — LOT or not
+export interface TrailerLastUsed {
+  truck_number: string;
+  created_at: string;
+}
+
 // R25: hazmat movement alert pushed over the SSE stream to every user
 export interface HazmatAlert {
   type: "hazmat_movement";

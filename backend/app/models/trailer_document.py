@@ -1,7 +1,16 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint, Uuid, func
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -12,7 +21,13 @@ class TrailerDocument(Base):
     """R25: a trailer's Inspection/Registration paper, persisted against the
     trailer itself (any pickup, not just LOT) so a returning trailer never
     needs its papers re-uploaded. One CURRENT document per type per trailer —
-    a new upload replaces the old row's file reference."""
+    a new upload replaces the old row's file reference.
+
+    R42: uploaded files are stored as bytes IN THE ROW (`content`), not on
+    local disk — Render's free web service filesystem is ephemeral and gets
+    wiped on every dyno sleep/restart, which silently orphaned every
+    uploaded paper within about a day. Pasted links (media_url pointing at
+    an external host) are unaffected and still store no bytes here."""
 
     __tablename__ = "trailer_documents"
     __table_args__ = (
@@ -27,6 +42,10 @@ class TrailerDocument(Base):
         Enum(TrailerDocType, name="trailer_doc_type"), nullable=False
     )
     media_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    # R42: the uploaded file's bytes, persisted in the database itself.
+    # NULL for a pasted external link (media_url points off-site instead).
+    content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     uploaded_by: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id"), nullable=False
     )

@@ -3,20 +3,26 @@
 Documents are keyed to the TRAILER (by trailer_number), not the pickup, so a
 returning trailer's papers are instantly available on any new pickup — LOT or
 standard. One current document per type per trailer; a new upload replaces it.
+
+R42: uploaded FILES are stored as bytes in the database (TrailerDocument.
+content), not on local disk — Render's free web service filesystem is
+ephemeral and gets wiped on every dyno sleep/restart, which silently
+orphaned every previously-uploaded paper within about a day (the row
+survived, but /media/<file> 404'd). Pasted links are unaffected — they
+never touch local disk either way.
 """
 
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.api.routes.uploads import MAX_UPLOAD_BYTES, MEDIA_DIR
+from app.api.routes.uploads import MAX_UPLOAD_BYTES
 from app.core.database import get_db
-from app.models import Trailer, TrailerDocType, TrailerDocument, User, UserRole
-from app.schemas.trailer import TrailerDocumentOut
+from app.models import PickupTicket, Trailer, TrailerDocType, TrailerDocument, User, UserRole
+from app.schemas.trailer import LastUsedOut, TrailerDocumentOut
 from app.services.ticket_lifecycle import resolve_trailer_by_number
 
 router = APIRouter(tags=["trailers"])
@@ -48,6 +54,37 @@ def list_trailer_documents(
     ).all()
 
 
+@router.get("/api/trailers/{trailer_number}/last-used", response_model=LastUsedOut | None)
+def get_trailer_last_used(
+    trailer_number: str,
+    exclude_ticket_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """R43: "who had this trailer last" — the most recent OTHER pickup that
+    used it, regardless of LOT vs standard. Powers a small info line on the
+    New Pickup form the moment a trailer number is typed. None (not 404)
+    when the trailer is unknown or has no other history — the form probes
+    on every keystroke and a plain "nothing to show" is not an error."""
+    trailer = db.scalar(
+        select(Trailer).where(Trailer.trailer_number == trailer_number.strip())
+    )
+    if trailer is None:
+        return None
+
+    q = (
+        select(PickupTicket)
+        .where(PickupTicket.trailer_id == trailer.id)
+        .order_by(PickupTicket.created_at.desc())
+    )
+    if exclude_ticket_id is not None:
+        q = q.where(PickupTicket.id != exclude_ticket_id)
+    last = db.scalar(q.limit(1))
+    if last is None:
+        return None
+    return LastUsedOut(truck_number=last.truck_number, created_at=last.created_at)
+
+
 @router.post(
     "/api/trailers/{trailer_number}/documents",
     response_model=TrailerDocumentOut,
@@ -72,6 +109,9 @@ async def upload_trailer_document(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Trailer number is required."
         )
 
+    content: bytes | None = None
+    content_type: str | None = None
+
     if file is not None:
         content_type = file.content_type or ""
         if not content_type.startswith(_ALLOWED_DOC_TYPES):
@@ -86,14 +126,13 @@ async def upload_trailer_document(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail="File exceeds the 100 MB limit.",
             )
-
-        suffix = Path(file.filename or "").suffix.lower()[:10]
-        name = f"{uuid.uuid4().hex}{suffix}"
-        MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-        (MEDIA_DIR / name).write_bytes(data)
-        media_url = f"/media/{name}"
+        # R42: persisted as bytes in the row — media_url is filled in below,
+        # once the document has an id to point the serving endpoint at.
+        content = data
+        media_url = None
     else:
         # Pasted link path — accept hosted URLs or existing /media references.
+        # Unaffected by R42 (no local disk involved either way).
         media_url = (media_url or "").strip()
         if not media_url:
             raise HTTPException(
@@ -123,18 +162,41 @@ async def upload_trailer_document(
         document = TrailerDocument(
             trailer_id=trailer.id,
             doc_type=doc_type,
-            media_url=media_url,
+            media_url=media_url or "",
+            content=content,
+            content_type=content_type,
             uploaded_by=current_user.id,
         )
         db.add(document)
     else:
         # Replace in place — the trailer keeps ONE current paper per type.
-        document.media_url = media_url
+        document.media_url = media_url or ""
+        document.content = content
+        document.content_type = content_type
         document.uploaded_by = current_user.id
+
+    db.flush()  # assign document.id for a fresh row before the URL is set
+    if content is not None:
+        document.media_url = f"/api/trailers/documents/{document.id}/file"
 
     db.commit()
     db.refresh(document)
     return document
+
+
+@router.get("/api/trailers/documents/{document_id}/file")
+def get_trailer_document_file(document_id: uuid.UUID, db: Session = Depends(get_db)):
+    """R42: serves the bytes stored in the row. No auth check — matches the
+    existing /media/* static mount's security posture (an unguessable UUID
+    is the only barrier either way); a plain <a target="_blank"> link can't
+    carry an Authorization header, so this must stay open."""
+    document = db.get(TrailerDocument, document_id)
+    if document is None or document.content is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return Response(
+        content=document.content,
+        media_type=document.content_type or "application/octet-stream",
+    )
 
 
 @router.delete(

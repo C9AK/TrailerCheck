@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
     _migrate_r34()
     _migrate_r35()
     _migrate_r37()
+    _migrate_r42()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     # R25: continuous Samsara movement watch for hazmat loads
@@ -303,6 +304,37 @@ def _migrate_r37() -> None:
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE pickup_tickets DROP COLUMN is_ca_fl_destination"))
     print("R37 migration: dropped pickup_tickets.is_ca_fl_destination (superseded by kpra_group)")
+
+
+def _migrate_r42() -> None:
+    """R42 in-place migration: content + content_type columns on
+    trailer_documents. Uploaded files now live as bytes in the row instead
+    of on local disk — Render's free web service filesystem is ephemeral
+    (wiped on every dyno sleep/restart), which silently orphaned every
+    uploaded paper within about a day. Existing rows (file already gone)
+    stay NULL here until the paper is re-uploaded once under the new
+    scheme; already-lost files cannot be recovered by a migration.
+    Idempotent."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "trailer_documents" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("trailer_documents")}
+    binary_type = "BYTEA" if engine.dialect.name == "postgresql" else "BLOB"
+    with engine.begin() as conn:
+        if "content" not in cols:
+            conn.execute(
+                text(f"ALTER TABLE trailer_documents ADD COLUMN content {binary_type}")
+            )
+            print("R42 migration: added trailer_documents.content")
+        if "content_type" not in cols:
+            conn.execute(
+                text("ALTER TABLE trailer_documents ADD COLUMN content_type VARCHAR(100)")
+            )
+            print("R42 migration: added trailer_documents.content_type")
 
 
 def _migrate_feed_ticket_nullable() -> None:
