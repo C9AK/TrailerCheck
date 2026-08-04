@@ -259,6 +259,9 @@ export interface ShiftNote {
   created_by: string;
   creator: UserBrief;
   content: string;
+  // R45: links back to the pickup for a direct "edit this truck" jump —
+  // only set for auto-generated notes, and only while the ticket still exists.
+  ticket_id: string | null;
   truck_number: string | null;
   mc_name: string | null;
   is_auto_generated: boolean;

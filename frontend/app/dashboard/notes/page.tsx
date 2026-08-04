@@ -9,8 +9,10 @@ import {
   Send,
   Sparkles,
   Trash2,
+  Truck,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
@@ -31,6 +33,7 @@ export default function NotesPage() {
 }
 
 function NotesBoard() {
+  const router = useRouter();
   const role = useAuthStore((s) => s.role);
   const username = useAuthStore((s) => s.username);
   // R18: QC has full notes parity — drafts, publish, edit, resolve, delete
@@ -235,7 +238,15 @@ function NotesBoard() {
                   role="img"
                   aria-label="Auto-generated"
                 />
-                {n.content}
+                <span className="min-w-0 flex-1">{n.content}</span>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/dashboard/new-pickup?edit=${n.ticket_id}`)}
+                  className="flex shrink-0 cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
+                >
+                  <Truck className="h-3.5 w-3.5" aria-hidden="true" />
+                  Edit Pickup
+                </button>
               </li>
             ))}
             {drafts.map((n) => (
@@ -417,6 +428,16 @@ function NotesBoard() {
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-1.5">
+                    {n.is_auto_generated && n.ticket_id && (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/dashboard/new-pickup?edit=${n.ticket_id}`)}
+                        className="flex cursor-pointer items-center gap-1 rounded border border-slate-300 px-2 py-1.5 text-xs font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                      >
+                        <Truck className="h-3.5 w-3.5" aria-hidden="true" />
+                        Edit Pickup
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {

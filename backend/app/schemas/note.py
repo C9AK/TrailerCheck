@@ -22,6 +22,10 @@ class NoteOut(BaseModel):
     created_by: uuid.UUID
     creator: UserBrief
     content: str
+    # R45: links back to the pickup for a direct "edit this truck" jump —
+    # only set for auto-generated notes; None for manual ones or once the
+    # ticket's been deleted (detached, not cascaded).
+    ticket_id: uuid.UUID | None
     truck_number: str | None
     mc_name: str | None
     is_auto_generated: bool

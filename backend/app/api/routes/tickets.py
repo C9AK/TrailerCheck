@@ -17,6 +17,7 @@ from app.models import (
     MotorCarrier,
     PickupTicket,
     QCAuditFlag,
+    ShiftNote,
     TicketState,
     TrailerIssue,
     User,
@@ -273,7 +274,8 @@ def delete_ticket(
     feed; existing audit-log AND feed rows are detached (ticket_id -> NULL),
     never destroyed — QC flags + their media cascade away with the ticket.
     R44: trailer issues are ALSO detached, never cascaded — the issue is
-    about the trailer, not the ticket, so it must outlive it."""
+    about the trailer, not the ticket, so it must outlive it. R45: same for
+    shift notes' ticket_id — the note's content survives for the record."""
     ticket = _get_ticket_or_404(db, ticket_id)
     if (
         current_user.role == UserRole.employee
@@ -299,6 +301,9 @@ def delete_ticket(
     )
     db.execute(
         update(TrailerIssue).where(TrailerIssue.ticket_id == ticket.id).values(ticket_id=None)
+    )
+    db.execute(
+        update(ShiftNote).where(ShiftNote.ticket_id == ticket.id).values(ticket_id=None)
     )
     db.expire(ticket, ["audit_logs"])
     db.delete(ticket)

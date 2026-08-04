@@ -185,6 +185,7 @@ def publish_shift_handover(
                 ShiftNote(
                     created_by=current_user.id,
                     content=auto.content,
+                    ticket_id=auto.ticket_id,
                     truck_number=auto.truck_number,
                     mc_name=auto.mc_name,
                     is_auto_generated=True,

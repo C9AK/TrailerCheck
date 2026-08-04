@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI):
     _migrate_r35()
     _migrate_r37()
     _migrate_r42()
+    _migrate_r45()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     # R25: continuous Samsara movement watch for hazmat loads
@@ -336,6 +337,34 @@ def _migrate_r42() -> None:
                 text("ALTER TABLE trailer_documents ADD COLUMN content_type VARCHAR(100)")
             )
             print("R42 migration: added trailer_documents.content_type")
+
+
+def _migrate_r45() -> None:
+    """R45 in-place migration: ticket_id column on shift_notes — lets the
+    Notes tab jump straight to the pickup an auto-generated note is about
+    ("Edit Pickup" button). Nullable; only ever set for auto-generated
+    notes going forward (existing published auto-notes stay NULL — the
+    live-computed drafts feeding them already have the id, but nothing
+    backfills history retroactively). Idempotent."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "shift_notes" not in insp.get_table_names():
+        return
+
+    cols = {c["name"] for c in insp.get_columns("shift_notes")}
+    if "ticket_id" in cols:
+        return
+
+    # Matches what SQLAlchemy's Uuid type actually emits on each dialect via
+    # create_all (native UUID on Postgres; CHAR(32) hex storage on SQLite,
+    # which has no native UUID type) — a mismatched raw type here would
+    # silently corrupt values written by the ORM afterward.
+    uuid_type = "UUID" if engine.dialect.name == "postgresql" else "CHAR(32)"
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE shift_notes ADD COLUMN ticket_id {uuid_type}"))
+    print("R45 migration: added shift_notes.ticket_id")
 
 
 def _migrate_feed_ticket_nullable() -> None:

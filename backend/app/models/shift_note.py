@@ -19,7 +19,13 @@ class ShiftNote(Base):
         Uuid, ForeignKey("users.id"), nullable=False, index=True
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    # Linked ticket context when auto-generated
+    # Linked ticket context when auto-generated. R45: ticket_id lets the UI
+    # jump straight to that pickup's edit form; nullable and DETACHED (not
+    # cascaded) on ticket deletion, matching audit_logs/live_activity_feed —
+    # the note's history should survive even if the ticket is later removed.
+    ticket_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("pickup_tickets.id"), nullable=True, index=True
+    )
     truck_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     mc_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     is_auto_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
