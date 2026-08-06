@@ -22,7 +22,7 @@ from app.api.deps import get_current_user
 from app.api.routes.uploads import MAX_UPLOAD_BYTES
 from app.core.database import get_db
 from app.models import PickupTicket, Trailer, TrailerDocType, TrailerDocument, User, UserRole
-from app.schemas.trailer import LastUsedOut, TrailerDocumentOut
+from app.schemas.trailer import LastPickupByTruckOut, LastUsedOut, TrailerDocumentOut
 from app.services.ticket_lifecycle import resolve_trailer_by_number
 
 router = APIRouter(tags=["trailers"])
@@ -83,6 +83,55 @@ def get_trailer_last_used(
     if last is None:
         return None
     return LastUsedOut(truck_number=last.truck_number, created_at=last.created_at)
+
+
+@router.get(
+    "/api/trucks/{truck_number}/last-pickup", response_model=LastPickupByTruckOut | None
+)
+def get_last_pickup_by_truck(
+    truck_number: str,
+    mc_id: uuid.UUID | None = None,
+    exclude_ticket_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """R46: "still using trailer XXXX?" — the moment a truck number is typed
+    on New Pickup, surface a snapshot of that truck's most recent OTHER
+    pickup: trailer identity, its PTI date, saved papers, and what was
+    verified last time. mc_id narrows the match when known (a truck number
+    can be reused across motor carriers); None (not 404) when there's no
+    prior pickup to reference — same "never blocks the form" posture as
+    R43's last-used lookup."""
+    q = (
+        select(PickupTicket)
+        .where(PickupTicket.truck_number == truck_number.strip())
+        .where(PickupTicket.trailer_id.is_not(None))
+        .order_by(PickupTicket.created_at.desc())
+    )
+    if mc_id is not None:
+        q = q.where(PickupTicket.mc_id == mc_id)
+    if exclude_ticket_id is not None:
+        q = q.where(PickupTicket.id != exclude_ticket_id)
+    last = db.scalar(q.limit(1))
+    if last is None or last.trailer is None:
+        return None
+
+    documents = db.scalars(
+        select(TrailerDocument)
+        .where(TrailerDocument.trailer_id == last.trailer_id)
+        .order_by(TrailerDocument.doc_type)
+    ).all()
+
+    return LastPickupByTruckOut(
+        trailer_number=last.trailer.trailer_number,
+        last_pti_date=last.trailer.last_pti_date,
+        pti_verified=last.pti_verified,
+        registration_verified=last.registration_verified,
+        inspection_paper_verified=last.inspection_paper_verified,
+        sticker_verified=last.sticker_verified,
+        documents=[TrailerDocumentOut.model_validate(d) for d in documents],
+        created_at=last.created_at,
+    )
 
 
 @router.post(

@@ -99,6 +99,19 @@ export interface TrailerLastUsed {
   created_at: string;
 }
 
+// R46: "still using trailer XXXX?" — snapshot of a truck's most recent
+// pickup, shown as a confirmation prompt when the truck number is entered.
+export interface LastPickupByTruck {
+  trailer_number: string;
+  last_pti_date: string;
+  pti_verified: boolean;
+  registration_verified: boolean;
+  inspection_paper_verified: boolean;
+  sticker_verified: boolean;
+  documents: TrailerDocument[];
+  created_at: string;
+}
+
 // R25: hazmat movement alert pushed over the SSE stream to every user
 export interface HazmatAlert {
   type: "hazmat_movement";

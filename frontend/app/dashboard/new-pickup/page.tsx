@@ -7,12 +7,14 @@ import {
   FileCheck2,
   FileClock,
   Fuel,
+  HelpCircle,
   Loader2,
   MapPin,
   Trash2,
   Truck,
   Upload,
   User,
+  X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -21,10 +23,11 @@ import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, Skeleton, SuccessBanner, Toggle } from "@/components/ui";
 import { api, ApiError, mediaUrl, uploadTrailerDocument } from "@/lib/api";
 import { emptyChecklist, PTI_SECTIONS, type PtiChecklist } from "@/lib/pti";
-import { fmtCstDate } from "@/lib/time";
+import { fmtCst, fmtCstDate } from "@/lib/time";
 import {
   KPRA_GROUP_LABELS,
   type KpraGroup,
+  type LastPickupByTruck,
   type MotorCarrier,
   type Telemetry,
   type Ticket,
@@ -347,6 +350,17 @@ function NewPickupForm() {
   const [pasteArmed, setPasteArmed] = useState<TrailerDocType | null>(null);
   // R43: "who had this trailer last" — LOT or not
   const [lastUsed, setLastUsed] = useState<TrailerLastUsed | null>(null);
+  // R46: "still using trailer XXXX?" — snapshot of the truck's last pickup,
+  // offered the moment a truck number matching prior history is entered.
+  const [truckLastPickup, setTruckLastPickup] = useState<LastPickupByTruck | null>(null);
+  const truckLastPickupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Truck number already answered (yes or no) for — don't re-ask on every
+  // keystroke/blur until it changes.
+  const dismissedTruckRef = useRef<string | null>(null);
+  // Latest trailerNumber, read inside the debounced check below so a value
+  // typed mid-timeout isn't missed by a stale closure.
+  const trailerNumberRef = useRef("");
+  trailerNumberRef.current = trailerNumber;
 
   // R25: hazmat load — UGL does not haul hazmat; arms the movement monitor
   const [isHazmat, setIsHazmat] = useState(false);
@@ -434,6 +448,13 @@ function NewPickupForm() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, []);
+
+  // R46: a trailer number typed by hand while the "still using trailer
+  // XXXX?" prompt is open makes it moot — dismiss it rather than leave it
+  // sitting there contradicting what's now in the field.
+  useEffect(() => {
+    if (trailerNumber.trim() && truckLastPickup) setTruckLastPickup(null);
+  }, [trailerNumber, truckLastPickup]);
 
   const visibleSections = PTI_SECTIONS.filter((s) => !s.chassisOnly || isChassis);
   const visibleKeys = visibleSections.flatMap((s) =>
@@ -528,6 +549,62 @@ function NewPickupForm() {
     },
     []
   );
+
+  // R46: debounced probe for "what trailer did this truck have last?" — only
+  // relevant while starting a fresh pickup with no trailer number typed yet;
+  // once one is entered (by hand, or by accepting this same prompt) it never
+  // fires again for the same truck number.
+  const scheduleTruckLastPickupCheck = useCallback(
+    (mc: string, truck: string) => {
+      if (truckLastPickupTimer.current) clearTimeout(truckLastPickupTimer.current);
+      const trimmed = truck.trim();
+      if (
+        editId ||
+        trailerNumberRef.current.trim() ||
+        trimmed.length < 2 ||
+        dismissedTruckRef.current === trimmed
+      ) {
+        return;
+      }
+      truckLastPickupTimer.current = setTimeout(async () => {
+        try {
+          const qs = mc ? `?mc_id=${mc}` : "";
+          const last = await api<LastPickupByTruck | null>(
+            `/api/trucks/${encodeURIComponent(trimmed)}/last-pickup${qs}`
+          );
+          if (
+            last &&
+            !trailerNumberRef.current.trim() &&
+            dismissedTruckRef.current !== trimmed
+          ) {
+            setTruckLastPickup(last);
+          }
+        } catch {
+          /* best-effort — never blocks the form */
+        }
+      }, 600);
+    },
+    [editId]
+  );
+
+  // Confirm ("Yes, same trailer"): carries over trailer identity + its PTI
+  // date only — PTI/papers checkboxes stay unchecked, since those need a
+  // fresh verification for THIS pickup, not a copy of last time's.
+  function acceptTruckLastPickup() {
+    if (!truckLastPickup) return;
+    dismissedTruckRef.current = truckNumber.trim();
+    const num = truckLastPickup.trailer_number;
+    setTrailerNumber(num);
+    setLastPtiDate(toDateInputValue(truckLastPickup.last_pti_date));
+    setTruckLastPickup(null);
+    checkSavedDocs(num);
+    checkLastUsed(num);
+  }
+
+  function declineTruckLastPickup() {
+    if (truckLastPickup) dismissedTruckRef.current = truckNumber.trim();
+    setTruckLastPickup(null);
+  }
 
   async function lookupTrailer() {
     const num = trailerNumber.trim();
@@ -782,6 +859,8 @@ function NewPickupForm() {
     setLastPtiDate("");
     setSavedDocs([]);
     setLastUsed(null);
+    setTruckLastPickup(null);
+    dismissedTruckRef.current = null;
     setIsHazmat(false);
     setPti(emptyChecklist());
     setPtiMaster(false);
@@ -945,8 +1024,135 @@ function NewPickupForm() {
     );
   }
 
+  // R46: small ✓/✗ badge for the "still using trailer XXXX?" snapshot below.
+  function statusBadge(ok: boolean, label: string) {
+    return (
+      <span
+        className={
+          ok
+            ? "text-emerald-700 dark:text-emerald-400"
+            : "text-amber-700 dark:text-amber-400"
+        }
+      >
+        {label} {ok ? "✓" : "✗"}
+      </span>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
+      {/* R46: "still using trailer XXXX?" — offered the moment a truck
+          number matching a prior pickup is entered, with a snapshot of
+          exactly what was on record for that last pickup. */}
+      {truckLastPickup && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="truck-last-pickup-title"
+          onClick={declineTruckLastPickup}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border-2 border-brand-500 bg-white p-5 shadow-xl dark:border-brand-600 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between">
+              <h2
+                id="truck-last-pickup-title"
+                className="flex items-center gap-2 font-mono text-base font-semibold"
+              >
+                <HelpCircle className="h-4 w-4 text-brand-600" aria-hidden="true" />
+                Still using trailer {truckLastPickup.trailer_number}?
+              </h2>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={declineTruckLastPickup}
+                className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+              Truck <span className="font-mono font-semibold">{truckNumber.trim()}</span>{" "}
+              last picked up on {fmtCst(truckLastPickup.created_at)} — here&apos;s what was
+              on record:
+            </p>
+
+            <div className="mb-4 space-y-1.5 rounded border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500 dark:text-slate-400">Trailer Number</span>
+                <span className="font-mono font-semibold">
+                  {truckLastPickup.trailer_number}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500 dark:text-slate-400">Last PTI Date</span>
+                <span className="font-mono font-semibold">
+                  {fmtCstDate(truckLastPickup.last_pti_date)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500 dark:text-slate-400">PTI Box</span>
+                {statusBadge(truckLastPickup.pti_verified, "Checked")}
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500 dark:text-slate-400">Papers Check</span>
+                <span className="flex flex-wrap justify-end gap-2 text-xs font-semibold">
+                  {statusBadge(truckLastPickup.registration_verified, "Registration")}
+                  {statusBadge(truckLastPickup.inspection_paper_verified, "Inspection")}
+                  {statusBadge(truckLastPickup.sticker_verified, "Sticker")}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500 dark:text-slate-400">Trailer Docs</span>
+                {truckLastPickup.documents.length > 0 ? (
+                  <span className="flex flex-wrap justify-end gap-2">
+                    {truckLastPickup.documents.map((d) => (
+                      <a
+                        key={d.id}
+                        href={mediaUrl(d.media_url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 font-medium text-brand-700 hover:underline dark:text-brand-400"
+                      >
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        {d.doc_type === "inspection" ? "Inspection" : "Registration"}
+                      </a>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="text-slate-400 dark:text-slate-500">None on file</span>
+                )}
+              </div>
+            </div>
+
+            <p className="mb-4 text-[11px] text-slate-400 dark:text-slate-500">
+              Confirming fills in the trailer number and PTI date only — PTI and papers still
+              need to be verified fresh for this pickup.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={acceptTruckLastPickup}
+                className="flex-1 cursor-pointer rounded bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-brand-700"
+              >
+                Yes, same trailer
+              </button>
+              <button
+                type="button"
+                onClick={declineTruckLastPickup}
+                className="flex-1 cursor-pointer rounded border border-slate-300 px-4 py-2.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                No, different trailer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1 className="mb-4 font-mono text-xl font-semibold">
         {editId ? `Edit Pickup — Truck ${truckNumber}` : "New Pickup"}
       </h1>
@@ -969,6 +1175,7 @@ function NewPickupForm() {
                 onChange={(e) => {
                   setMcId(e.target.value);
                   scheduleTelemetry(e.target.value, truckNumber, isLot);
+                  scheduleTruckLastPickupCheck(e.target.value, truckNumber);
                 }}
                 className={`${inputCls} disabled:opacity-60`}
               >
@@ -991,6 +1198,7 @@ function NewPickupForm() {
                 onChange={(e) => {
                   setTruckNumber(e.target.value);
                   scheduleTelemetry(mcId, e.target.value, isLot);
+                  scheduleTruckLastPickupCheck(mcId, e.target.value);
                 }}
                 placeholder="e.g. 1319 A"
                 className={`${inputCls} font-mono`}
