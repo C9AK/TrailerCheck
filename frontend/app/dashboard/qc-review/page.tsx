@@ -197,7 +197,15 @@ function QCQueue() {
       const updated = await api<Ticket>(`/api/tickets/${ticket.id}/refresh-fuel`, {
         method: "POST",
       });
-      setTickets((prev) => prev.map((x) => (x.id === ticket.id ? updated : x)));
+      // Merge in ONLY the fuel reading. last_pti_date/last_qc_approved_date
+      // are transient — computed solely by GET /api/tickets/qc, never by
+      // this endpoint — so replacing the whole ticket with `updated` would
+      // blank them back to "No prior record" until the next full reload.
+      setTickets((prev) =>
+        prev.map((x) =>
+          x.id === ticket.id ? { ...x, fuel_percentage: updated.fuel_percentage } : x
+        )
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't refresh fuel % from Samsara.");
     } finally {
