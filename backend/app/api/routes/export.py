@@ -1,15 +1,20 @@
-"""Manager data export — daily pickups as CSV for Excel / Google Sheets.
+"""Manager data export — daily pickups as an Excel workbook, one sheet per
+calendar day in the requested range (sheet name = that day's date), for
+Excel / Google Sheets.
 
 All relational fields are resolved to human-readable strings (MC name,
 employee username, approving QC username, flag category labels) — no UUIDs.
 """
 
-import csv
 import io
+from collections import defaultdict
 from datetime import date as date_type
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -51,6 +56,13 @@ HEADERS = [
     "Flagged By", "Approved By", "Approved At (UTC)",
 ]
 
+# One sheet is created per calendar day in the requested range (even empty
+# ones) — cap the span so a fat-fingered range doesn't spend minutes
+# generating thousands of blank sheets.
+MAX_EXPORT_DAYS = 366
+
+HEADER_FONT = Font(bold=True)
+
 
 def _yn(value: bool) -> str:
     return "Yes" if value else "No"
@@ -68,6 +80,61 @@ def _fmt_date(dt: datetime | None) -> str:
     return dt.strftime("%Y-%m-%d")
 
 
+def _write_sheet(ws: Worksheet, tickets: list[PickupTicket], approvals: dict) -> None:
+    ws.append(HEADERS)
+    for cell in ws[1]:
+        cell.font = HEADER_FONT
+    ws.freeze_panes = "A2"
+
+    for t in tickets:
+        categories = "; ".join(
+            dict.fromkeys(CATEGORY_LABELS[f.error_category] for f in t.audit_flags)
+        )
+        flag_notes = "; ".join(
+            dict.fromkeys(f.notes.strip() for f in t.audit_flags if f.notes and f.notes.strip())
+        )
+        flaggers = "; ".join(dict.fromkeys(f.flagger.username for f in t.audit_flags))
+        approved_by, approved_at = approvals.get(t.id, ("", None))
+        scale = _yn(t.scale_ticket_received) if t.needs_scale else "N/A"
+
+        ws.append([
+            # R40: fixed report order —
+            t.truck_number,
+            t.condition_notes or "",
+            _yn(t.pti_verified),
+            _yn(t.inspection_paper_verified),
+            _yn(t.registration_verified),
+            _yn(t.sticker_verified),
+            _yn(t.bol_present),
+            t.weight or "",
+            t.trailer_condition.value if t.trailer_condition else "",
+            scale,
+            t.driver_name or "",
+            _yn(t.is_lot_trailer),
+            _fmt_date(t.created_at),
+            t.motor_carrier.name,
+            t.state.value,
+            _yn(t.kpra_group == "CA_FL_40FT"),
+            # ...then everything else.
+            _fmt_dt(t.created_at),
+            t.creator.username,
+            t.truck_model or "",
+            t.truck_location or "",
+            f"{t.fuel_percentage:.0f}" if t.fuel_percentage is not None else "",
+            KPRA_GROUP_LABELS.get(t.kpra_group, "") if t.kpra_group else "",
+            _yn(t.needs_scale),
+            categories,
+            flag_notes,
+            flaggers,
+            approved_by,
+            _fmt_dt(approved_at),
+        ])
+
+    for col_cells in ws.columns:
+        width = max(len(str(c.value)) if c.value is not None else 0 for c in col_cells)
+        ws.column_dimensions[col_cells[0].column_letter].width = min(max(width + 2, 10), 40)
+
+
 @router.get("/api/export/pickups")
 def export_pickups(
     start_date: date_type = Query(..., description="First day to export (YYYY-MM-DD)"),
@@ -81,6 +148,16 @@ def export_pickups(
     # date was silently ignored, so a multi-day export always came back as
     # just the first day. end_date defaults to start_date for a same-day export.
     range_end = end_date or start_date
+    if range_end < start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="end_date cannot be before start_date.",
+        )
+    if (range_end - start_date).days + 1 > MAX_EXPORT_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Range too large for a per-day export — max {MAX_EXPORT_DAYS} days.",
+        )
     range_start = datetime.combine(start_date, time.min, timezone.utc)
     range_end_dt = datetime.combine(range_end, time.max, timezone.utc)
 
@@ -114,63 +191,34 @@ def export_pickups(
         for ticket_id, created_at, username in rows:
             approvals[ticket_id] = (username, created_at)
 
-    buffer = io.StringIO()
-    writer = csv.writer(buffer, lineterminator="\r\n")
-    writer.writerow(HEADERS)
-
+    # Bucket tickets by their UTC calendar day — the same boundary used
+    # above to pull the range in the first place — so a ticket always lands
+    # on the sheet matching the day it was queried under.
+    by_day: dict[date_type, list[PickupTicket]] = defaultdict(list)
     for t in tickets:
-        categories = "; ".join(
-            dict.fromkeys(CATEGORY_LABELS[f.error_category] for f in t.audit_flags)
-        )
-        flag_notes = "; ".join(
-            dict.fromkeys(f.notes.strip() for f in t.audit_flags if f.notes and f.notes.strip())
-        )
-        flaggers = "; ".join(dict.fromkeys(f.flagger.username for f in t.audit_flags))
-        approved_by, approved_at = approvals.get(t.id, ("", None))
-        scale = _yn(t.scale_ticket_received) if t.needs_scale else "N/A"
+        by_day[t.created_at.date()].append(t)
 
-        writer.writerow([
-            # R40: fixed report order \u2014
-            t.truck_number,
-            t.condition_notes or "",
-            _yn(t.pti_verified),
-            _yn(t.inspection_paper_verified),
-            _yn(t.registration_verified),
-            _yn(t.sticker_verified),
-            _yn(t.bol_present),
-            t.weight or "",
-            t.trailer_condition.value if t.trailer_condition else "",
-            scale,
-            t.driver_name or "",
-            _yn(t.is_lot_trailer),
-            _fmt_date(t.created_at),
-            t.motor_carrier.name,
-            t.state.value,
-            _yn(t.kpra_group == "CA_FL_40FT"),
-            # ...then everything else.
-            _fmt_dt(t.created_at),
-            t.creator.username,
-            t.truck_model or "",
-            t.truck_location or "",
-            f"{t.fuel_percentage:.0f}" if t.fuel_percentage is not None else "",
-            KPRA_GROUP_LABELS.get(t.kpra_group, "") if t.kpra_group else "",
-            _yn(t.needs_scale),
-            categories,
-            flag_notes,
-            flaggers,
-            approved_by,
-            _fmt_dt(approved_at),
-        ])
+    wb = Workbook()
+    wb.remove(wb.active)  # replaced by one real sheet per day below
 
-    # UTF-8 BOM so Excel opens unicode content correctly on double-click
-    csv_bytes = ("\ufeff" + buffer.getvalue()).encode("utf-8")
+    # One sheet per calendar day in the range, in order — even days with no
+    # pickups get a (header-only) sheet, so a quiet day still shows up
+    # rather than silently vanishing from the export.
+    day = start_date
+    while day <= range_end:
+        ws = wb.create_sheet(title=day.isoformat())
+        _write_sheet(ws, by_day.get(day, []), approvals)
+        day += timedelta(days=1)
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
     filename = (
-        f"pickups_{start_date.isoformat()}.csv"
+        f"pickups_{start_date.isoformat()}.xlsx"
         if range_end == start_date
-        else f"pickups_{start_date.isoformat()}_to_{range_end.isoformat()}.csv"
+        else f"pickups_{start_date.isoformat()}_to_{range_end.isoformat()}.xlsx"
     )
     return Response(
-        content=csv_bytes,
-        media_type="text/csv; charset=utf-8",
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
