@@ -201,6 +201,10 @@ class TicketOut(BaseModel):
     # ticket for this same truck/trailer that had the master PTI checkbox
     # verified. Only populated by GET /api/tickets/qc; None everywhere else.
     last_pti_date: datetime | None = None
+    # R47: historical context for the QC Review card — the most recent time
+    # a DIFFERENT ticket for this same trailer was approved by QC. Only
+    # populated by GET /api/tickets/qc; None everywhere else.
+    last_qc_approved_date: datetime | None = None
 
 
 class FlagMediaIn(BaseModel):

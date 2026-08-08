@@ -93,6 +93,11 @@ function QCQueue() {
   const [issueDescription, setIssueDescription] = useState("");
   const [issueBusy, setIssueBusy] = useState(false);
 
+  // R48: fuel % is only ever set once, at pickup creation — by the time QC
+  // reviews the ticket (often after the scale run) it's stale. Re-pulls the
+  // live reading from Samsara/the MC's fleet API on demand.
+  const [fuelRefreshingId, setFuelRefreshingId] = useState<string | null>(null);
+
   const needsSeverity = flagCategories.includes("Didnt_Text_In_Group");
 
   function resetFlagForm() {
@@ -179,6 +184,24 @@ function QCQueue() {
       setError(e instanceof ApiError ? e.message : "Update failed.");
     } finally {
       setSavingId(null);
+    }
+  }
+
+  // R48: fuel % is captured once at pickup creation and never updates on
+  // its own — re-pull it from the fleet API so QC sees the level as of NOW
+  // (e.g. after the scale run), not whatever it was at intake.
+  async function refreshFuel(ticket: Ticket) {
+    setFuelRefreshingId(ticket.id);
+    setError(null);
+    try {
+      const updated = await api<Ticket>(`/api/tickets/${ticket.id}/refresh-fuel`, {
+        method: "POST",
+      });
+      setTickets((prev) => prev.map((x) => (x.id === ticket.id ? updated : x)));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't refresh fuel % from Samsara.");
+    } finally {
+      setFuelRefreshingId(null);
     }
   }
 
@@ -474,10 +497,30 @@ function QCQueue() {
               <Detail label="Driver" value={t.driver_name ?? "—"} />
               <Detail label="Location" value={t.truck_location ?? "—"} />
               <Detail label="Model" value={t.truck_model ?? "—"} />
-              <Detail
-                label="Fuel"
-                value={t.fuel_percentage != null ? `${t.fuel_percentage.toFixed(0)}%` : "—"}
-              />
+              {/* R48: fuel % is captured once at pickup creation and never
+                  updates on its own — QC needs the level as of NOW (e.g.
+                  after the scale run), so a manual refresh pulls the live
+                  reading from Samsara instead of trusting the stale intake
+                  snapshot. */}
+              <div className="min-w-0">
+                <dt className="text-xs text-slate-500 dark:text-slate-400">Fuel</dt>
+                <dd className="flex items-center gap-1.5 font-medium">
+                  {t.fuel_percentage != null ? `${t.fuel_percentage.toFixed(0)}%` : "—"}
+                  <button
+                    type="button"
+                    aria-label={`Refresh fuel % for truck ${t.truck_number} from Samsara`}
+                    title="Fuel % is only set once at pickup creation — refresh it from Samsara"
+                    disabled={fuelRefreshingId === t.id}
+                    onClick={() => refreshFuel(t)}
+                    className="cursor-pointer rounded p-0.5 text-slate-400 transition-colors duration-150 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:text-blue-400"
+                  >
+                    <RefreshCw
+                      className={`h-3 w-3 ${fuelRefreshingId === t.id ? "animate-spin" : ""}`}
+                      aria-hidden="true"
+                    />
+                  </button>
+                </dd>
+              </div>
               {/* R31: quick-editable weight */}
               <EditableDetail
                 label="Weight"
@@ -492,6 +535,17 @@ function QCQueue() {
               <Detail
                 label="Last PTI Date"
                 value={t.last_pti_date ? fmtCstDate(t.last_pti_date) : "No prior record"}
+              />
+              {/* R47: last time THIS trailer was approved by QC on a
+                  different ticket — same historical-context idea as Last
+                  PTI Date */}
+              <Detail
+                label="Last QC Approved"
+                value={
+                  t.last_qc_approved_date
+                    ? fmtCstDate(t.last_qc_approved_date)
+                    : "No prior record"
+                }
               />
             </dl>
 

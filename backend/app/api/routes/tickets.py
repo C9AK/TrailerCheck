@@ -34,8 +34,10 @@ from app.schemas.ticket import (
 )
 from app.services.activity import record_event
 from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply_teamwork_bonus
+from app.services.telemetry import TruckNotFoundError, fetch_truck_telemetry
 from app.services.ticket_lifecycle import (
     get_last_pti_date,
+    get_last_qc_approved_date,
     is_ready_for_qc,
     rename_or_relink_trailer,
     resolve_ticket_trailer,
@@ -523,6 +525,8 @@ def get_qc_queue(
     # optional last_pti_date field, never persisted.
     for t in tickets:
         t.last_pti_date = get_last_pti_date(db, t)
+        # R47: same idea, this trailer's last QC-approved date
+        t.last_qc_approved_date = get_last_qc_approved_date(db, t)
     return tickets
 
 
@@ -683,6 +687,30 @@ def approve_ticket(
     ticket.state = TicketState.APPROVED
     apply_approval_bonus(ticket.creator)
     record_event(db, ticket, current_user, AuditEvent.TICKET_APPROVED)
+    db.commit()
+    db.refresh(ticket)
+    return ticket
+
+
+@router.post("/api/tickets/{ticket_id}/refresh-fuel", response_model=TicketOut)
+async def refresh_fuel(
+    ticket_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.qc, UserRole.manager)),
+):
+    """R48: fuel % is only ever set once, at pickup creation — by the time QC
+    reviews the ticket (often after the scale run), it's stale. Re-pulls the
+    live reading from the MC's fleet API (Samsara or generic) instead of
+    trusting the snapshot taken at intake."""
+    ticket = _get_ticket_or_404(db, ticket_id)
+    try:
+        data = await fetch_truck_telemetry(ticket.motor_carrier, ticket.truck_number)
+    except TruckNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Truck '{ticket.truck_number}' not found in {ticket.motor_carrier.name}'s fleet.",
+        )
+    ticket.fuel_percentage = data.get("fuel_percentage")
     db.commit()
     db.refresh(ticket)
     return ticket

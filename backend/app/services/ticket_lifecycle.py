@@ -13,7 +13,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import PickupTicket, Trailer
+from app.models import AuditEvent, AuditLog, PickupTicket, Trailer
 from app.schemas.ticket import TicketCreate
 
 LOT_PTI_WINDOW = timedelta(days=7)
@@ -153,6 +153,29 @@ def get_last_pti_date(db: Session, ticket: PickupTicket) -> datetime | None:
         candidates.append(_as_utc(historical))
 
     return max(candidates) if candidates else None
+
+
+def get_last_qc_approved_date(db: Session, ticket: PickupTicket) -> datetime | None:
+    """R47: historical context for QC Review — the most recent time a
+    DIFFERENT ticket for this SAME physical trailer was approved by QC. Matched by
+    trailer_id only (no truck_number fallback — this is about the trailer's
+    own audit history, not whichever truck happened to pull it); tickets
+    with no trailer linked have no comparable history."""
+    if ticket.trailer_id is None:
+        return None
+    q = (
+        select(AuditLog.created_at)
+        .join(PickupTicket, AuditLog.ticket_id == PickupTicket.id)
+        .where(
+            AuditLog.event == AuditEvent.TICKET_APPROVED,
+            PickupTicket.trailer_id == ticket.trailer_id,
+            PickupTicket.id != ticket.id,
+        )
+        .order_by(AuditLog.created_at.desc())
+        .limit(1)
+    )
+    result = db.scalar(q)
+    return _as_utc(result) if result is not None else None
 
 
 def is_ready_for_qc(ticket: PickupTicket) -> bool:

@@ -206,6 +206,9 @@ export interface Ticket {
   audit_flags: AuditFlag[];
   // R20: only populated on GET /api/tickets/qc — historical context card
   last_pti_date: string | null;
+  // R47: only populated on GET /api/tickets/qc — last time this same
+  // trailer was approved by QC on a different ticket
+  last_qc_approved_date: string | null;
 }
 
 export type AuditEventType =
