@@ -494,7 +494,7 @@ def get_all_tickets(
     """Global Sheet: every ticket in the system, visible to ALL roles."""
     return (
         db.scalars(
-            _ticket_query.order_by(PickupTicket.created_at.desc()).limit(500)
+            _ticket_query.order_by(PickupTicket.created_at.desc())
         )
         .unique()
         .all()
