@@ -110,6 +110,8 @@ function GlobalSheet() {
     matchesStatus(t, statusFilter);
   // R23: global operations view — every active/pending pickup from EVERY user
   const active = tickets.filter((t) => isActivePickup(t) && matches(t));
+  // Full sheet: same filters, applied across every ticket (not just active ones)
+  const filtered = tickets.filter(matches);
 
   return (
     <div>
@@ -329,7 +331,8 @@ function GlobalSheet() {
       </section>
 
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Full Sheet — every ticket ({tickets.length})
+        Full Sheet — every ticket ({filtered.length}
+        {filtered.length !== tickets.length ? ` of ${tickets.length}` : ""})
       </h2>
 
       {!loading && tickets.length === 0 && !error && (
@@ -338,7 +341,13 @@ function GlobalSheet() {
         </div>
       )}
 
-      {tickets.length > 0 && (
+      {!loading && tickets.length > 0 && filtered.length === 0 && !error && (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+          No tickets match the current filters.
+        </div>
+      )}
+
+      {filtered.length > 0 && (
         <div className="max-h-[75vh] overflow-auto rounded-lg border border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
@@ -360,9 +369,7 @@ function GlobalSheet() {
               </tr>
             </thead>
             <tbody>
-              {tickets
-                .filter(matches)
-                .map((t, i) => (
+              {filtered.map((t, i) => (
                 <tr
                   key={t.id}
                   className={`border-b border-slate-100 last:border-0 dark:border-slate-800 ${
