@@ -93,6 +93,11 @@ def create_ticket(
     # R18: pti_verified is the MASTER PTI checkbox, set directly by the
     # dispatcher. The granular pti_checklist is a video log only — it never
     # derives or gates verification anymore.
+    # R50: checking the box on a LOT trailer's pickup IS a fresh PTI check —
+    # stamp the trailer's own last_pti_date so the 7-day gate on its NEXT
+    # pickup reads today, not whatever it was registered/overridden with.
+    if ticket.pti_verified and ticket.is_lot_trailer and trailer is not None:
+        trailer.last_pti_date = datetime.now(timezone.utc)
     # R15: CRVR in the weight text no longer forces the scale queue — the
     # dispatcher decides via the Needs Scale checkbox alone.
 
@@ -163,6 +168,9 @@ def update_ticket(
         )
 
     updates = payload.model_dump(exclude_unset=True)
+    # R50: snapshot before the setattr loop below overwrites it, so we can
+    # tell a fresh checkbox PRESS (false -> true) apart from a no-op resave.
+    was_pti_verified = ticket.pti_verified
     # R17 "Still Sending" control flag — consumed here, never a column.
     still_sending = updates.pop("still_sending", None)
     # R21: LOT identity control fields — resolved together below, never
@@ -212,6 +220,14 @@ def update_ticket(
 
     # R18: no re-derivation — the master pti_verified checkbox stands alone;
     # pti_checklist and is_chassis are informational.
+
+    # R50: pressing the PTI checkbox on a LOT trailer's pickup IS a fresh PTI
+    # check — stamp the trailer's own last_pti_date so the 7-day gate on its
+    # NEXT pickup reads today. Only on the false->true transition (not every
+    # resave) and after the trailer-identity block above so a trailer
+    # linked/renamed in this same request is still picked up.
+    if ticket.pti_verified and not was_pti_verified and ticket.is_lot_trailer and ticket.trailer is not None:
+        ticket.trailer.last_pti_date = datetime.now(timezone.utc)
 
     # If a scale becomes required and no timer is running, start one.
     if ticket.needs_scale and not ticket.scale_ticket_received and ticket.scale_requested_at is None:
