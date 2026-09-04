@@ -26,6 +26,7 @@ from app.models import (
 from app.schemas.ticket import (
     EmployeeStats,
     FlagRequest,
+    PtiDateOverrideRequest,
     QCHistoryOut,
     TicketCreate,
     TicketOut,
@@ -36,6 +37,7 @@ from app.services.activity import record_event
 from app.services.scoring import apply_approval_bonus, apply_flag_penalty, apply_teamwork_bonus
 from app.services.telemetry import TruckNotFoundError, fetch_truck_telemetry
 from app.services.ticket_lifecycle import (
+    get_last_hauled_truck,
     get_last_pti_date,
     get_last_qc_approved_date,
     is_ready_for_qc,
@@ -278,6 +280,68 @@ def follow_up_ticket(
     ticket.last_followed_up_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(ticket)
+    return ticket
+
+
+@router.patch("/api/tickets/{ticket_id}/pti-date-override", response_model=TicketOut)
+def override_pti_date(
+    ticket_id: uuid.UUID,
+    payload: PtiDateOverrideRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.manager)),
+):
+    """R51: manager-only correction to the ticket's linked TRAILER's Last
+    PTI Date — distinct from the master `pti_verified` checkbox (R18), which
+    stays untouched. A trailer new to the truck on THIS ticket isn't
+    necessarily new to the fleet: another truck may have hauled it recently
+    with a fully verified PTI on record, which the dispatcher creating this
+    ticket had no way to know at intake. Manager-only because it's a
+    correction to shared trailer data, not a per-ticket field — everyone
+    with edit access to the ticket can already fix ticket-local mistakes via
+    PATCH /api/tickets/{id}, but rewriting the trailer's own historical
+    record needs a narrower gate.
+
+    Does NOT re-run or bypass the readiness gate on its own terms — it just
+    corrects the date the gate (and every other historical lookup on this
+    trailer) reads, exactly like the LOT last_pti_date_override already
+    accepted on ticket create/update. If that correction is what was
+    standing between an AWAITING_DRIVER ticket and PENDING_QC, the same
+    auto-promotion PATCH /api/tickets/{id} performs applies here too."""
+    ticket = _get_ticket_or_404(db, ticket_id)
+    if ticket.trailer is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This ticket has no linked trailer — link a trailer number before setting its PTI date.",
+        )
+
+    old_value = ticket.trailer.last_pti_date
+    ticket.trailer.last_pti_date = payload.last_pti_date
+    record_event(
+        db,
+        ticket,
+        current_user,
+        AuditEvent.TICKET_PTI_DATE_OVERRIDDEN,
+        detail=f"{old_value:%Y-%m-%d} -> {payload.last_pti_date:%Y-%m-%d}",
+    )
+
+    if ticket.state in (TicketState.DRAFT, TicketState.AWAITING_DRIVER) and is_ready_for_qc(
+        ticket
+    ):
+        ticket.state = TicketState.PENDING_QC
+        if ticket.submitted_to_qc_at is None:
+            ticket.submitted_to_qc_at = datetime.now(timezone.utc)
+        record_event(db, ticket, current_user, AuditEvent.TICKET_SENT_TO_QC)
+
+    db.commit()
+    db.refresh(ticket)
+    # Refresh the transient QC-context fields so the response reflects the
+    # correction immediately (GET /api/tickets/qc is the only other place
+    # that ever populates them).
+    ticket.last_pti_date = get_last_pti_date(db, ticket)
+    ticket.last_qc_approved_date = get_last_qc_approved_date(db, ticket)
+    ticket.last_hauled_truck_number, ticket.last_hauled_truck_date = (
+        get_last_hauled_truck(db, ticket) or (None, None)
+    )
     return ticket
 
 
@@ -543,6 +607,10 @@ def get_qc_queue(
         t.last_pti_date = get_last_pti_date(db, t)
         # R47: same idea, this trailer's last QC-approved date
         t.last_qc_approved_date = get_last_qc_approved_date(db, t)
+        # R51: same idea, which OTHER truck last hauled this trailer
+        t.last_hauled_truck_number, t.last_hauled_truck_date = (
+            get_last_hauled_truck(db, t) or (None, None)
+        )
     return tickets
 
 

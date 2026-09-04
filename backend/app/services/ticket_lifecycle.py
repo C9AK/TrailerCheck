@@ -7,6 +7,7 @@ AWAITING_DRIVER unchecked), but it gates the transition to PENDING_QC:
     old at the moment of the transition.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -153,6 +154,50 @@ def get_last_pti_date(db: Session, ticket: PickupTicket) -> datetime | None:
         candidates.append(_as_utc(historical))
 
     return max(candidates) if candidates else None
+
+
+def get_last_hauled_truck_for_trailer(
+    db: Session,
+    trailer_id: uuid.UUID,
+    exclude_ticket_id: uuid.UUID | None = None,
+) -> tuple[str, datetime] | None:
+    """R51: which truck most recently hauled this trailer, and when — the
+    shared query behind both GET /api/trailers/{number}/last-used (R43,
+    used on the New Pickup form before a ticket necessarily exists yet) and
+    GET /api/tickets/qc's per-ticket `last_hauled_truck_number` context
+    (below). Kept as one function so the "most recent OTHER pickup for this
+    trailer_id" definition can't drift between the two call sites."""
+    q = (
+        select(PickupTicket.truck_number, PickupTicket.created_at)
+        .where(PickupTicket.trailer_id == trailer_id)
+        .order_by(PickupTicket.created_at.desc())
+        .limit(1)
+    )
+    if exclude_ticket_id is not None:
+        q = q.where(PickupTicket.id != exclude_ticket_id)
+    row = db.execute(q).first()
+    if row is None:
+        return None
+    truck_number, created_at = row
+    return truck_number, _as_utc(created_at)
+
+
+def get_last_hauled_truck(
+    db: Session, ticket: PickupTicket
+) -> tuple[str, datetime] | None:
+    """R51: historical context for the QC Review card — a trailer new to
+    THIS truck is not necessarily new to the fleet; another truck may have
+    hauled it recently with a fully verified PTI on record. Without this,
+    QC (and the dispatcher creating the ticket) has no way to tell "genuinely
+    unknown trailer" apart from "this truck just hasn't seen it before," which
+    produces false missing/stale-PTI flags. Matched by trailer_id only, same
+    as get_last_qc_approved_date — this is about the trailer's own haul
+    history, not whichever truck happens to be reviewing it today. None for
+    tickets with no linked trailer, or one no other ticket has ever
+    referenced. Only populated by GET /api/tickets/qc."""
+    if ticket.trailer_id is None:
+        return None
+    return get_last_hauled_truck_for_trailer(db, ticket.trailer_id, exclude_ticket_id=ticket.id)
 
 
 def get_last_qc_approved_date(db: Session, ticket: PickupTicket) -> datetime | None:

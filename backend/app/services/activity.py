@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from app.models import AuditEvent, AuditLog, LiveActivityFeed, PickupTicket, TicketState, User
 
 
-def _render_message(ticket: PickupTicket, actor: User, event: AuditEvent) -> str:
+def _render_message(
+    ticket: PickupTicket, actor: User, event: AuditEvent, detail: str | None = None
+) -> str:
     truck = ticket.truck_number
     mc = ticket.motor_carrier.name
     employee = ticket.creator.username
@@ -54,10 +56,29 @@ def _render_message(ticket: PickupTicket, actor: User, event: AuditEvent) -> str
         )
     if event == AuditEvent.TICKET_DELETED:
         return f"{actor.username} deleted pickup ticket for truck {truck} ({mc})"
+    if event == AuditEvent.TICKET_PTI_DATE_OVERRIDDEN:
+        trailer_number = ticket.trailer.trailer_number if ticket.trailer else "?"
+        base = (
+            f"{actor.username} corrected the Last PTI Date for trailer "
+            f"{trailer_number} (truck {truck}, {mc})"
+        )
+        return f"{base} — {detail}" if detail else base
     return f"{actor.username} updated ticket for truck {truck} ({mc})"
 
 
-def record_event(db: Session, ticket: PickupTicket, actor: User, event: AuditEvent) -> None:
+def record_event(
+    db: Session,
+    ticket: PickupTicket,
+    actor: User,
+    event: AuditEvent,
+    detail: str | None = None,
+) -> None:
+    """`detail` is folded into the rendered message only — audit_logs stays a
+    plain (ticket_id, actor_id, event, created_at) row; anything that needs
+    to be reconstructible in full (e.g. the old→new value on a PTI date
+    override) rides in live_activity_feed.message instead, the same
+    "snapshot everything human-readable at write time" approach every other
+    event already uses."""
     db.add(AuditLog(ticket_id=ticket.id, actor_id=actor.id, event=event))
     db.add(
         LiveActivityFeed(
@@ -68,6 +89,6 @@ def record_event(db: Session, ticket: PickupTicket, actor: User, event: AuditEve
             employee_username=ticket.creator.username,
             truck_number=ticket.truck_number,
             mc_name=ticket.motor_carrier.name,
-            message=_render_message(ticket, actor, event),
+            message=_render_message(ticket, actor, event, detail),
         )
     )

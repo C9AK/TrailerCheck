@@ -83,3 +83,7 @@ class AuditEvent(str, enum.Enum):
     TICKET_UNRESOLVABLE = "TICKET_UNRESOLVABLE"
     # R23: trailer dropped — dispatch can no longer process the pickup
     TICKET_DROPPED = "TICKET_DROPPED"
+    # R51: manager corrected the linked trailer's Last PTI Date during QC
+    # review (e.g. after Trailer Lookup surfaced a more accurate historical
+    # date from a haul by a different truck).
+    TICKET_PTI_DATE_OVERRIDDEN = "TICKET_PTI_DATE_OVERRIDDEN"

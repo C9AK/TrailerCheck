@@ -23,7 +23,10 @@ from app.api.routes.uploads import MAX_UPLOAD_BYTES
 from app.core.database import get_db
 from app.models import PickupTicket, Trailer, TrailerDocType, TrailerDocument, User, UserRole
 from app.schemas.trailer import LastPickupByTruckOut, LastUsedOut, TrailerDocumentOut
-from app.services.ticket_lifecycle import resolve_trailer_by_number
+from app.services.ticket_lifecycle import (
+    get_last_hauled_truck_for_trailer,
+    resolve_trailer_by_number,
+)
 
 router = APIRouter(tags=["trailers"])
 
@@ -72,17 +75,14 @@ def get_trailer_last_used(
     if trailer is None:
         return None
 
-    q = (
-        select(PickupTicket)
-        .where(PickupTicket.trailer_id == trailer.id)
-        .order_by(PickupTicket.created_at.desc())
-    )
-    if exclude_ticket_id is not None:
-        q = q.where(PickupTicket.id != exclude_ticket_id)
-    last = db.scalar(q.limit(1))
-    if last is None:
+    # R51: shared with the QC Review card's `last_hauled_truck_number`
+    # context (services.ticket_lifecycle) so "most recent OTHER pickup for
+    # this trailer_id" can't drift between the two call sites.
+    result = get_last_hauled_truck_for_trailer(db, trailer.id, exclude_ticket_id)
+    if result is None:
         return None
-    return LastUsedOut(truck_number=last.truck_number, created_at=last.created_at)
+    truck_number, created_at = result
+    return LastUsedOut(truck_number=truck_number, created_at=created_at)
 
 
 @router.get(

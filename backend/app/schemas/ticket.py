@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -205,6 +205,34 @@ class TicketOut(BaseModel):
     # a DIFFERENT ticket for this same trailer was approved by QC. Only
     # populated by GET /api/tickets/qc; None everywhere else.
     last_qc_approved_date: datetime | None = None
+    # R51: historical context for the QC Review card — which OTHER truck
+    # most recently hauled this same trailer, and when. Lets a manager tell
+    # a trailer that's genuinely new to the FLEET apart from one that's just
+    # new to the truck reviewing it today. Only populated by
+    # GET /api/tickets/qc; None everywhere else.
+    last_hauled_truck_number: str | None = None
+    last_hauled_truck_date: datetime | None = None
+
+
+class PtiDateOverrideRequest(BaseModel):
+    """R51: manager-only correction to a ticket's linked TRAILER's Last PTI
+    Date. Writes to the Trailer row (not the ticket) — it's the same field
+    the LOT 7-day gate and every other historical lookup on this trailer
+    read, so the correction is visible everywhere the trailer shows up next,
+    not just on this one ticket. Typically seeded from the Trailer Lookup
+    popover, but a manager may also type a date by hand."""
+
+    last_pti_date: datetime = Field(
+        description="The corrected Last PTI Date for the ticket's linked trailer."
+    )
+
+    @field_validator("last_pti_date")
+    @classmethod
+    def _not_in_the_future(cls, v: datetime) -> datetime:
+        as_utc = v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        if as_utc > datetime.now(timezone.utc) + timedelta(days=1):
+            raise ValueError("Last PTI Date cannot be in the future.")
+        return v
 
 
 class FlagMediaIn(BaseModel):

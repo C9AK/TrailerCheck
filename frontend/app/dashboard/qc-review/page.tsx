@@ -19,9 +19,11 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import ConfirmationModal from "@/components/qc/ConfirmationModal";
+import TrailerHistoryLookup from "@/components/qc/TrailerHistoryLookup";
 import { ErrorBanner, HazmatBadge, StateBadge, StatusFilter, Toggle } from "@/components/ui";
 import { api, ApiError, mediaUrl, uploadMedia } from "@/lib/api";
 import {
@@ -182,6 +184,28 @@ function QCQueue() {
       setTickets((prev) => prev.map((x) => (x.id === ticket.id ? updated : x)));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Update failed.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  // R51: manager-only correction to the ticket's linked trailer's Last PTI
+  // Date — either typed by hand in the inline date field, or seeded from
+  // the Trailer Lookup popover's "Apply to Ticket" action. The backend
+  // 403s this for non-managers regardless of what the client sends; the
+  // field itself is only ever rendered as editable for role==="manager"
+  // (see PtiDateField below).
+  async function overridePtiDate(ticket: Ticket, isoDate: string) {
+    setSavingId(ticket.id);
+    setError(null);
+    try {
+      const updated = await api<Ticket>(`/api/tickets/${ticket.id}/pti-date-override`, {
+        method: "PATCH",
+        body: JSON.stringify({ last_pti_date: isoDate }),
+      });
+      setTickets((prev) => prev.map((x) => (x.id === ticket.id ? updated : x)));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update the Last PTI Date.");
     } finally {
       setSavingId(null);
     }
@@ -500,6 +524,16 @@ function QCQueue() {
                 placeholder="—"
                 disabled={savingId === t.id}
                 onCommit={(v) => patchField(t, "trailer_number", v)}
+                adornment={
+                  <TrailerHistoryLookup
+                    ticketId={t.id}
+                    defaultTrailerNumber={t.trailer?.trailer_number ?? ""}
+                    canApply={role === "manager"}
+                    onApplied={(updated) =>
+                      setTickets((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+                    }
+                  />
+                }
               />
               <Detail label="Created by" value={t.creator.username} />
               <Detail label="Driver" value={t.driver_name ?? "—"} />
@@ -539,10 +573,15 @@ function QCQueue() {
               />
               <Detail label="Condition" value={t.trailer_condition ?? "—"} />
               {/* R20: historical context — last time this truck/trailer had
-                  a verified PTI, so QC isn't reviewing blind */}
-              <Detail
-                label="Last PTI Date"
-                value={t.last_pti_date ? fmtCstDate(t.last_pti_date) : "No prior record"}
+                  a verified PTI, so QC isn't reviewing blind. R51: managers
+                  may correct it in place (e.g. after Trailer Lookup shows a
+                  more accurate date from another truck's haul); every other
+                  role keeps the plain read-only display. */}
+              <PtiDateField
+                ticket={t}
+                isManager={role === "manager"}
+                disabled={savingId === t.id}
+                onSave={(iso) => overridePtiDate(t, iso)}
               />
               {/* R47: last time THIS trailer was approved by QC on a
                   different ticket — same historical-context idea as Last
@@ -553,6 +592,16 @@ function QCQueue() {
                   t.last_qc_approved_date
                     ? fmtCstDate(t.last_qc_approved_date)
                     : "No prior record"
+                }
+              />
+              {/* R51: which OTHER truck most recently hauled this trailer —
+                  tells "new to the fleet" apart from "new to this truck" */}
+              <Detail
+                label="Last Hauled By"
+                value={
+                  t.last_hauled_truck_number
+                    ? `${t.last_hauled_truck_number} (${fmtCstDate(t.last_hauled_truck_date!)})`
+                    : "No other truck on record"
                 }
               />
             </dl>
@@ -1060,18 +1109,25 @@ function EditableDetail({
   onCommit,
   disabled,
   placeholder,
+  adornment,
 }: {
   label: string;
   value: string;
   onCommit: (v: string) => void;
   disabled: boolean;
   placeholder?: string;
+  /** R51: optional control rendered next to the label — used by Trailer #
+   * for the Trailer Lookup popover button. */
+  adornment?: ReactNode;
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
+      <dt className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+        {label}
+        {adornment}
+      </dt>
       <dd>
         <input
           value={draft}
@@ -1086,6 +1142,67 @@ function EditableDetail({
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
           className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 font-medium focus:border-slate-300 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:focus:border-slate-600 dark:focus:bg-slate-900"
+        />
+      </dd>
+    </div>
+  );
+}
+
+/** R51: manager-only inline override of the ticket's trailer's Last PTI
+ * Date. Everyone else keeps the plain read-only Detail — the backend 403s
+ * a non-manager's write regardless, but hiding the control avoids offering
+ * an action that would just fail. Distinct from the master `pti_verified`
+ * checkbox on the New Pickup form; this corrects the underlying TRAILER
+ * record itself, typically after Trailer Lookup surfaces a more accurate
+ * historical date. Commits on blur, only when the date actually changed —
+ * same pattern as EditableDetail/InlineTextCell elsewhere in the app. */
+function PtiDateField({
+  ticket,
+  isManager,
+  disabled,
+  onSave,
+}: {
+  ticket: Ticket;
+  isManager: boolean;
+  disabled: boolean;
+  onSave: (isoDate: string) => void;
+}) {
+  const serverValue = ticket.last_pti_date ? ticket.last_pti_date.slice(0, 10) : "";
+  const [draft, setDraft] = useState(serverValue);
+  useEffect(() => setDraft(serverValue), [serverValue]);
+
+  if (!isManager) {
+    return (
+      <Detail
+        label="Last PTI Date"
+        value={ticket.last_pti_date ? fmtCstDate(ticket.last_pti_date) : "No prior record"}
+      />
+    );
+  }
+
+  return (
+    <div className="min-w-0">
+      <dt className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+        Last PTI Date
+        <span
+          title="Manager override — corrects the trailer's own PTI record, not just this ticket"
+          className="rounded bg-blue-800 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-white"
+        >
+          mgr
+        </span>
+      </dt>
+      <dd>
+        <input
+          type="date"
+          aria-label="Last PTI Date (manager override)"
+          value={draft}
+          disabled={disabled}
+          max={new Date().toISOString().slice(0, 10)}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            if (draft && draft !== serverValue) onSave(`${draft}T00:00:00Z`);
+          }}
+          className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 font-mono font-medium focus:border-slate-300 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:focus:border-slate-600 dark:focus:bg-slate-900"
         />
       </dd>
     </div>

@@ -209,6 +209,12 @@ export interface Ticket {
   // R47: only populated on GET /api/tickets/qc — last time this same
   // trailer was approved by QC on a different ticket
   last_qc_approved_date: string | null;
+  // R51: only populated on GET /api/tickets/qc — which OTHER truck most
+  // recently hauled this same trailer, and when. Lets QC/managers tell a
+  // trailer that's genuinely new to the fleet apart from one that's just
+  // new to the truck reviewing it today.
+  last_hauled_truck_number: string | null;
+  last_hauled_truck_date: string | null;
 }
 
 export type AuditEventType =

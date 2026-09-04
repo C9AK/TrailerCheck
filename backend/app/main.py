@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI):
     _migrate_r37()
     _migrate_r42()
     _migrate_r45()
+    _migrate_r51()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     # R25: continuous Samsara movement watch for hazmat loads
@@ -365,6 +366,28 @@ def _migrate_r45() -> None:
     with engine.begin() as conn:
         conn.execute(text(f"ALTER TABLE shift_notes ADD COLUMN ticket_id {uuid_type}"))
     print("R45 migration: added shift_notes.ticket_id")
+
+
+def _migrate_r51() -> None:
+    """R51 in-place migration: TICKET_PTI_DATE_OVERRIDDEN audit-event value
+    (native enum on Postgres; SQLite stores audit_event as plain VARCHAR —
+    no schema change needed there). No new column: the manager PTI-date
+    override writes to the existing pickup_tickets/trailers relationship,
+    not a new field. Idempotent; no-op on a fresh database."""
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    insp = sa_inspect(engine)
+    if "audit_logs" not in insp.get_table_names():
+        return
+
+    if engine.dialect.name == "postgresql":
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(
+                text(
+                    "ALTER TYPE audit_event ADD VALUE IF NOT EXISTS 'TICKET_PTI_DATE_OVERRIDDEN'"
+                )
+            )
 
 
 def _migrate_feed_ticket_nullable() -> None:
