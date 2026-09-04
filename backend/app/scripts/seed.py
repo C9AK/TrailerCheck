@@ -15,10 +15,13 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.security import hash_password
 from app.models import MotorCarrier, Trailer, User, UserRole
 
-# Single bootstrap manager — all other accounts are created in-app via
-# the Admin page (/dashboard/admin).
+# Single bootstrap admin — all other accounts are created in-app via
+# the Admin page (/dashboard/admin). R52: admin, not manager — this is the
+# one account meant to be protected FROM managers (see api/routes/admin.py
+# and main.py's `_migrate_r52`, which promotes it automatically on an
+# existing database where it was still seeded as manager).
 SEED_USERS = [
-    ("laith", "laith123!", UserRole.manager),
+    ("laith", "laith123!", UserRole.admin),
 ]
 
 SAMSARA_ENDPOINT = "https://api.samsara.com"

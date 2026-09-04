@@ -1,4 +1,23 @@
-export type Role = "employee" | "qc" | "manager";
+// R52: `admin` sits above `manager` — it carries every manager capability
+// (see isManagerLike/roleAllows below) but is additionally PROTECTED from
+// managers: a manager can never edit, deactivate, delete, or change the
+// password of an admin account. Intended for a single owner-level account.
+export type Role = "employee" | "qc" | "manager" | "admin";
+
+/** R52: true for both roles that carry manager-level privileges. Use this
+ * instead of a bare `role === "manager"` wherever a manager-level
+ * capability is being gated, so admin is covered automatically. */
+export function isManagerLike(role: Role | null): boolean {
+  return role === "manager" || role === "admin";
+}
+
+/** R52: the admin-aware version of `allowed.includes(role)` — a role list
+ * written for manager access (RequireRole page guards, the sidebar nav)
+ * should not need a separate "or admin" entry at every call site. */
+export function roleAllows(allowed: Role[], role: Role): boolean {
+  if (allowed.includes(role)) return true;
+  return role === "admin" && allowed.includes("manager");
+}
 
 export type TicketState =
   | "DRAFT"
@@ -342,4 +361,13 @@ export interface EmployeeStats {
   completed_daily: number;
   completed_monthly: number;
   completed_all_time: number;
+}
+
+/** R52: one row of the admin's personal security feed — a password change
+ * performed on an account other than the changer's own. */
+export interface PasswordChangeEvent {
+  id: string;
+  target_username: string;
+  changed_by_username: string;
+  created_at: string;
 }

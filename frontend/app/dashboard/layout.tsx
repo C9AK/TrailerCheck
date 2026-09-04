@@ -26,7 +26,16 @@ import { useEffect, useRef, useState } from "react";
 import GuardedLink from "@/components/GuardedLink";
 import UnsavedChangesModal from "@/components/UnsavedChangesModal";
 import { api, API_BASE } from "@/lib/api";
-import type { AutoNote, HazmatAlert, Role, Ticket, TrailerIssue, User } from "@/lib/types";
+import type {
+  AutoNote,
+  HazmatAlert,
+  PasswordChangeEvent,
+  Role,
+  Ticket,
+  TrailerIssue,
+  User,
+} from "@/lib/types";
+import { isManagerLike, roleAllows } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 import { useFormGuardStore } from "@/store/formGuardStore";
 import { useTimeStore, type TimeMode } from "@/store/timeStore";
@@ -241,7 +250,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               msg: `QC flagged your ticket for truck ${mine.truck_number} — see Action Required.`,
               tone: "alert",
             });
-          } else if (urgent && role !== "manager") {
+          } else if (urgent && !isManagerLike(role)) {
             setToast({
               msg: `URGENT flag on truck ${urgent.truck_number} — anyone available can fix it.`,
               tone: "alert",
@@ -263,7 +272,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // R13: QC (and managers) — toast when an employee resends a flagged pickup
   useEffect(() => {
-    if (!token || (role !== "qc" && role !== "manager")) return;
+    if (!token || (role !== "qc" && !isManagerLike(role))) return;
     let cancelled = false;
     const poll = async () => {
       try {
@@ -371,6 +380,49 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [token, role, username]);
 
+  // R52: admin-only security feed — alerts the account holder the instant
+  // someone else's password is changed via the Admin page, and by whom.
+  // Same "poll + diff known ids + toast only the new ones" pattern as the
+  // flag/resolved-ticket notifications above; unlike those, there is no
+  // per-page badge for this — it's a pure security alert, always red.
+  const knownPasswordChangeIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!token || role !== "admin") return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const events = await api<PasswordChangeEvent[]>(
+          "/api/admin/password-changes?limit=20"
+        );
+        if (cancelled) return;
+        const ids = new Set(events.map((e) => e.id));
+        if (knownPasswordChangeIds.current !== null) {
+          const fresh = events.filter((e) => !knownPasswordChangeIds.current!.has(e.id));
+          if (fresh.length > 0) {
+            const first = fresh[0];
+            setToast({
+              msg:
+                `Security alert: ${first.changed_by_username} changed the password ` +
+                `for "${first.target_username}"` +
+                (fresh.length > 1 ? ` (+${fresh.length - 1} more)` : "") +
+                ".",
+              tone: "alert",
+            });
+          }
+        }
+        knownPasswordChangeIds.current = ids;
+      } catch {
+        /* transient — keep last known state */
+      }
+    };
+    poll();
+    const id = setInterval(poll, FLAG_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [token, role]);
+
   // R17: keep the Active Drafts panel fresh (poll + refetch on navigation,
   // so a just-saved draft appears the moment the form redirects away).
   useEffect(() => {
@@ -423,7 +475,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!hasHydrated || !token || !role) return null;
 
-  const items = NAV_ITEMS.filter((i) => i.roles.includes(role));
+  // R52: admin carries every manager capability, including nav visibility.
+  const items = NAV_ITEMS.filter((i) => roleAllows(i.roles, role));
 
   return (
     <div className="flex min-h-dvh">

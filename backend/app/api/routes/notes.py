@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models import NoteStatus, PickupTicket, ShiftNote, TicketState, User, UserRole
+from app.models import MANAGER_ROLES, NoteStatus, PickupTicket, ShiftNote, TicketState, User, UserRole
 from app.models.enums import KPRA_GROUP_LABELS
 from app.schemas.note import AutoNoteOut, DraftsOut, NoteCreate, NoteOut, NoteUpdate, PublishResult
 from app.services.ticket_lifecycle import _pti_gate_passed
@@ -262,7 +262,7 @@ def delete_note(
     Resolve remains the normal way to close a published note — delete is for
     mistakes and stale entries."""
     note = _get_note_or_404(db, note_id)
-    if current_user.role != UserRole.manager and note.created_by != current_user.id:
+    if current_user.role not in MANAGER_ROLES and note.created_by != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the author or a manager can delete a note.",

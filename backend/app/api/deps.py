@@ -35,8 +35,19 @@ def get_current_user(
 
 
 def require_roles(*roles: UserRole):
+    """R52: a bare `require_roles(UserRole.manager)` (or any tuple
+    containing it) is automatically satisfied by `UserRole.admin` too —
+    admin carries every manager capability, so route definitions written
+    before admin existed never needed to change. Admin is additionally
+    PROTECTED *from* managers, but that's a narrower rule enforced inline
+    where it matters (app.api.routes.admin), not something this generic
+    permission gate can express."""
+
     def checker(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in roles:
+        allowed = set(roles)
+        if UserRole.manager in allowed:
+            allowed.add(UserRole.admin)
+        if current_user.role not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions for this action",

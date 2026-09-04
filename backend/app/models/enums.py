@@ -5,6 +5,21 @@ class UserRole(str, enum.Enum):
     employee = "employee"
     qc = "qc"
     manager = "manager"
+    # R52: sits above manager — has every manager capability (see
+    # MANAGER_ROLES below and api.deps.require_roles) but is additionally
+    # PROTECTED from managers: a manager can never edit, deactivate,
+    # delete, or change the password of an admin account. Intended for a
+    # single owner-level account (see main.py's `_migrate_r52`).
+    admin = "admin"
+
+
+# R52: the single place "admin carries every manager capability" is
+# defined. api.deps.require_roles() already treats a bare
+# UserRole.manager requirement as satisfied by admin too, so most routes
+# never need to mention this tuple — it exists for the handful of inline
+# `current_user.role == ...` checks that aren't expressed through
+# require_roles() and would otherwise silently exclude admin.
+MANAGER_ROLES = (UserRole.manager, UserRole.admin)
 
 
 class TicketState(str, enum.Enum):

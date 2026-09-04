@@ -14,6 +14,7 @@ from app.models import (
     ErrorCategory,
     FlagMedia,
     LiveActivityFeed,
+    MANAGER_ROLES,
     MotorCarrier,
     PickupTicket,
     QCAuditFlag,
@@ -149,7 +150,7 @@ def update_ticket(
     # R8 exception: urgent-flagged tickets are open for team triage — any
     # employee may fix them.
     if (
-        current_user.role not in (UserRole.manager, UserRole.qc)
+        current_user.role not in (*MANAGER_ROLES, UserRole.qc)
         and ticket.created_by != current_user.id
         and not (ticket.state == TicketState.FLAGGED and ticket.is_urgent_flag)
     ):
@@ -161,7 +162,7 @@ def update_ticket(
     # History corrections); R30: QC gets the same reach as a manager here too.
     if (
         ticket.state == TicketState.APPROVED
-        and current_user.role not in (UserRole.manager, UserRole.qc)
+        and current_user.role not in (*MANAGER_ROLES, UserRole.qc)
         and ticket.created_by != current_user.id
     ):
         raise HTTPException(
@@ -268,7 +269,7 @@ def follow_up_ticket(
     time on record. Same ownership rules as editing the ticket (R30: QC too)."""
     ticket = _get_ticket_or_404(db, ticket_id)
     if (
-        current_user.role not in (UserRole.manager, UserRole.qc)
+        current_user.role not in (*MANAGER_ROLES, UserRole.qc)
         and ticket.created_by != current_user.id
         and not (ticket.state == TicketState.FLAGGED and ticket.is_urgent_flag)
     ):
@@ -434,7 +435,7 @@ def resolve_ticket(
             detail=f"Only FLAGGED tickets can be resolved (current: {ticket.state.value}).",
         )
     if (
-        current_user.role != UserRole.manager
+        current_user.role not in MANAGER_ROLES
         and ticket.created_by != current_user.id
         and not ticket.is_urgent_flag
     ):
@@ -472,7 +473,7 @@ def mark_unresolvable(
             detail=f"Only FLAGGED tickets can be marked unresolvable (current: {ticket.state.value}).",
         )
     if (
-        current_user.role != UserRole.manager
+        current_user.role not in MANAGER_ROLES
         and ticket.created_by != current_user.id
         and not ticket.is_urgent_flag
     ):
@@ -502,7 +503,7 @@ def get_flagged(
         PickupTicket.state == TicketState.FLAGGED,
         PickupTicket.is_dropped.is_(False),  # R23: dropped = lifecycle over
     )
-    if current_user.role != UserRole.manager:
+    if current_user.role not in MANAGER_ROLES:
         q = q.where(
             or_(
                 PickupTicket.created_by == current_user.id,

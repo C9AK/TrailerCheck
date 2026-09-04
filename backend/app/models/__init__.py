@@ -3,6 +3,7 @@ from app.models.enums import (
     AuditEvent,
     ErrorCategory,
     KpraGroup,
+    MANAGER_ROLES,
     MediaType,
     NoteStatus,
     TicketState,
@@ -14,6 +15,7 @@ from app.models.shift_note import ShiftNote
 from app.models.flag_media import FlagMedia
 from app.models.live_feed import LiveActivityFeed
 from app.models.motor_carrier import MotorCarrier
+from app.models.password_change_audit import PasswordChangeAudit
 from app.models.pickup_ticket import PickupTicket
 from app.models.qc_audit_flag import QCAuditFlag
 from app.models.trailer import Trailer
@@ -27,8 +29,10 @@ __all__ = [
     "ErrorCategory",
     "FlagMedia",
     "LiveActivityFeed",
+    "MANAGER_ROLES",
     "MediaType",
     "NoteStatus",
+    "PasswordChangeAudit",
     "ShiftNote",
     "KpraGroup",
     "TicketState",

@@ -19,6 +19,7 @@ import {
 } from "@/lib/time";
 import {
   CATEGORY_LABELS,
+  isManagerLike,
   matchesStatus,
   type StatusFilterValue,
   type Ticket,
@@ -92,7 +93,7 @@ function CarryoverTable() {
   // the employee's behalf — backend keeps these creator/manager/urgent only.
   const canModify = useCallback(
     (t: Ticket) =>
-      role === "manager" ||
+      isManagerLike(role) ||
       t.creator.username === username ||
       (t.state === "FLAGGED" && t.is_urgent_flag),
     [role, username]

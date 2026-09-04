@@ -29,6 +29,7 @@ import { api, ApiError, mediaUrl, uploadMedia } from "@/lib/api";
 import {
   CATEGORY_LABELS,
   ERROR_CATEGORIES,
+  isManagerLike,
   KPRA_GROUP_LABELS,
   matchesStatus,
   type ErrorCategory,
@@ -528,7 +529,7 @@ function QCQueue() {
                   <TrailerHistoryLookup
                     ticketId={t.id}
                     defaultTrailerNumber={t.trailer?.trailer_number ?? ""}
-                    canApply={role === "manager"}
+                    canApply={isManagerLike(role)}
                     onApplied={(updated) =>
                       setTickets((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
                     }
@@ -579,7 +580,7 @@ function QCQueue() {
                   role keeps the plain read-only display. */}
               <PtiDateField
                 ticket={t}
-                isManager={role === "manager"}
+                isManager={isManagerLike(role)}
                 disabled={savingId === t.id}
                 onSave={(iso) => overridePtiDate(t, iso)}
               />

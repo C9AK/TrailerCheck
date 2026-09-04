@@ -19,7 +19,7 @@ import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, SuccessBanner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { fmtCstFull } from "@/lib/time";
-import type { AutoNote, ShiftNote } from "@/lib/types";
+import { isManagerLike, type AutoNote, type ShiftNote } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
 const POLL_MS = 20_000;
@@ -37,7 +37,7 @@ function NotesBoard() {
   const role = useAuthStore((s) => s.role);
   const username = useAuthStore((s) => s.username);
   // R18: QC has full notes parity — drafts, publish, edit, resolve, delete
-  const canHandover = role === "employee" || role === "qc" || role === "manager";
+  const canHandover = role === "employee" || role === "qc" || isManagerLike(role);
 
   const [autoNotes, setAutoNotes] = useState<AutoNote[]>([]);
   const [drafts, setDrafts] = useState<ShiftNote[]>([]);
@@ -459,7 +459,7 @@ function NotesBoard() {
                       Done
                     </button>
                     {/* R18: delete — author or manager only */}
-                    {(role === "manager" || n.creator.username === username) && (
+                    {(isManagerLike(role) || n.creator.username === username) && (
                       <button
                         type="button"
                         aria-label="Delete note"

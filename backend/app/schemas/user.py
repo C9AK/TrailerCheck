@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,3 +36,15 @@ class UserBrief(BaseModel):
 
     id: uuid.UUID
     username: str
+
+
+class PasswordChangeEventOut(BaseModel):
+    """R52: one row of the admin's personal security feed — a password
+    change performed on an account other than the changer's own."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    target_username: str
+    changed_by_username: str
+    created_at: datetime

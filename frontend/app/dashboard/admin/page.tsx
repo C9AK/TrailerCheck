@@ -1,33 +1,98 @@
 "use client";
 
-import { Check, KeyRound, Loader2, Pencil, Trash2, UserPlus, X } from "lucide-react";
+import { Check, KeyRound, Loader2, Lock, Pencil, ShieldAlert, Trash2, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import RequireRole from "@/components/RequireRole";
 import { ErrorBanner, SuccessBanner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import type { MCAdmin, Role, User } from "@/lib/types";
+import { fmtCstFull } from "@/lib/time";
+import type { MCAdmin, PasswordChangeEvent, Role, User } from "@/lib/types";
 import { useAuthStore } from "@/store/authStore";
 
+// R52: `admin` is only offered as an assignable role to someone who is
+// ALREADY an admin — the backend enforces this too (403 otherwise), but
+// there's no reason to show a manager an option that will just fail.
 const ROLES: Role[] = ["employee", "qc", "manager"];
 
 const inputCls =
   "w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-800 dark:border-slate-700 dark:bg-slate-800";
 
 export default function AdminPage() {
+  const myRole = useAuthStore((s) => s.role);
   return (
     <RequireRole roles={["manager"]}>
       <div className="mx-auto max-w-5xl space-y-8">
         <h1 className="font-mono text-xl font-semibold">Admin</h1>
         <UsersSection />
         <MCSection />
+        {/* R52: admin-only — the persistent counterpart to the live toast
+            alert in the dashboard layout, so a change isn't only ever seen
+            in the moment. */}
+        {myRole === "admin" && <SecurityLogSection />}
       </div>
     </RequireRole>
   );
 }
 
+function SecurityLogSection() {
+  const [events, setEvents] = useState<PasswordChangeEvent[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    api<PasswordChangeEvent[]>("/api/admin/password-changes?limit=100")
+      .then(setEvents)
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load the security log."));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <section className="rounded-lg border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">
+        <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+        Security Log — password changes by others
+      </h2>
+      <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+        Every time someone changes an account&apos;s password other than their own,
+        it&apos;s recorded here — visible only to you.
+      </p>
+
+      <ErrorBanner message={error} />
+
+      {events.length === 0 ? (
+        <p className="rounded border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          No password changes recorded yet.
+        </p>
+      ) : (
+        <ul className="max-h-72 space-y-1.5 overflow-y-auto">
+          {events.map((e) => (
+            <li
+              key={e.id}
+              className="flex items-center justify-between gap-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800/60"
+            >
+              <span>
+                <span className="font-semibold">{e.changed_by_username}</span> changed the
+                password for <span className="font-semibold">{e.target_username}</span>
+              </span>
+              <span className="shrink-0 font-mono text-xs text-slate-500 dark:text-slate-400">
+                {fmtCstFull(e.created_at)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function UsersSection() {
   const myUsername = useAuthStore((s) => s.username);
+  const myRole = useAuthStore((s) => s.role);
+  // R52: only an admin viewing this page may create/promote to admin.
+  const assignableRoles: Role[] = myRole === "admin" ? [...ROLES, "admin"] : ROLES;
   const [users, setUsers] = useState<User[]>([]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -155,7 +220,7 @@ function UsersSection() {
             onChange={(e) => setRole(e.target.value as Role)}
             className={inputCls}
           >
-            {ROLES.map((r) => (
+            {assignableRoles.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
@@ -205,7 +270,7 @@ function UsersSection() {
                       onChange={(e) => setEditRole(e.target.value as Role)}
                       className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800"
                     >
-                      {ROLES.map((r) => (
+                      {assignableRoles.map((r) => (
                         <option key={r} value={r}>
                           {r}
                         </option>
@@ -271,6 +336,18 @@ function UsersSection() {
                         <X className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </span>
+                  ) : u.role === "admin" && myRole !== "admin" ? (
+                    // R52: admin accounts can only be modified by their own
+                    // owner — hide the controls entirely for anyone else
+                    // rather than showing buttons that would just 403, and
+                    // say why so it doesn't read as a bug.
+                    <span
+                      className="flex items-center justify-center gap-1.5 text-slate-400"
+                      title="Admin accounts can only be modified by their own owner"
+                    >
+                      <Lock className="h-4 w-4" aria-hidden="true" />
+                      <span className="text-xs">Protected</span>
+                    </span>
                   ) : (
                     <span className="flex items-center justify-center gap-1">
                       <button
@@ -286,7 +363,8 @@ function UsersSection() {
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
                       </button>
-                      {u.username !== myUsername && (
+                      {/* R52: admin accounts can never be deleted, by anyone */}
+                      {u.username !== myUsername && u.role !== "admin" && (
                         <button
                           type="button"
                           aria-label={`Delete ${u.username}`}

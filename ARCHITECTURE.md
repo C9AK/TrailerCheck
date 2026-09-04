@@ -145,7 +145,7 @@ TrailerCheck/
 │   │       ├── leaderboard/page.tsx        # composite score rankings
 │   │       ├── qc-review/page.tsx          # QC audit queue (largest logic surface, ~1280 lines)
 │   │       ├── qc-history/page.tsx         # "My Audits" — a QC's own approve/flag history
-│   │       ├── admin/page.tsx              # user + Motor Carrier administration (manager)
+│   │       ├── admin/page.tsx              # user + Motor Carrier administration (manager/admin)
 │   │       └── manager/
 │   │           ├── live-feed/page.tsx      # 5s-polling immutable activity feed
 │   │           ├── archive/page.tsx        # full ticket history + Excel export
@@ -172,13 +172,14 @@ TrailerCheck/
 
 ### 4.1 Roles (RBAC)
 
-Exactly three roles, stored on `User.role`:
+Four roles, stored on `User.role`:
 
 | Role | Can do |
 |---|---|
 | `employee` | Create/edit/delete their own tickets, work the Carryover board, publish shift notes, view Leaderboard/All Pickups/My Pickups/Trailer Issues. Cannot approve/flag tickets or see the QC queue. |
 | `qc` | Everything an employee can do (QC creates pickups too, R14) **plus** the QC Review queue, approve/flag actions, "My Audits" history, non-punitive Trailer Issue reports, and delete-any-pickup power. A QC user can never approve/flag a ticket **they created themselves** (409 "Conflict of interest" — enforced server-side, not just hidden in the UI). |
 | `manager` | Full access: everything above, on **any** user's tickets in any state (including `APPROVED`), plus Admin (user + Motor Carrier CRUD), Live Feed, Archive, Stats. Cannot demote/deactivate/delete their own account (self-lockout guard). |
+| `admin` (R52) | Carries **every** manager capability (see [§6.4](#64-dependency-injection--rbac)) but sits above it: a manager can never edit, deactivate, delete, or change the password of an admin account — only the admin account's own owner can. See [§4.12](#412-the-admin-role--account-security-protections-r52). |
 
 Route-level enforcement is `require_roles(...)` (a FastAPI dependency,
 [§6.4](#64-dependency-injection--rbac)); the frontend additionally wraps every
@@ -475,6 +476,91 @@ un-dismissable-until-acknowledged red banner over SSE
 (`GET /api/alerts/stream`); re-alerts are throttled to once per 5 minutes per
 continuously-moving truck, and the alert re-arms the moment the truck stops.
 
+### 4.12 The Admin Role & Account-Security Protections (R52)
+
+`admin` is a fourth role sitting **above** `manager`. It exists for exactly
+one purpose: give the platform's actual owner an account that cannot be
+tampered with by anyone who merely has manager access — including having
+its role, active status, or password changed.
+
+**Privilege direction.** Admin is a strict superset of manager
+capability-wise (`api.deps.require_roles()` treats any check written for
+`UserRole.manager` as satisfied by `UserRole.admin` too, so none of the
+~30 existing manager-gated routes needed to be individually rewritten; the
+handful of inline `current_user.role == ...` comparisons that don't go
+through `require_roles` instead read a shared `MANAGER_ROLES = (manager,
+admin)` tuple from `models/enums.py`). The frontend mirrors this with
+`isManagerLike(role)` / `roleAllows(allowedRoles, role)` helpers
+(`lib/types.ts`) used by `RequireRole`, the sidebar nav filter, and every
+page-level `role === "manager"` check.
+
+**Protection direction runs the opposite way** and is enforced entirely in
+`api/routes/admin.py`, inline (not through the generic role-dependency
+system, since it depends on *which account* is being acted on, not just who's
+asking):
+
+- `PATCH /api/admin/users/{id}` and `DELETE /api/admin/users/{id}` both 403
+  immediately if the **target** user has `role == admin` and the caller
+  isn't that exact same account — a manager (or a hypothetical second
+  admin) cannot edit or delete an admin account at all, full stop. This is
+  the literal mechanism behind "no one can change my password": the
+  password field is just one of several fields this blanket check refuses
+  to touch on someone else's behalf.
+- `DELETE` additionally refuses to delete **any** admin account even by its
+  own owner — there is no path to hard-deleting the account at all.
+- `POST /api/admin/users` (create) and `PATCH .../{id}` (promote) both 403
+  a `role: "admin"` payload unless the caller is *already* an admin —
+  otherwise a manager could simply create or promote their way around the
+  entire protection model.
+- The self-lockout guard (originally manager-only: "you can't demote or
+  deactivate yourself") was generalized to `payload.role != user.role` for
+  *any* role editing themselves, so it applies identically to admin without
+  a special case.
+- On the frontend, `admin/page.tsx`'s role-assignment dropdown only offers
+  `admin` as an option when the viewer is themselves an admin, and an
+  admin-role row's Edit/Delete icons are replaced with a
+  "🔒 Protected" label for any non-admin viewer — pure UX (the backend
+  enforces the real rule regardless), so a manager isn't shown a control
+  that would just 403.
+
+**Bootstrapping.** A fresh database's very first user
+(`_bootstrap_admin()` in `main.py`, named `BOOTSTRAP_ADMIN_USERNAME` —
+"laith" by default) is now created with `role=admin` directly, not
+`manager`. An **idempotent migration** (`_migrate_r52`) handles the
+already-existing case: on every boot, if a user named exactly
+`BOOTSTRAP_ADMIN_USERNAME` still has `role=manager`, it's promoted to
+`admin` once; harmless no-op on every later boot.
+
+**Backup/recovery passwords.** An admin account may additionally
+authenticate with up to two operator-configured recovery passwords
+(`ADMIN_BACKUP_PASSWORD_1`/`_2`, [§6.2](#62-configuration)), checked in
+`api/routes/auth.py`'s `login()` via `secrets.compare_digest` (constant-time,
+avoids leaking timing information) only when the primary bcrypt check fails
+and only for `role == admin`. This is a deliberate, narrow safety net so the
+real owner can never be locked out — of the primary password being lost,
+forgotten, or (despite the protections above) somehow changed. **These two
+values are never committed to source control** — they exist only as
+environment variables (`backend/.env`, gitignored, or the hosting
+platform's own env var UI), sourced from `pydantic-settings` with a
+`None` default in the tracked `config.py`. Leaving both unset simply
+disables backup-password login.
+
+**Password-change audit trail.** Every time `PATCH /api/admin/users/{id}`
+changes a password on an account that **isn't the caller's own**, a
+`PasswordChangeAudit` row is written ([§5](#5-database-schema)) recording
+who changed whose password and when. `GET /api/admin/password-changes` (a
+second, *stricter* role dependency pinned to literally `UserRole.admin` —
+manager is not enough here, unlike the rest of the router) exposes this as
+the admin's personal, persistent security feed; the dashboard layout
+additionally polls it (15s, admin-only) and toasts a red "Security alert"
+the moment a new entry appears, mirroring the existing flag/resolved-ticket
+notification pattern. Deliberately **not** folded into the ticket-shaped
+`audit_logs`/`live_activity_feed` pipeline ([§6.5](#65-services-business-logic-layer))
+— this concerns account security, not a ticket lifecycle event, and forcing
+it through a schema built for trucks/MCs/tickets would be a worse fit than
+a small dedicated table, the same reasoning behind `TrailerIssue` and
+`ShiftNote` existing as their own tables rather than overloaded QC flags.
+
 ---
 
 ## 5. Database Schema
@@ -491,7 +577,7 @@ the `ticket_state`/`audit_event` in-place migrations only need `ALTER TYPE
 | id | UUID PK | |
 | username | String, unique, indexed | |
 | password_hash | String | bcrypt |
-| role | Enum `user_role` | employee / qc / manager |
+| role | Enum `user_role` | employee / qc / manager / admin (R52) |
 | performance_score | Integer, default 100 | see [§4.5](#45-scoring-engine--weighted-composite-score) |
 | is_active | Boolean, default true | deactivated users can't log in |
 
@@ -638,12 +724,23 @@ nullable), snapshotted `truck_number`/`trailer_number`/`mc_name` (readable
 even after the ticket is gone), `description` (Text), `reported_by` (FK),
 `is_resolved`, `resolved_by`, `resolved_at`, `created_at`.
 
+### `password_change_audits` (R52)
+`target_user_id` / `changed_by` (both real FKs → users, **not** nullable/
+detached like the ticket-history tables — `DELETE /api/admin/users/{id}`
+already refuses to hard-delete any user this table references, so there's
+nothing to detach from). Snapshotted `target_username` /
+`changed_by_username` so the record reads correctly even after a rename.
+Written only when `PATCH /api/admin/users/{id}` changes a password on an
+account other than the caller's own; see
+[§4.12](#412-the-admin-role--account-security-protections-r52).
+
 ### Entity-relationship summary
 
 ```mermaid
 erDiagram
     USERS ||--o{ PICKUP_TICKETS : creates
     USERS ||--o{ QC_AUDIT_FLAGS : raises
+    USERS ||--o{ PASSWORD_CHANGE_AUDITS : "changed by / target of"
     MOTOR_CARRIERS ||--o{ PICKUP_TICKETS : "fleet API for"
     TRAILERS ||--o{ PICKUP_TICKETS : "linked by"
     TRAILERS ||--o{ TRAILER_DOCUMENTS : "papers for"
@@ -664,8 +761,8 @@ erDiagram
 `app/main.py` builds the FastAPI app with an `asynccontextmanager` lifespan
 that, **in this exact order**, on every boot:
 
-1. Runs ~11 idempotent, hand-written **in-place schema migrations**
-   (`_migrate_feed_ticket_nullable`, `_migrate_r17` … `_migrate_r51`) — each
+1. Runs ~12 idempotent, hand-written **in-place schema migrations**
+   (`_migrate_feed_ticket_nullable`, `_migrate_r17` … `_migrate_r52`) — each
    inspects the live schema via `sqlalchemy.inspect` and only executes its
    `ALTER TABLE`/`ALTER TYPE` if the target column/constraint doesn't already
    match, so re-running on an already-migrated database is a safe no-op. This
@@ -678,9 +775,10 @@ that, **in this exact order**, on every boot:
    doesn't exist yet (a brand-new database needs **none** of the above
    migrations; `create_all` builds the current schema directly).
 3. `_bootstrap_admin()` — if the `users` table is completely empty (a fresh
-   cloud deploy), creates one manager account from
+   cloud deploy), creates one **admin** account (R52 — was manager) from
    `BOOTSTRAP_ADMIN_USERNAME`/`BOOTSTRAP_ADMIN_PASSWORD` env vars so the
-   Admin page is reachable at all on day one.
+   Admin page is reachable at all on day one, already protected from every
+   manager created afterward.
 4. Spawns the hazmat monitor as a background `asyncio.Task`
    (`hazmat_monitor_loop()`), cancelled cleanly on shutdown.
 
@@ -709,8 +807,10 @@ variables directly (cloud):
 | `JWT_ALGORITHM` | `HS256` | |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `480` (8 hours) | |
 | `FRONTEND_ORIGINS` | `""` | comma-separated extra CORS origins (the Vercel URL) |
-| `BOOTSTRAP_ADMIN_USERNAME` | `laith` | first-run manager account |
+| `BOOTSTRAP_ADMIN_USERNAME` | `laith` | first-run **admin** account (R52 — was manager) |
 | `BOOTSTRAP_ADMIN_PASSWORD` | `laith123!` | **change this in production** |
+| `ADMIN_BACKUP_PASSWORD_1` | `None` | R52 — optional admin-only recovery credential; **set only via env, never in tracked source** |
+| `ADMIN_BACKUP_PASSWORD_2` | `None` | R52 — second optional recovery credential, same rule |
 
 `app/core/database.py` builds the SQLAlchemy `engine` with
 `pool_pre_ping=True` (transparently replaces a dropped idle connection) and
@@ -725,6 +825,12 @@ idle-kill windows).
 - `create_access_token(user_id, role)` — a JWT with `sub` (user UUID
   string), `role`, and `exp`, signed HS256.
 - `decode_access_token` — raises `JWTError` on invalid/expired tokens.
+
+`app/api/routes/auth.py`'s `login()` additionally accepts, for `role ==
+admin` only, one of up to two operator-configured backup passwords
+(`_admin_backup_password_ok`, R52) when the primary bcrypt check fails —
+see [§4.12](#412-the-admin-role--account-security-protections-r52). Compared
+with `secrets.compare_digest`, not `==`, to avoid a timing side-channel.
 
 CORS (`main.py`) allows `localhost:3000` and any `FRONTEND_ORIGINS` value
 explicitly, **plus a regex** matching any private-LAN origin
@@ -750,7 +856,19 @@ would misinterpret a real bug as "the server is asleep, retry."
   `current_user.role in roles`. Applied either per-route
   (`Depends(require_roles(UserRole.manager))`) or per-router
   (`APIRouter(dependencies=[...])`, e.g. the entire `admin.py` router is
-  manager-only at the router level).
+  manager-only at the router level). **R52:** any tuple containing
+  `UserRole.manager` is automatically treated as also containing
+  `UserRole.admin` — admin carries every manager capability, so none of the
+  routes above needed editing when the admin role was introduced. The
+  narrower rule that *protects* admin accounts **from** managers is the
+  opposite direction and isn't expressible by this generic gate — it's
+  enforced inline, per-route, in `admin.py` instead (see
+  [§4.12](#412-the-admin-role--account-security-protections-r52)). A small
+  number of inline `current_user.role == ...` checks that don't go through
+  `require_roles` (in `tickets.py`, `trailers.py`, `notes.py`) instead read
+  a shared `MANAGER_ROLES = (UserRole.manager, UserRole.admin)` tuple from
+  `models/enums.py`, so the "admin ⊇ manager" rule has exactly two places
+  it's ever defined, not one per call site.
 
 ### 6.5 Services (Business Logic Layer)
 
@@ -842,13 +960,14 @@ per route.
 | `POST /api/auth/login` | public | `{username, password}` → `{access_token, role, username}`. 401 on bad creds, 403 if `is_active=false`. |
 | `GET /api/users/me` | any | current user's profile (drives the `ScoreBadge`). |
 
-#### `admin.py` (router-level: manager only)
+#### `admin.py` (router-level: manager **or admin** — the R52 protections below run in the opposite direction, per-route)
 | Method & Path | Notes |
 |---|---|
-| `POST /api/admin/users` | create employee/qc/manager account; 409 on duplicate username. |
+| `POST /api/admin/users` | create employee/qc/manager/admin account; 409 on duplicate username. **R52:** `role: "admin"` 403s unless the caller is already an admin. |
 | `GET /api/admin/users` | list all, alphabetical. |
-| `PATCH /api/admin/users/{id}` | change username/password/role/is_active. **Self-lockout guard**: 409 if a manager tries to demote or deactivate their own account. |
-| `DELETE /api/admin/users/{id}` | **hard delete**, but only if the user has **zero** recorded activity (tickets/flags/notes/audit rows/feed rows) — otherwise 409 "deactivate instead," preserving referential history. Cannot delete yourself. |
+| `PATCH /api/admin/users/{id}` | change username/password/role/is_active. **R52:** 403 if the *target* is an admin account and the caller isn't that same account — this is the enforcement behind "no one can change my password." Promoting anyone to `admin` also 403s unless the caller already is one. **Self-lockout guard** (generalized R52): 409 if you try to change your own role or deactivate yourself, any role. A password change on an account other than the caller's own writes a `PasswordChangeAudit` row. |
+| `DELETE /api/admin/users/{id}` | **hard delete**, but only if the user has **zero** recorded activity (tickets/flags/notes/audit rows/feed rows/password-change-audit rows) — otherwise 409 "deactivate instead," preserving referential history. Cannot delete yourself. **R52:** admin accounts can never be deleted, by anyone, full stop (403 before the self-delete check even runs). |
+| `GET /api/admin/password-changes` | **R52, admin-only** (a second, stricter `require_roles(UserRole.admin)` pinned on this one route — the router's manager-or-admin gate isn't enough here). The admin's personal security feed: every password change performed on an account other than the changer's own, newest first. |
 | `POST /api/admin/mcs` | create a Motor Carrier `{name, api_endpoint, api_key}`. |
 | `PATCH /api/admin/mcs/{id}` | update endpoint/key; omit `api_key` to keep the current one. |
 | `GET /api/admin/mcs` | list, with `api_key` **masked** (`****last4`) — the raw key never leaves the server after creation. |
@@ -1014,12 +1133,16 @@ proxies/load-balancers don't kill the idle connection.
 ```
 
 `homeRoute(role)` (`store/authStore.ts`): `qc` → `/dashboard/qc-review`,
-`manager` → `/dashboard/carryover`, `employee` → `/dashboard/new-pickup`.
+`manager`/`admin` (R52) → `/dashboard/carryover`, `employee` → `/dashboard/new-pickup`.
 
 Every dashboard page is wrapped `<RequireRole roles={[...]}>` — a
 client-side guard that redirects to `homeRoute()` if the hydrated role
 doesn't match. This is **UX polish only**; the backend independently
-enforces every permission via `require_roles()`.
+enforces every permission via `require_roles()`. **R52:** `RequireRole`
+checks `roleAllows(roles, role)` rather than a bare `roles.includes(role)`,
+so a page guarded `roles={["manager"]}` (or any array containing it) admits
+`admin` too without needing its own array updated — the same superset
+relationship as the backend's `require_roles()`.
 
 ### 7.2 State Management (Zustand)
 
@@ -1140,6 +1263,7 @@ they run continuously regardless of which page is open:
 | Active Drafts sidebar panel | poll `GET /api/tickets/drafts` | 15s, plus on every route change |
 | **Hazmat alert banner** | **SSE** `GET /api/alerts/stream` | push, not poll |
 | Performance score badge | fetch `GET /api/users/me` | on every route change |
+| **Admin security alert** (R52, admin-only) | poll `GET /api/admin/password-changes` | 15s |
 
 The SSE connection has its own **resilience layer** (R26): `EventSource`
 only auto-retries *transient* errors — a background tab, a sleeping laptop,
@@ -1267,7 +1391,7 @@ elements:
   the employee's mandatory written reason surfaced verbatim, with the
   Approve button relabeled "Force Approve."
 
-#### `qc-history/page.tsx`, `manager/stats/page.tsx`, `manager/archive/page.tsx`, `manager/live-feed/page.tsx`, `leaderboard/page.tsx`, `notes/page.tsx`, `trailer-issues/page.tsx`, `admin/page.tsx`
+#### `qc-history/page.tsx`, `manager/stats/page.tsx`, `manager/archive/page.tsx`, `manager/live-feed/page.tsx`, `leaderboard/page.tsx`, `notes/page.tsx`, `trailer-issues/page.tsx`
 Comparatively conventional list/table/form pages layered on the endpoints
 described in [§6.6](#66-api-routes--full-reference); each is covered in
 detail inline in its own source file's comments. Two are worth a specific
@@ -1280,6 +1404,23 @@ callout:
   **every non-empty line becomes its own separate note** on submit (R19) —
   pasting a multi-line list of missing items creates N independently
   resolvable notes, not one blob.
+
+#### `admin/page.tsx`
+User + Motor Carrier CRUD as described in [§6.6](#66-api-routes--full-reference).
+**R52** additions, all gated on the viewer's own role
+(`useAuthStore((s) => s.role)`), purely to avoid presenting a control the
+backend would just 403:
+- The role-assignment `<select>` (both the create-user form and the
+  inline per-row editor) only lists `admin` as an option when the viewer is
+  themselves an admin.
+- A row whose `role === "admin"` shows a "🔒 Protected" label instead of
+  Edit/Delete icons for any non-admin viewer.
+- A `SecurityLogSection`, rendered only for `role === "admin"`, lists every
+  `GET /api/admin/password-changes` entry (who changed whose password,
+  when) — the persistent counterpart to the live toast alert fired from
+  `dashboard/layout.tsx` ([§7.6](#76-dashboard-layout--the-app-shell)) the
+  instant a new one appears, so a change is never visible only in the
+  moment it happens.
 
 ---
 
@@ -1456,6 +1597,16 @@ the backend would reject; **every** authorization decision that actually
 matters is re-verified server-side, including the conflict-of-interest rule,
 which the QC Review page also hides the buttons for but which the backend
 enforces with a 403 regardless of what the client sends.
+
+The admin/manager relationship (R52,
+[§4.12](#412-the-admin-role--account-security-protections-r52)) runs this
+principle in **both directions at once**: `admin` is a privilege superset of
+`manager` (checked once, centrally, in `require_roles()` and the shared
+`MANAGER_ROLES` tuple — not duplicated at ~30 call sites), while the
+protection of admin accounts *from* managers is the opposite relationship,
+enforced inline in `admin.py` precisely because it depends on which
+*account* a request targets, not just which role is making it — a question
+`require_roles()`'s generic role-only gate has no way to answer.
 
 ### 9.2 Real-Time Transport: SSE vs. Polling
 
@@ -1650,6 +1801,7 @@ line-level record.
 | R48 | On-demand fuel-percentage refresh from the live fleet API (was a stale intake-time snapshot). |
 | R50 | Checking the master PTI box on a LOT trailer's pickup re-stamps that trailer's `last_pti_date` to now. |
 | R51 | Manager-only inline override of a ticket's linked trailer's Last PTI Date on the QC Review card, plus a "Trailer Lookup" popover surfacing a queried trailer's registered PTI date and its most recent hauling truck across the whole fleet — distinguishes a trailer genuinely new to the fleet from one merely new to the truck reviewing it. Every override is audit-logged with the old→new date. |
+| R52 | New `admin` role: a strict superset of manager capability-wise, but protected *from* managers — no one but the account's own owner can edit, deactivate, delete, or change its password, and it can never be deleted at all. Optional backup-password recovery credentials (env-only, never committed). Every password change performed on someone else's account is now audit-logged and surfaced to the admin as a live toast + a persistent Security Log on the Admin page. |
 
 ---
 

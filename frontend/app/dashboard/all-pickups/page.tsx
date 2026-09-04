@@ -17,6 +17,7 @@ import {
 } from "@/lib/time";
 import {
   isActivePickup,
+  isManagerLike,
   matchesStatus,
   type StatusFilterValue,
   type Ticket,
@@ -298,7 +299,7 @@ function GlobalSheet() {
                       <span className="flex items-center justify-center gap-1">
                         {/* R33: manager full-details/edit access on ANY pickup,
                             any state — including after approval */}
-                        {role === "manager" && (
+                        {isManagerLike(role) && (
                           <button
                             type="button"
                             aria-label={`Edit truck ${t.truck_number}`}
@@ -365,7 +366,7 @@ function GlobalSheet() {
                 ))}
                 <th className="px-3 py-2 text-right">Weight</th>
                 {/* R33: manager-only edit access, even on APPROVED tickets */}
-                {role === "manager" && <th className="px-3 py-2 text-center">Actions</th>}
+                {isManagerLike(role) && <th className="px-3 py-2 text-center">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -424,7 +425,7 @@ function GlobalSheet() {
                   </td>
                   {/* R33: manager full-details/edit access on ANY pickup, any
                       state — including after approval */}
-                  {role === "manager" && (
+                  {isManagerLike(role) && (
                     <td className="px-3 py-1.5 text-center">
                       <button
                         type="button"

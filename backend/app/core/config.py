@@ -15,9 +15,22 @@ class Settings(BaseSettings):
 
     # First-run bootstrap: created automatically when the users table is empty
     # so a fresh cloud database is immediately usable. CHANGE THE PASSWORD via
-    # env in production.
+    # env in production. R52: this account is bootstrapped with the `admin`
+    # role (not `manager`) — it's the one account meant to be protected from
+    # every manager, so it should never start out as an editable manager.
     BOOTSTRAP_ADMIN_USERNAME: str = "laith"
     BOOTSTRAP_ADMIN_PASSWORD: str = "laith123!"
+
+    # R52: recovery credentials for the `admin`-role account ONLY — a
+    # deliberately separate safety net so a mistaken or malicious password
+    # change (which admin.py already blocks from anyone but the account's
+    # own owner, but defense in depth costs little here) can never lock the
+    # real owner out. Deliberately set ONLY via environment (backend/.env,
+    # gitignored, or the hosting platform's env var UI) — NEVER given a
+    # real value here, since this file is committed to source control.
+    # None (the default) simply disables backup-password login.
+    ADMIN_BACKUP_PASSWORD_1: str | None = None
+    ADMIN_BACKUP_PASSWORD_2: str | None = None
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod

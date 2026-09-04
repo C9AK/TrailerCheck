@@ -35,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
 /** Default landing route per role. */
 export function homeRoute(role: Role): string {
   if (role === "qc") return "/dashboard/qc-review";
-  if (role === "manager") return "/dashboard/carryover";
+  // R52: admin carries every manager capability, including its default view.
+  if (role === "manager" || role === "admin") return "/dashboard/carryover";
   return "/dashboard/new-pickup";
 }

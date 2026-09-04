@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
     _migrate_r42()
     _migrate_r45()
     _migrate_r51()
+    _migrate_r52()
     Base.metadata.create_all(bind=engine)
     _bootstrap_admin()
     # R25: continuous Samsara movement watch for hazmat loads
@@ -390,6 +391,48 @@ def _migrate_r51() -> None:
             )
 
 
+def _migrate_r52() -> None:
+    """R52 in-place migration, two parts:
+
+    1. `admin` value on the `user_role` native enum (Postgres; SQLite
+       stores it as plain VARCHAR — no schema change needed there).
+    2. One-time promotion of the account named exactly
+       `settings.BOOTSTRAP_ADMIN_USERNAME` ("laith" by default) from
+       `manager` to `admin`, IF it still exists as `manager` — this is the
+       account the admin role was introduced for. Idempotent: once
+       promoted (or if no such account exists, e.g. a database that never
+       had one), this is a permanent no-op on every later boot. Deliberately
+       matched by username, not "the first user ever created" or similar,
+       since that's the actual identity the role is meant to protect.
+    """
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import text
+
+    from app.core.config import settings
+
+    insp = sa_inspect(engine)
+    if "users" not in insp.get_table_names():
+        return
+
+    if engine.dialect.name == "postgresql":
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'admin'"))
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE users SET role = 'admin' "
+                "WHERE username = :username AND role = 'manager'"
+            ),
+            {"username": settings.BOOTSTRAP_ADMIN_USERNAME},
+        )
+        if result.rowcount:
+            print(
+                f"R52 migration: promoted '{settings.BOOTSTRAP_ADMIN_USERNAME}' "
+                "from manager to admin"
+            )
+
+
 def _migrate_feed_ticket_nullable() -> None:
     """R14 in-place migration: live_activity_feed.ticket_id becomes nullable
     so feed history survives ticket deletion (rows are detached, never
@@ -461,12 +504,15 @@ def _bootstrap_admin() -> None:
                 User(
                     username=settings.BOOTSTRAP_ADMIN_USERNAME,
                     password_hash=hash_password(settings.BOOTSTRAP_ADMIN_PASSWORD),
-                    role=UserRole.manager,
+                    # R52: admin, not manager — this is the one account
+                    # meant to be protected FROM managers, so a fresh
+                    # database should never bootstrap it as an editable one.
+                    role=UserRole.admin,
                 )
             )
             db.commit()
             print(
-                f"Bootstrapped manager account '{settings.BOOTSTRAP_ADMIN_USERNAME}' "
+                f"Bootstrapped admin account '{settings.BOOTSTRAP_ADMIN_USERNAME}' "
                 "(set BOOTSTRAP_ADMIN_PASSWORD in production!)"
             )
 

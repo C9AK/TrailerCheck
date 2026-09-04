@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.api.routes.uploads import MAX_UPLOAD_BYTES
 from app.core.database import get_db
-from app.models import PickupTicket, Trailer, TrailerDocType, TrailerDocument, User, UserRole
+from app.models import MANAGER_ROLES, PickupTicket, Trailer, TrailerDocType, TrailerDocument, User
 from app.schemas.trailer import LastPickupByTruckOut, LastUsedOut, TrailerDocumentOut
 from app.services.ticket_lifecycle import (
     get_last_hauled_truck_for_trailer,
@@ -261,7 +261,7 @@ def delete_trailer_document(
     document = db.get(TrailerDocument, document_id)
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    if current_user.role != UserRole.manager and document.uploaded_by != current_user.id:
+    if current_user.role not in MANAGER_ROLES and document.uploaded_by != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the uploader or a manager can remove a saved paper.",

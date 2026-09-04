@@ -12,6 +12,7 @@ from app.models import (
     AuditLog,
     LiveActivityFeed,
     MotorCarrier,
+    PasswordChangeAudit,
     PickupTicket,
     QCAuditFlag,
     ShiftNote,
@@ -19,13 +20,30 @@ from app.models import (
     UserRole,
 )
 from app.schemas.motor_carrier import MCAdminOut, MCCreate, MCUpdate, mask_api_key
-from app.schemas.user import UserCreate, UserOut, UserUpdate
+from app.schemas.user import PasswordChangeEventOut, UserCreate, UserOut, UserUpdate
 
+# require_roles(UserRole.manager) already admits UserRole.admin too (see
+# api.deps) — admin carries every manager capability here. The narrower
+# rule that PROTECTS admin accounts FROM managers is enforced inline below,
+# per-route, since it depends on which account is being acted on, not just
+# who's asking.
 router = APIRouter(tags=["admin"], dependencies=[Depends(require_roles(UserRole.manager))])
 
 
 @router.post("/api/admin/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def create_user(payload: UserCreate, db: Session = Depends(get_db)):
+def create_user(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # R52: granting admin privileges requires ALREADY being an admin —
+    # otherwise any manager could simply create a fresh admin account for
+    # themselves and bypass the entire protection model.
+    if payload.role == UserRole.admin and current_user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only an admin can create another admin account.",
+        )
     if db.scalar(select(User).where(User.username == payload.username)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Username already exists"
@@ -57,14 +75,37 @@ def update_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Lockout guards: a manager cannot demote or deactivate themselves.
+    # R52: admin accounts are protected from EVERYONE but their own owner —
+    # not even another manager (or a different admin) may touch them. This
+    # is the account-level enforcement behind "no one can change my
+    # password": combined with the role-escalation guard below (only an
+    # admin can ever GRANT admin), an admin account can only be modified by
+    # logging in as that exact account.
+    if user.role == UserRole.admin and user.id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin accounts can only be modified by their own owner.",
+        )
+
+    # R52: granting admin privileges to ANY account (including via the
+    # self-edit path, which the lockout guard below blocks anyway) requires
+    # already being an admin.
+    if payload.role == UserRole.admin and current_user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only an admin can grant admin privileges.",
+        )
+
+    # Lockout guard: nobody may change their OWN role or deactivate
+    # themselves via this endpoint — generalized (R52) from the original
+    # manager-only wording so admin is covered identically, without a
+    # separate special case.
     if user.id == current_user.id and (
-        (payload.role is not None and payload.role != UserRole.manager)
-        or payload.is_active is False
+        (payload.role is not None and payload.role != user.role) or payload.is_active is False
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="You cannot demote or deactivate your own account.",
+            detail="You cannot change your own role or deactivate your own account.",
         )
 
     if payload.username and payload.username != user.username:
@@ -75,6 +116,21 @@ def update_user(
         user.username = payload.username
     if payload.password:
         user.password_hash = hash_password(payload.password)
+        # R52: alert the admin whenever a password is changed on an account
+        # that ISN'T the changer's own. The admin-protection guard above
+        # already makes this unreachable for an admin's own account, so in
+        # practice this fires for a manager changing an employee/qc/manager
+        # password (or, if a second admin ever exists, an admin changing
+        # someone else's).
+        if current_user.id != user.id:
+            db.add(
+                PasswordChangeAudit(
+                    target_user_id=user.id,
+                    changed_by=current_user.id,
+                    target_username=user.username,
+                    changed_by_username=current_user.username,
+                )
+            )
     if payload.role is not None:
         user.role = payload.role
     if payload.is_active is not None:
@@ -83,6 +139,25 @@ def update_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.get("/api/admin/password-changes", response_model=list[PasswordChangeEventOut])
+def get_password_change_log(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.admin)),
+):
+    """R52: the admin's personal security feed — every password change
+    performed on an account other than the changer's own, newest first.
+    Admin-ONLY (the router's own manager-or-admin gate isn't enough here —
+    this route pins the stricter role itself): this is the top-level
+    account holder's visibility tool, not a general team feature, so a
+    manager gets a 403 same as anyone else without admin privileges."""
+    return db.scalars(
+        select(PasswordChangeAudit)
+        .order_by(PasswordChangeAudit.created_at.desc())
+        .limit(min(limit, 200))
+    ).all()
 
 
 @router.delete("/api/admin/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -94,6 +169,14 @@ def delete_user(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    # R52: admin accounts can never be deleted — by anyone, including
+    # themselves. Checked before the generic self-delete guard below so the
+    # error message is specific to the actual reason.
+    if user.role == UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin accounts cannot be deleted.",
+        )
     if user.id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -108,6 +191,19 @@ def delete_user(
         + (db.scalar(select(sa_func.count()).where(ShiftNote.created_by == user.id)) or 0)
         + (db.scalar(select(sa_func.count()).where(AuditLog.actor_id == user.id)) or 0)
         + (db.scalar(select(sa_func.count()).where(LiveActivityFeed.actor_id == user.id)) or 0)
+        # R52: a user this table references (either side) is also
+        # preserved — deleting them would either erase part of the admin's
+        # security trail or leave a dangling FK.
+        + (
+            db.scalar(
+                select(sa_func.count()).where(PasswordChangeAudit.target_user_id == user.id)
+            )
+            or 0
+        )
+        + (
+            db.scalar(select(sa_func.count()).where(PasswordChangeAudit.changed_by == user.id))
+            or 0
+        )
     )
     if activity > 0:
         raise HTTPException(
