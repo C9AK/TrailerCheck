@@ -297,7 +297,7 @@ function ScaleTicketBox({ truckFuelPct }: { truckFuelPct: number | null }) {
             <input type="range" min="-16" max="16" value={tdHoles} onChange={e => setTdHoles(Number(e.target.value))} className="w-full accent-blue-500" />
          </div>
          <div className="mt-2 bg-yellow-500/10 border border-yellow-500/50 p-4 min-h-[120px] overflow-y-auto">
-            <p className="text-[9px] font-black text-yellow-500 uppercase tracking-widest mb-2 border-b border-yellow-500/20 pb-1">Dispatcher Action Plan</p>
+            <p className="text-[9px] font-black text-yellow-500 uppercase tracking-widest mb-2 border-b border-yellow-500/20 pb-1">Action Plan</p>
             <p className="text-[11px] text-white font-mono leading-relaxed whitespace-pre-line">{getActionPlan()}</p>
          </div>
          <button type="button" onClick={() => { setWeights({steer: 0, drive: 0, trailer: 0}); setFwHoles(0); setTdHoles(0); setKpraLocked(false); setFuelManuallySet(false); setFuelPct(truckFuelPct != null ? Math.round(truckFuelPct) : 50); }} className="text-[9px] text-white/30 hover:text-white uppercase tracking-widest font-black underline mt-2 text-center transition-colors">
@@ -1524,7 +1524,7 @@ function NewPickupForm() {
                     onChange={(e) => setPtiDispatcherInformed(e.target.checked)}
                     className="h-4 w-4 accent-brand-600"
                   />
-                  Informed dispatcher
+                  Informed carrier dispatch
                 </label>
               </div>
             </div>

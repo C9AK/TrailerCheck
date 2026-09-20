@@ -1259,7 +1259,7 @@ const QC_INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
 // R34: PTI-not-sent-yet follow-up log — only meaningful while PTI is unverified
 const QC_PTI_FOLLOWUP_FIELDS: { key: keyof Ticket & string; label: string }[] = [
   { key: "pti_driver_called", label: "Driver Called" },
-  { key: "pti_dispatcher_informed", label: "Informed Dispatcher" },
+  { key: "pti_dispatcher_informed", label: "Informed Carrier Dispatch" },
 ];
 
 /** R30: same look as the old read-only CheckPill, now an inline checkbox —

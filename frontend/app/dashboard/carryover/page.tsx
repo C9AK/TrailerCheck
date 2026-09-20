@@ -59,7 +59,7 @@ const INLINE_FIELDS: { key: keyof Ticket & string; label: string }[] = [
   { key: "pti_verified", label: "PTI" },
   // R34: PTI-not-sent-yet follow-up log
   { key: "pti_driver_called", label: "Driver Called" },
-  { key: "pti_dispatcher_informed", label: "Informed Disp." },
+  { key: "pti_dispatcher_informed", label: "Informed Carrier" },
   { key: "scale_ticket_received", label: "Scale Tkt" },
 ];
 
