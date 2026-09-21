@@ -124,6 +124,7 @@ TrailerCheck/
 │   │   ├── models/                 # SQLAlchemy ORM models (1 file per table) + enums.py
 │   │   ├── schemas/                # Pydantic request/response models
 │   │   ├── services/               # business logic: scoring, telemetry, pti, ticket_lifecycle, activity, alerts, hazmat_monitor
+│   │   ├── guides/                 # R53: handbook HTML served by /api/guides (synced from docs/guidebook)
 │   │   └── scripts/                # seed.py, reset_data.py, one-off migrate_rN.py scripts
 │   ├── media/                      # QC flag-proof uploads (gitignored; ephemeral on Render free tier)
 │   ├── requirements.txt
@@ -146,6 +147,8 @@ TrailerCheck/
 │   │       ├── qc-review/page.tsx          # QC audit queue (largest logic surface, ~1280 lines)
 │   │       ├── qc-history/page.tsx         # "My Audits" — a QC's own approve/flag history
 │   │       ├── admin/page.tsx              # user + Motor Carrier administration (manager/admin)
+│   │       ├── guides/page.tsx             # R53: handbook shelf (only the books the role may open)
+│   │       ├── guides/[slug]/page.tsx      # R53: handbook reader (iframe + print)
 │   │       └── manager/
 │   │           ├── live-feed/page.tsx      # 5s-polling immutable activity feed
 │   │           ├── archive/page.tsx        # full ticket history + Excel export
@@ -154,13 +157,17 @@ TrailerCheck/
 │   ├── hooks/useTicketTimer.ts     # carryover waiting-timer logic
 │   ├── lib/                        # api.ts (fetch client), types.ts, time.ts, pti.ts
 │   ├── store/                      # authStore, formGuardStore, timeStore (Zustand)
-│   └── public/logo.png
+│   └── public/
+│       ├── logo.png
+│       └── guides/img/             # R53: handbook screenshots (public static; the text is gated)
 ├── docs/                           # original design-spec documents (historical source of truth for business rules)
 │   ├── 01-System-Architecture.md
 │   ├── 02-Database-Schema.md
 │   ├── 03-Backend-API-Spec.md
-│   └── 04-Frontend-UI-UX-Spec.md
+│   ├── 04-Frontend-UI-UX-Spec.md
+│   └── guidebook/                  # authoring source: handbook HTML + screenshots + printed PDFs
 ├── scripts/run-all.ps1             # what run.bat invokes — full bootstrap + launch
+├── scripts/sync_guides.py          # R53: docs/guidebook -> backend/app/guides + frontend/public/guides/img
 ├── run.bat                         # one-command Windows entry point
 ├── render.yaml                     # Render Blueprint (backend + Postgres)
 └── DEPLOYMENT.md
@@ -1802,6 +1809,7 @@ line-level record.
 | R50 | Checking the master PTI box on a LOT trailer's pickup re-stamps that trailer's `last_pti_date` to now. |
 | R51 | Manager-only inline override of a ticket's linked trailer's Last PTI Date on the QC Review card, plus a "Trailer Lookup" popover surfacing a queried trailer's registered PTI date and its most recent hauling truck across the whole fleet — distinguishes a trailer genuinely new to the fleet from one merely new to the truck reviewing it. Every override is audit-logged with the old→new date. |
 | R52 | New `admin` role: a strict superset of manager capability-wise, but protected *from* managers — no one but the account's own owner can edit, deactivate, delete, or change its password, and it can never be deleted at all. Optional backup-password recovery credentials (env-only, never committed). Every password change performed on someone else's account is now audit-logged and surfaced to the admin as a live toast + a persistent Security Log on the Admin page. |
+| R53 | The two handbooks (`docs/guidebook/*.html`) became readable inside the app under a new **Guides** nav item. The document text is served by an auth-gated `/api/guides` route and rendered in an iframe, so the QC Auditor Handbook is limited to qc/manager/admin and never even appears in an employee's list; the screenshots stay public static files on the frontend, keeping ~3 MB of JPEGs off the free-tier backend. `scripts/sync_guides.py` copies an edited handbook out to both serving locations. |
 
 ---
 

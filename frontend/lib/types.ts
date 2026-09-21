@@ -371,3 +371,17 @@ export interface PasswordChangeEvent {
   changed_by_username: string;
   created_at: string;
 }
+
+/** R53: an in-app handbook. The list endpoint only ever returns the ones
+ * the signed-in role may open, so nothing here needs re-filtering. */
+export interface GuideSummary {
+  slug: string;
+  title: string;
+  subtitle: string;
+  audience: string;
+}
+
+export interface GuideDocument extends GuideSummary {
+  /** The complete standalone handbook document, rendered in an iframe. */
+  html: string;
+}

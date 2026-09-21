@@ -13,6 +13,7 @@ from app.api.routes import (
     auth,
     export,
     feed,
+    guides,
     leaderboard,
     lookups,
     notes,
@@ -566,6 +567,7 @@ app.include_router(export.router)
 app.include_router(notes.router)
 app.include_router(trailer_issues.router)
 app.include_router(leaderboard.router)
+app.include_router(guides.router)
 
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")

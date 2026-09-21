@@ -1,0 +1,1516 @@
+<title>UGL Trailer Check Team Handbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+
+<style>
+:root{
+  --paper:#EEF1F5;
+  --surface:#FFFFFF;
+  --surface-2:#F5F7FA;
+  --ink:#131A24;
+  --ink-2:#3C4757;
+  --muted:#697586;
+  --rule:#D5DCE5;
+  --rule-strong:#B6C1CF;
+  --navy:#132743;
+  --navy-ink:#E8EEF7;
+  --crimson:#C0202F;
+  --crimson-soft:#FBE9EA;
+  --amber:#B06A00;
+  --amber-soft:#FCF1DE;
+  --green:#12694A;
+  --green-soft:#E3F3EC;
+  --violet:#5B3FA8;
+  --violet-soft:#EFEBFA;
+  --shadow:0 1px 2px rgba(19,39,67,.06), 0 8px 24px -16px rgba(19,39,67,.35);
+  --shot-frame:#C9D2DD;
+  --step-w:3.1rem;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0A1120;
+    --surface:#111C2E;
+    --surface-2:#16243A;
+    --ink:#E4EBF4;
+    --ink-2:#BCC9DA;
+    --muted:#8798AF;
+    --rule:#243550;
+    --rule-strong:#35486A;
+    --navy:#0B1526;
+    --navy-ink:#DCE6F4;
+    --crimson:#F0606E;
+    --crimson-soft:#2C1119;
+    --amber:#E5A94A;
+    --amber-soft:#2B2110;
+    --green:#4FC79A;
+    --green-soft:#0E2A22;
+    --violet:#A78CF0;
+    --violet-soft:#1C1733;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.9);
+    --shot-frame:#25374F;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0A1120;
+  --surface:#111C2E;
+  --surface-2:#16243A;
+  --ink:#E4EBF4;
+  --ink-2:#BCC9DA;
+  --muted:#8798AF;
+  --rule:#243550;
+  --rule-strong:#35486A;
+  --navy:#0B1526;
+  --navy-ink:#DCE6F4;
+  --crimson:#F0606E;
+  --crimson-soft:#2C1119;
+  --amber:#E5A94A;
+  --amber-soft:#2B2110;
+  --green:#4FC79A;
+  --green-soft:#0E2A22;
+  --violet:#A78CF0;
+  --violet-soft:#1C1733;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.9);
+  --shot-frame:#25374F;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.62;
+  -webkit-text-size-adjust:100%;
+}
+img{max-width:100%;display:block}
+a{color:var(--crimson);text-underline-offset:3px}
+h1,h2,h3,h4{text-wrap:balance;margin:0}
+
+/* ---------- masthead ---------- */
+.masthead{
+  background:var(--navy);
+  color:var(--navy-ink);
+  border-bottom:5px solid var(--crimson);
+}
+.masthead-in{
+  max-width:1220px;margin:0 auto;
+  padding-block:2.4rem 2.1rem;padding-left:20px;padding-right:20px;
+  display:grid;gap:1.1rem;
+}
+.kicker{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;
+  color:#9FB4D0;
+}
+.masthead h1{
+  font-family:Oswald,"Arial Narrow",sans-serif;
+  font-weight:600;letter-spacing:.01em;text-transform:uppercase;
+  font-size:clamp(2.1rem,6vw,3.5rem);line-height:1.02;
+}
+.masthead h1 em{font-style:normal;color:#FF8892}
+.masthead p{margin:0;max-width:62ch;color:#C3D2E6;font-size:1.02rem}
+.mast-meta{
+  display:flex;flex-wrap:wrap;gap:.5rem .75rem;
+  font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.08em;
+  text-transform:uppercase;color:#8FA6C4;
+}
+.mast-meta span{border:1px solid rgba(159,180,208,.35);border-radius:2px;padding:.25rem .5rem}
+
+/* ---------- shell ---------- */
+.shell{
+  max-width:1220px;margin:0 auto;
+  padding-left:20px;padding-right:20px;padding-block:0 4rem;
+  display:grid;grid-template-columns:230px minmax(0,1fr);gap:2.6rem;
+  align-items:start;
+}
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:0}
+}
+
+/* ---------- table of contents ---------- */
+.toc{
+  position:sticky;top:calc(env(safe-area-inset-top,0px) + 1rem);
+  padding-block:2rem;
+  max-height:calc(100dvh - 2rem);overflow-y:auto;
+}
+.toc h2{
+  font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.8rem;font-weight:600;
+}
+.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:.1rem;counter-reset:toc}
+.toc a{
+  display:grid;grid-template-columns:1.9rem 1fr;gap:.35rem;
+  padding:.38rem .5rem;border-radius:3px;
+  text-decoration:none;color:var(--ink-2);font-size:.88rem;line-height:1.35;
+  border-left:2px solid transparent;
+}
+.toc a .n{
+  font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--muted);
+  padding-top:.12rem;
+}
+.toc a:hover{background:var(--surface-2);color:var(--ink)}
+.toc a.on{background:var(--surface);color:var(--crimson);border-left-color:var(--crimson);font-weight:600}
+.toc a.on .n{color:var(--crimson)}
+@media (max-width:900px){
+  .toc{position:static;max-height:none;padding-block:1.6rem 0;overflow:visible}
+  .toc ol{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+}
+
+/* ---------- main ---------- */
+main{padding-block:2.4rem 0;min-width:0}
+.chapter{scroll-margin-top:1.5rem;margin-bottom:3.6rem}
+.chapter-head{
+  display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:baseline;
+  border-bottom:2px solid var(--rule-strong);padding-bottom:.7rem;margin-bottom:1.6rem;
+}
+.chapter-head .num{
+  font-family:Oswald,"Arial Narrow",sans-serif;font-weight:700;
+  font-size:2.6rem;line-height:.85;color:var(--crimson);
+  font-variant-numeric:tabular-nums;
+}
+.chapter-head h2{
+  font-family:Oswald,"Arial Narrow",sans-serif;font-weight:600;text-transform:uppercase;
+  letter-spacing:.015em;font-size:clamp(1.4rem,3.4vw,1.95rem);line-height:1.1;
+}
+.lede{font-size:1.06rem;color:var(--ink-2);max-width:66ch;margin-bottom:1.4rem}
+p{margin:0 0 1rem;max-width:68ch}
+h3{
+  font-family:"IBM Plex Sans",sans-serif;font-weight:700;font-size:1.13rem;
+  margin:2rem 0 .6rem;letter-spacing:-.005em;
+}
+h4{font-size:.98rem;font-weight:700;margin:1.3rem 0 .4rem}
+ul,ol{margin:0 0 1rem;padding-left:1.25rem;max-width:68ch}
+li{margin-bottom:.35rem}
+strong{font-weight:600}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.88em}
+code{background:var(--surface-2);border:1px solid var(--rule);border-radius:3px;padding:.06em .32em}
+
+/* ---------- steps ---------- */
+.step{
+  display:grid;grid-template-columns:var(--step-w) minmax(0,1fr);gap:1.1rem;
+  margin:1.6rem 0 2rem;
+}
+.step-n{
+  font-family:Oswald,"Arial Narrow",sans-serif;font-weight:600;font-size:1.05rem;
+  color:#fff;background:var(--crimson);border-radius:3px;
+  height:2rem;display:flex;align-items:center;justify-content:center;
+  font-variant-numeric:tabular-nums;letter-spacing:.06em;
+}
+.step-body{min-width:0}
+.step-body > h3{margin-top:0}
+.step-body > :last-child{margin-bottom:0}
+@media (max-width:560px){
+  .step{grid-template-columns:2.2rem 1fr;gap:.7rem}
+  :root{--step-w:2.2rem}
+}
+
+/* ---------- screenshots ---------- */
+figure{
+  margin:1.2rem 0 1.4rem;
+  background:var(--surface);
+  border:1px solid var(--rule);
+  border-radius:4px;
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+figure img{
+  width:100%;
+  border-bottom:1px solid var(--rule);
+  background:#0A1120;
+}
+figcaption{
+  padding:.6rem .85rem;
+  font-size:.83rem;line-height:1.5;color:var(--muted);
+  display:grid;grid-template-columns:auto 1fr;gap:.55rem;align-items:baseline;
+}
+figcaption b{
+  font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--crimson);white-space:nowrap;
+}
+figure.tall img{object-fit:contain}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:4px solid var(--navy);
+  background:var(--surface);
+  padding:.85rem 1rem;margin:1.1rem 0;border-radius:0 3px 3px 0;
+  max-width:70ch;
+}
+.note > :last-child{margin-bottom:0}
+.note .lbl{
+  display:block;
+  font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:600;margin-bottom:.3rem;color:var(--navy);
+}
+.note.rule{border-color:var(--navy);background:var(--surface)}
+.note.rule .lbl{color:var(--ink)}
+.note.warn{border-color:var(--amber);background:var(--amber-soft)}
+.note.warn .lbl{color:var(--amber)}
+.note.stop{border-color:var(--crimson);background:var(--crimson-soft)}
+.note.stop .lbl{color:var(--crimson)}
+.note.tip{border-color:var(--green);background:var(--green-soft)}
+.note.tip .lbl{color:var(--green)}
+
+/* ---------- chips ---------- */
+.chip{
+  display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.72rem;
+  font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  padding:.16rem .45rem;border-radius:3px;border:1px solid;white-space:nowrap;
+}
+.chip.draft{color:#1D6FB8;border-color:#1D6FB8;background:transparent}
+.chip.await{color:var(--amber);border-color:var(--amber);background:var(--amber-soft)}
+.chip.pending{color:var(--ink-2);border-color:var(--rule-strong);background:var(--surface-2)}
+.chip.flag{color:#fff;border-color:var(--crimson);background:var(--crimson)}
+.chip.resolved{color:var(--violet);border-color:var(--violet);background:var(--violet-soft)}
+.chip.ok{color:var(--green);border-color:var(--green);background:var(--green-soft)}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;margin:1.1rem 0 1.4rem;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.91rem;min-width:520px}
+th,td{text-align:left;padding:.6rem .8rem;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{
+  background:var(--surface-2);
+  font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ---------- lifecycle flow ---------- */
+.flow{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;
+  margin:1.4rem 0 1.6rem;padding:1.1rem;
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+}
+.flow .node{
+  font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;
+  letter-spacing:.04em;padding:.4rem .6rem;border-radius:3px;border:1px solid var(--rule-strong);
+  background:var(--surface-2);color:var(--ink);white-space:nowrap;
+}
+.flow .node.you{border-color:var(--crimson);color:var(--crimson);background:var(--crimson-soft)}
+.flow .node.qc{border-color:var(--navy);background:var(--navy);color:var(--navy-ink)}
+.flow .node.done{border-color:var(--green);color:var(--green);background:var(--green-soft)}
+.flow .arr{color:var(--muted);font-size:.9rem}
+
+/* ---------- gate checklist ---------- */
+.gate{
+  counter-reset:g;list-style:none;padding:0;margin:1.2rem 0 1.4rem;max-width:70ch;
+  display:grid;gap:.4rem;
+}
+.gate li{
+  counter-increment:g;
+  display:block;position:relative;
+  background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--green);
+  padding:.6rem .8rem .6rem 2.5rem;border-radius:0 3px 3px 0;margin:0;
+}
+.gate li::before{
+  content:counter(g);position:absolute;left:.9rem;top:.6rem;
+  font-family:"IBM Plex Mono",monospace;font-size:.78rem;font-weight:600;color:var(--green);
+}
+
+/* ---------- key/value cards ---------- */
+.cards{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin:1.2rem 0 1.4rem}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:.85rem .95rem}
+.card h4{margin:0 0 .3rem;font-size:.95rem}
+.card p{margin:0;font-size:.9rem;color:var(--ink-2)}
+
+/* ---------- misc ---------- */
+.divider{height:1px;background:var(--rule);border:0;margin:2.4rem 0}
+.footer{
+  border-top:2px solid var(--rule-strong);margin-top:2rem;padding-block:1.6rem 0;
+  font-size:.86rem;color:var(--muted);
+}
+.footer p{max-width:70ch}
+.tocwrap-title{
+  font-family:Oswald,"Arial Narrow",sans-serif;text-transform:uppercase;
+  font-size:.95rem;letter-spacing:.06em;color:var(--ink);margin-bottom:.15rem;
+}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+:focus-visible{outline:2px solid var(--crimson);outline-offset:2px}
+
+/* ---------- print ---------- */
+@media print{
+  :root{
+    --paper:#fff;--surface:#fff;--surface-2:#F3F5F8;--ink:#101820;--ink-2:#2B3542;
+    --muted:#5A6573;--rule:#C8D0DA;--rule-strong:#9AA6B5;--navy:#132743;
+    --crimson:#A81B28;--shadow:none;
+  }
+  body{font-size:10.5pt;line-height:1.5;background:#fff}
+  .toc{display:none}
+  .shell{display:block;max-width:none;padding:0}
+  main{padding:0}
+  .masthead{border-bottom-width:4pt}
+  .masthead-in{padding-block:1.6rem}
+  .chapter{margin-bottom:1.6rem;break-after:auto}
+  .chapter-head{break-after:avoid}
+  h3,h4{break-after:avoid}
+  figure{break-inside:avoid;box-shadow:none;border-color:#C8D0DA;margin-inline:auto}
+  figure img{max-height:155mm;width:auto;max-width:100%;margin-inline:auto}
+  .note,.gate li,.card,.flow{break-inside:avoid}
+  p,li{orphans:2;widows:2}
+  .tw{overflow:visible}
+  thead{display:table-header-group}
+  tr{break-inside:avoid}
+  table{min-width:0}
+  a{color:#A81B28;text-decoration:none}
+  @page{margin:14mm 13mm}
+}
+</style>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="kicker">UGL Trailer Check &nbsp;·&nbsp; Team Handbook &nbsp;·&nbsp; Revision R52</div>
+    <h1>Team<br><em>Handbook</em></h1>
+    <p>Everything you do in Trailer Check, in the order you'll do it — from signing in to getting a
+       pickup past QC. Every screen in this book is a real screenshot of the app.</p>
+    <div class="mast-meta">
+      <span>Role: Employee</span>
+      <span>13 chapters</span>
+      <span>Read once, keep open</span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol id="toc-list">
+      <li><a href="#c1"><span class="n">01</span><span>What this system is for</span></a></li>
+      <li><a href="#c2"><span class="n">02</span><span>Signing in</span></a></li>
+      <li><a href="#c3"><span class="n">03</span><span>Reading your screen</span></a></li>
+      <li><a href="#c4"><span class="n">04</span><span>Creating a pickup</span></a></li>
+      <li><a href="#c5"><span class="n">05</span><span>A pickup, click by click</span></a></li>
+      <li><a href="#c6"><span class="n">06</span><span>The five rules that send it to QC</span></a></li>
+      <li><a href="#c7"><span class="n">07</span><span>Carryover &amp; the scale chase</span></a></li>
+      <li><a href="#c8"><span class="n">08</span><span>When QC flags you</span></a></li>
+      <li><a href="#c9"><span class="n">09</span><span>Shift notes &amp; handover</span></a></li>
+      <li><a href="#c10"><span class="n">10</span><span>Trailer issues</span></a></li>
+      <li><a href="#c11"><span class="n">11</span><span>Finding old pickups</span></a></li>
+      <li><a href="#c12"><span class="n">12</span><span>Your score &amp; the leaderboard</span></a></li>
+      <li><a href="#c13"><span class="n">13</span><span>Quick reference</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ================= 1 ================= -->
+    <section class="chapter" id="c1">
+      <div class="chapter-head"><span class="num">01</span><h2>What this system is for</h2></div>
+
+      <p class="lede">Trailer Check replaced the shared spreadsheet. Every trailer pickup is a
+      <strong>ticket</strong>. A ticket is not finished when you save it — it's finished when QC approves it.</p>
+
+      <p>Your job is the first half of that: put a complete, truthful ticket in front of QC as fast as you can.
+      The app decides on its own whether a ticket is complete. You never pick a status — you fill in fields,
+      and the ticket moves itself.</p>
+
+      <h3>The life of a ticket</h3>
+      <div class="flow">
+        <span class="node you">YOU CREATE IT</span><span class="arr">→</span>
+        <span class="node">AWAITING DRIVER</span><span class="arr">→</span>
+        <span class="node">PENDING QC</span><span class="arr">→</span>
+        <span class="node qc">QC REVIEWS</span><span class="arr">→</span>
+        <span class="node done">APPROVED</span>
+        <span class="arr">&nbsp;&nbsp;or&nbsp;&nbsp;</span>
+        <span class="node" style="border-color:var(--crimson);color:var(--crimson)">FLAGGED</span><span class="arr">→</span>
+        <span class="node you">YOU FIX IT</span><span class="arr">→</span>
+        <span class="node">RESOLVED</span><span class="arr">→</span>
+        <span class="node qc">QC AGAIN</span>
+      </div>
+
+      <div class="note rule">
+        <span class="lbl">The one rule to remember</span>
+        <p>You never move a ticket forward by clicking a status button. You move it forward by
+        <strong>filling in what's missing</strong>. The moment the last required field is satisfied, the ticket
+        jumps to <span class="chip pending">Pending QC</span> by itself.</p>
+      </div>
+
+      <h3>The statuses you'll see</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Status</th><th>What it means</th><th>Whose move</th></tr></thead>
+          <tbody>
+            <tr><td><span class="chip draft">Still Sending</span></td><td>A draft you parked on purpose. Invisible to QC until you submit it.</td><td>Yours</td></tr>
+            <tr><td><span class="chip await">Awaiting Driver</span></td><td>Saved, but something required is still missing — or you're waiting on a scale ticket.</td><td>Yours</td></tr>
+            <tr><td><span class="chip pending">Pending QC</span></td><td>Complete. It's in the QC queue now.</td><td>QC's</td></tr>
+            <tr><td><span class="chip flag">Flagged</span></td><td>QC rejected it and told you why. It's on your Carryover board.</td><td>Yours</td></tr>
+            <tr><td><span class="chip resolved">Resolved</span></td><td>You fixed it and resent it. Back in the QC queue.</td><td>QC's</td></tr>
+            <tr><td><span class="chip ok">Approved</span></td><td>Passed. +10 to your score.</td><td>Nobody's — unless a scale ticket is still open.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <span class="lbl">Approved is not always "done"</span>
+        <p>If the pickup needed a scale ticket and you haven't checked <strong>Scale ticket received</strong>,
+        the row stays on the Carryover board <em>even after QC approves it</em>. Approval ends the audit;
+        it does not end the scale chase.</p>
+      </div>
+
+      <div class="note tip">
+        <span class="lbl">About the screenshots in this book</span>
+        <p>Truck numbers, driver names and carriers in these screenshots are practice data. Your screen will
+        show real loads. If your computer is set to a light theme the colours will be lighter than shown here —
+        the layout and every button are in exactly the same place.</p>
+      </div>
+    </section>
+
+    <!-- ================= 2 ================= -->
+    <section class="chapter" id="c2">
+      <div class="chapter-head"><span class="num">02</span><h2>Signing in</h2></div>
+
+      <p class="lede">Your manager creates your account and hands you a username and password.
+      There is no "sign up" — if you don't have an account, ask your manager, not the app.</p>
+
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <p>Open the Trailer Check address your manager gave you. You land on the sign-in card.</p>
+          <figure style="max-width:470px">
+            <img src="img/x-00-login.jpg" alt="The Trailer Check sign-in screen: UGL logo above a Username field, a Password field and a red Sign in button.">
+            <figcaption><b>Sign in</b><span>Username, password, Sign in. That's the whole screen.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <p>Type your username and password and press <strong>Sign in</strong> (or just hit Enter).
+          A wrong password shows a red bar and nothing else happens — no lockout, try again.</p>
+          <figure style="max-width:470px">
+            <img src="img/x-01-login-error.jpg" alt="The sign-in card showing a red banner reading Invalid username or password between the password field and the Sign in button.">
+            <figcaption><b>Bad password</b><span>“Invalid username or password.” Check caps lock, then try again.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="note warn">
+        <span class="lbl">If the page hangs for a few seconds</span>
+        <p>The server sleeps when nobody's using it. The first sign-in of the morning can take 10–30 seconds
+        and you may see a "waking up" message. Wait — don't keep clicking Sign in.</p>
+      </div>
+
+      <p>You stay signed in for 8 hours. After that you'll be bounced back here. Use <strong>Log out</strong>
+      at the bottom of the sidebar if you share a computer with another shift.</p>
+    </section>
+
+    <!-- ================= 3 ================= -->
+    <section class="chapter" id="c3">
+      <div class="chapter-head"><span class="num">03</span><h2>Reading your screen</h2></div>
+
+      <p class="lede">Everything lives in the left sidebar. It never moves. Learn these seven items and you
+      know where everything is.</p>
+
+      <figure style="max-width:268px">
+        <img src="img/x-02-sidebar.png" alt="The Trailer Check sidebar: New Pickup, Carryover with a red 3 badge, All Pickups, Notes, Trailer Issues with an amber 2 badge, Leaderboard, My Pickups; below that an Active Drafts panel with truck 8156, the username and role, a CST/Local time toggle and Log out.">
+        <figcaption><b>Sidebar</b><span>Badges, drafts, time zone and log out — all in one rail.</span></figcaption>
+      </figure>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Item</th><th>What it's for</th></tr></thead>
+          <tbody>
+            <tr><td><strong>New Pickup</strong></td><td>The intake form. Where every ticket starts.</td></tr>
+            <tr><td><strong>Carryover</strong></td><td>Your action list: tickets QC flagged, plus everything still waiting on a scale ticket.</td></tr>
+            <tr><td><strong>All Pickups</strong></td><td>The whole team's board, read-only. Use it to answer "did anyone already do this truck?"</td></tr>
+            <tr><td><strong>Notes</strong></td><td>Shift handover. Auto-writes itself from your open gaps.</td></tr>
+            <tr><td><strong>Trailer Issues</strong></td><td>Physical trailer problems QC found. Not your fault, not your score — but somebody has to chase them.</td></tr>
+            <tr><td><strong>Leaderboard</strong></td><td>Team ranking by accuracy and speed.</td></tr>
+            <tr><td><strong>My Pickups</strong></td><td>Every ticket you've ever created.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The badges</h3>
+      <div class="cards">
+        <div class="card">
+          <h4>Red number on Carryover</h4>
+          <p>Flagged tickets waiting on you. It pulses. Clear it before the end of your shift.</p>
+        </div>
+        <div class="card">
+          <h4>Amber number on Trailer Issues</h4>
+          <p>Open trailer problems on the whole team's board. Calmer on purpose — it's a nudge, not an alarm.</p>
+        </div>
+        <div class="card">
+          <h4>Score pill, top right</h4>
+          <p>Your running performance score. Starts at 100. +10 per approval, minus a penalty per flag.</p>
+        </div>
+      </div>
+
+      <h3>Active Drafts</h3>
+      <p>Anything you parked with <strong>Save Draft (Still Sending)</strong> sits here. Click the truck number
+      to pick the form back up exactly where you left it; click the bin icon to throw the draft away if the load
+      got cancelled.</p>
+
+      <h3>CST vs Local</h3>
+      <p>The <code>CST</code> / <code>Local</code> toggle changes only how times are <em>printed</em> on your
+      screen. It does <strong>not</strong> change which shift a ticket belongs to — shifts are always Central
+      Time, wherever you're sitting.</p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Shift</th><th>Central Time window</th></tr></thead>
+          <tbody>
+            <tr><td>First</td><td class="num">1:00 AM – 9:00 AM</td></tr>
+            <tr><td>Main</td><td class="num">9:00 AM – 5:00 PM</td></tr>
+            <tr><td>Third</td><td class="num">5:00 PM – 1:00 AM (crosses midnight)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Anything between midnight and 1:00 AM counts as the <em>previous</em> day's Third shift.</p>
+
+      <h3>Pop-up messages</h3>
+      <p>Small boxes appear at the bottom-right and disappear after about 12 seconds. Red = something needs you
+      now (QC flagged your ticket). Amber = a reminder (items still missing, open trailer issues).</p>
+      <figure>
+        <img src="img/e-22-toast-reminder.jpg" alt="The New Pickup screen with an amber notification in the bottom-right corner reading: 2 open trailer issue(s) — e.g. truck 5120: Rear passenger-side mudflap bracket is cracked. Check Trailer Issues and follow up.">
+        <figcaption><b>Reminder</b><span>An amber nudge about open trailer issues, shown just after signing in.</span></figcaption>
+      </figure>
+
+      <div class="note stop">
+        <span class="lbl">Full-width red bar across the top</span>
+        <p>That is the <strong>hazmat movement alert</strong>. UGL does not haul hazmat. If a load someone marked
+        as hazmat starts rolling, every person logged in gets that bar, with the truck number and its speed.
+        It stays up until someone dismisses it. Tell your manager immediately — don't just dismiss it.</p>
+      </div>
+    </section>
+
+    <!-- ================= 4 ================= -->
+    <section class="chapter" id="c4">
+      <div class="chapter-head"><span class="num">04</span><h2>Creating a pickup</h2></div>
+
+      <p class="lede">This is the job. The form is long but it always runs in the same order, top to bottom:
+      Truck → Trailer &amp; Papers → PTI → Documents &amp; Condition → Save.</p>
+
+      <figure>
+        <img src="img/e-02-newpickup-empty.jpg" alt="An empty New Pickup form showing the Truck panel with Motor Carrier and Truck Number, the Trailer and Papers panel with a LOT Trailer toggle, and the start of the PTI Verification panel.">
+        <figcaption><b>Empty form</b><span>Only the two red-starred fields are required to save: Motor Carrier and Truck Number.</span></figcaption>
+      </figure>
+
+      <h3>Step 1 — Truck</h3>
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <p>Pick the <strong>Motor Carrier</strong> from the dropdown, then type the <strong>Truck Number</strong>.
+          Get the carrier right first — the truck lookup only searches inside that carrier's fleet.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <p>Wait about a second. Driver, Location, Model and Fuel % fill themselves in from the truck's
+          telematics. Every one of those four fields is still yours to type over if the feed is wrong.</p>
+          <figure>
+            <img src="img/e-03-truck-trailer-filled.jpg" alt="The New Pickup form with Motor Carrier AL Amin, Truck Number 3318, and auto-filled Driver James Carter, Location Chicago IL Yard 4, Model 2021 Volvo VNL 860 and Fuel 63. Below, the Trailer and Papers panel shows trailer TRL-4412 with a saved-papers box.">
+            <figcaption><b>Auto-fill</b><span>Driver, location, model and fuel arrive on their own. Overwrite anything that looks wrong.</span></figcaption>
+          </figure>
+          <div class="note warn">
+            <span class="lbl">If nothing fills in</span>
+            <p>You'll get a small grey hint instead. That means the truck isn't in that carrier's fleet — usually
+            the wrong carrier, or a typo in the number. It does <strong>not</strong> stop you saving; type the
+            driver and location by hand and carry on.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Step 2 — "Still using trailer …?"</h3>
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <p>If this truck was here before, a box pops up the moment you finish typing the truck number,
+          showing what it pulled last time.</p>
+          <figure>
+            <img src="img/e-04-still-using-trailer-modal.jpg" alt="A dialog headed Still using trailer TRL-4412? It lists Trailer Number TRL-4412, Last PTI Date 09/13/2026, PTI Box Checked, Papers Check with Registration and Inspection ticked and Sticker crossed, and Trailer Docs None on file. Two buttons: Yes, same trailer and No, different trailer.">
+            <figcaption><b>Last time out</b><span>What this truck pulled before, and what was verified on that ticket.</span></figcaption>
+          </figure>
+          <ul>
+            <li><strong>Yes, same trailer</strong> — copies the trailer number and its PTI date into the form. Nothing else.</li>
+            <li><strong>No, different trailer</strong> — closes the box and leaves the form alone.</li>
+          </ul>
+          <div class="note stop">
+            <span class="lbl">Confirming does not verify anything</span>
+            <p>It fills in the trailer number and PTI date only. The papers and the PTI boxes stay <em>unticked</em>
+            on purpose — you verify those fresh for this load, every time. Never treat the pop-up as "already checked".</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Step 3 — Trailer &amp; papers</h3>
+      <div class="step">
+        <span class="step-n">4</span>
+        <div class="step-body">
+          <p>Type the <strong>Trailer Number</strong>. It's optional on a normal pickup — but type it anyway.
+          The trailer number is what makes the inspection and registration papers stick to that trailer forever.</p>
+          <p>As soon as a trailer number is present, a <strong>Saved papers</strong> box appears:</p>
+          <ul>
+            <li><strong>Save Inspection paper</strong> / <strong>Save Registration paper</strong> — upload a file.</li>
+            <li><strong>Paste</strong> — paste a screenshot, a photo, or a copied link. If nothing happens when you
+            click Paste, click it again and press <kbd>Ctrl</kbd>+<kbd>V</kbd>.</li>
+          </ul>
+          <div class="note tip">
+            <span class="lbl">Why this saves you time</span>
+            <p>Papers are saved against the <em>trailer</em>, not this ticket. The next time that trailer shows up —
+            next week, behind a different truck, on somebody else's shift — the papers are already attached.
+            Upload once, never again.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">5</span>
+        <div class="step-body">
+          <h4>LOT trailers</h4>
+          <p>Flip <strong>LOT Trailer</strong> on for a trailer that lives on our own lot rather than arriving with
+          the load. Two things change:</p>
+          <ul>
+            <li>Trailer Number becomes <strong>required</strong> (it gets a red star).</li>
+            <li>A <strong>Last PTI Date</strong> field appears, with a warning if that date is stale.</li>
+          </ul>
+          <figure>
+            <img src="img/e-05-lot-trailer-on.jpg" alt="The Trailer and Papers panel with the LOT Trailer toggle switched on. Trailer Number now has a red required star, and a Last PTI Date field shows 09/13/2026 with an amber warning: PTI is 7 day(s) old — the master PTI checkbox is required.">
+            <figcaption><b>LOT trailer on</b><span>A stale PTI date puts the warning in amber and forces a fresh PTI check.</span></figcaption>
+          </figure>
+          <div class="note rule">
+            <span class="lbl">The 7-day LOT rule</span>
+            <p>A LOT trailer can go to QC <strong>without</strong> a fresh PTI only if its last PTI is
+            <strong>less than 7 days old</strong>. At 7 days or more you must tick the master PTI box. The form
+            tells you which case you're in, in plain words, right under the date.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Step 4 — PTI verification</h3>
+      <p>This panel has two separate things in it, and mixing them up is the single most common mistake new
+      team members make.</p>
+
+      <div class="cards">
+        <div class="card" style="border-left:3px solid var(--crimson)">
+          <h4>The master box (red outline)</h4>
+          <p>One checkbox. <strong>This alone</strong> is what marks PTI as done and what QC's gate reads.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--muted)">
+          <h4>The item list below it</h4>
+          <p>25 lines. A log of what you saw in the video. It <strong>never</strong> blocks anything.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">6</span>
+        <div class="step-body">
+          <p>Watch the driver's PTI video. Tick the master box. Then use <strong>Select All</strong> (top right)
+          or tick individual rows to record what you actually saw.</p>
+          <figure>
+            <img src="img/e-06-pti-full.jpg" alt="The PTI Verification panel with the master verification box ticked and Select All ticked. Below it the Trailer section lists Side DOT Tape, Rear DOT Tape, No Placards Attached, Movable Mudflap with Left and Right boxes, Tires and Rims, Brakes and Suspension and Airlines; the Lights section lists Front Clearance, Side Marker, Side Clearance, ABS, Turn Signal, Brake, Plate, 3 Middle Rear ID and 2 Corner Rear ID lights. A green status line reads PTI status: VERIFIED (master checkbox) · video log: 25 item(s) noted.">
+            <figcaption><b>PTI panel</b><span>Master box at the top; the 25-item video log below. The green line at the bottom is your receipt.</span></figcaption>
+          </figure>
+          <p>The green line at the bottom always tells you where you stand:
+          <span class="mono">PTI status: VERIFIED (master checkbox) · video log: 25 item(s) noted</span>.</p>
+        </div>
+      </div>
+
+      <div class="note warn">
+        <span class="lbl">If the PTI hasn't come in yet</span>
+        <p>Leave the master box empty and an amber strip appears with <strong>Driver called</strong> and
+        <strong>Informed carrier dispatch</strong>. Tick those to record that you're chasing it. They don't unblock
+        anything — they're your proof that you did the follow-up. The strip disappears the moment you tick
+        the master box.</p>
+      </div>
+
+      <div class="step">
+        <span class="step-n">7</span>
+        <div class="step-body">
+          <h4>Chassis loads</h4>
+          <p>Turn on <strong>Is this a Chassis?</strong> and two extra rows appear at the bottom of the list:
+          locks horizontal, and zip ties on locks. Only turn it on for an actual chassis.</p>
+          <figure>
+            <img src="img/e-07-chassis-rows.jpg" alt="The PTI item list scrolled to the bottom, showing an extra CHASSIS section with two ticked rows: Locks are in Lock Position (Horizontal) and Zip Ties on Locks.">
+            <figcaption><b>Chassis rows</b><span>Two extra checks that only exist when the Chassis toggle is on.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <h3>Step 5 — Documents &amp; condition</h3>
+      <div class="step">
+        <span class="step-n">8</span>
+        <div class="step-body">
+          <p>Work across the panel: hazmat, KPRA group, the six checkboxes, weight, condition.</p>
+          <figure>
+            <img src="img/e-08-documents-condition.jpg" alt="The Documents and Condition panel: a Hazmat load toggle (off), a KPRA destination group box with the 41-foot group selected, then six checkboxes — Registration verified, Inspection paper verified, ELD mentioned, BOL present, Sticker verified (unticked), Checklist sent. Below them Weight reads 41,250 lbs, Trailer Condition is Good, Condition Notes is empty and Needs scale is unticked.">
+            <figcaption><b>Documents &amp; condition</b><span>Inspection paper <em>or</em> sticker — one of the two is enough.</span></figcaption>
+          </figure>
+          <div class="tw">
+            <table>
+              <thead><tr><th>Field</th><th>What to do</th><th>Blocks QC?</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Hazmat load</strong></td><td>Leave off unless the load really is hazmat. Turning it on starts a live GPS watch on that truck and alerts the whole team if it moves.</td><td>No</td></tr>
+                <tr><td><strong>KPRA destination group</strong></td><td>Pick the group that matches where the load is going — CA/FL 40ft, the 41ft group, or the 43ft group. It's the kingpin-to-rear-axle limit you must remind the driver about.</td><td>No</td></tr>
+                <tr><td><strong>Registration verified</strong></td><td>Tick when you've seen the registration.</td><td><strong>Yes</strong></td></tr>
+                <tr><td><strong>Inspection paper verified</strong></td><td>Tick when you've seen the inspection paper.</td><td><strong>Yes — or sticker</strong></td></tr>
+                <tr><td><strong>Sticker verified</strong></td><td>Tick when you've seen the sticker instead.</td><td><strong>Yes — or inspection</strong></td></tr>
+                <tr><td><strong>BOL present</strong></td><td>Tick when the bill of lading is in hand.</td><td><strong>Yes</strong></td></tr>
+                <tr><td><strong>ELD mentioned</strong></td><td>Tick when you reminded the driver about the ELD.</td><td>No</td></tr>
+                <tr><td><strong>Checklist sent</strong></td><td>Tick when the checklist went out to the driver.</td><td>No</td></tr>
+                <tr><td><strong>Weight</strong></td><td>Free text — <span class="mono">41,250 lbs</span>, <span class="mono">CRVR</span>, <span class="mono">pending scale</span>. Write what you actually know.</td><td>No</td></tr>
+                <tr><td><strong>Trailer Condition</strong></td><td>Good / Fair / Damaged, plus notes if it isn't Good.</td><td>No</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="note rule">
+            <span class="lbl">Inspection or sticker — not both</span>
+            <p>The line above the checkboxes says it: <em>“Inspection paper <strong>or</strong> sticker — one of the
+            two is enough.”</em> Ticking both is fine, ticking neither is what holds the ticket back.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Step 6 — Needs scale &amp; the balancer</h3>
+      <div class="step">
+        <span class="step-n">9</span>
+        <div class="step-body">
+          <p>Tick <strong>Needs scale</strong> if this load has to cross a scale. The app warns you straight away:
+          <em>“Ticket will be saved to Carryover until the scale ticket arrives.”</em> A
+          <strong>Scale ticket received</strong> box appears next to it — leave it empty until the ticket is
+          actually in your hand.</p>
+          <p>Ticking Needs scale also opens the <strong>DOT Predictive Balancer</strong>.</p>
+          <figure>
+            <img src="img/e-09-scale-balancer.jpg" alt="The DOT Predictive Balancer panel, marked OVERWEIGHT. Steer reads 11,800 in amber, Drive 35,400 in red, Trailer 31,900 in green against limits of 12k, 34k and 34k. Below are Current Fuel 63, a KPRA Unlocked box, 5th Wheel and Tandems hole sliders, and an Action Plan panel reading: SOLUTION: Slide Tandems FORWARD 8 hole(s) (Shifts ~2000lbs to Trailer). Fuel Status: Safe to fill tanks to 100%.">
+            <figcaption><b>DOT Predictive Balancer</b><span>Type the three axle weights and it writes the fix for you.</span></figcaption>
+          </figure>
+          <ol>
+            <li>Type the three scale weights — <strong>Steer</strong> (limit 12,000), <strong>Drive</strong> (34,000), <strong>Trailer</strong> (34,000).</li>
+            <li>Anything over its limit turns red and the header flips from <span class="mono">LEGAL TO ROLL</span> to <span class="mono">OVERWEIGHT</span>.</li>
+            <li>Read the <strong>Action Plan</strong> at the bottom: which way to slide, how many holes, and a safe maximum fuel level.</li>
+            <li>Drag the 5th-wheel and tandem sliders to test a move before you tell the driver to make it.</li>
+          </ol>
+          <div class="note tip">
+            <span class="lbl">The balancer is a scratch pad</span>
+            <p>Nothing you type into it is saved or sent anywhere. It's a calculator for you, on the spot.
+            Use it freely; press <strong>Reset data</strong> when you're done.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Step 7 — Save</h3>
+      <div class="step">
+        <span class="step-n">10</span>
+        <div class="step-body">
+          <p>Two buttons at the bottom:</p>
+          <div class="cards">
+            <div class="card" style="border-left:3px solid var(--crimson)">
+              <h4>Create Ticket</h4>
+              <p>Files it into the real workflow. It becomes <span class="chip pending">Pending QC</span> if
+              everything's satisfied, otherwise <span class="chip await">Awaiting Driver</span>. The form then
+              clears for your next truck.</p>
+            </div>
+            <div class="card" style="border-left:3px solid #1D6FB8">
+              <h4>Save Draft (Still Sending)</h4>
+              <p>Parks it. QC can't see it, it won't show on Carryover, and it won't appear in shift notes.
+              The form clears so you can start another truck. Pick it back up from Active Drafts.</p>
+            </div>
+          </div>
+          <figure>
+            <img src="img/e-11-ticket-created.jpg" alt="The bottom of a freshly cleared New Pickup form with a green banner reading: Ticket created — complete, sent to QC review.">
+            <figcaption><b>Green banner</b><span>“Complete, sent to QC review” — it made the gate. Read this line every time.</span></figcaption>
+          </figure>
+          <p>The green banner tells you which of the two happened. If it says the ticket went to Carryover
+          instead, something on the list in chapter 6 is still missing.</p>
+        </div>
+      </div>
+
+      <h3>Juggling several trucks at once</h3>
+      <p>This is what Save Draft is for. Park truck A, start truck B, park B, come back to A from the
+      <strong>Active Drafts</strong> panel in the sidebar. Nothing you parked is ever counted against you —
+      drafts are invisible to QC and to the leaderboard until you submit them.</p>
+
+      <div class="note stop">
+        <span class="lbl">Don't lose a half-typed form</span>
+        <p>If you click away with unsaved changes, this appears. <strong>Save as Draft</strong> keeps your work.
+        <strong>Leave (Discard Changes)</strong> throws it away and cannot be undone.</p>
+      </div>
+      <figure>
+        <img src="img/e-10-unsaved-changes.jpg" alt="A dialog headed Unsaved changes reading: You have unsaved changes on the New Pickup form. What would you like to do? Three buttons: Save as Draft, Leave (Discard Changes), Cancel — stay on this page.">
+        <figcaption><b>Unsaved changes</b><span>Appears on any navigation away from a dirty form, including Log out.</span></figcaption>
+      </figure>
+    </section>
+
+    <!-- ================= 5 ================= -->
+    <section class="chapter" id="c5">
+      <div class="chapter-head"><span class="num">05</span><h2>A pickup, click by click</h2></div>
+
+      <p class="lede">The last chapter explained every field on the form. This one does <em>one</em> pickup from
+      the first click to the green banner, in the exact order you would do it with a driver waiting. Follow it once
+      with a real truck in front of you and you won't need it again.</p>
+
+      <div class="note tip">
+        <span class="lbl">The pickup we're doing</span>
+        <p>Driver at the gate. Truck <strong>3318</strong>, carrier <strong>AL Amin</strong>, already hooked to
+        trailer <strong>TRL-4412</strong>. Registration and inspection paper in your hand, BOL in the cab, PTI
+        video just came through on your phone, and the load isn't crossing a scale. That's the ordinary case —
+        the awkward versions are at the end of this chapter.</p>
+      </div>
+
+      <h3>Open the form</h3>
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <p>Click <strong>New Pickup</strong> in the sidebar. You get an empty form with the Truck panel at the
+          top. Nothing is saved and nothing is sent anywhere until you press a button at the bottom, so you can
+          look around freely.</p>
+          <figure>
+            <img src="img/e-02-newpickup-empty.jpg" alt="An empty New Pickup form showing the Truck panel with Motor Carrier and Truck Number, the Trailer and Papers panel with a LOT Trailer toggle, and the start of the PTI Verification panel.">
+            <figcaption><b>Where you start</b><span>Two red stars on the whole form: Motor Carrier and Truck Number. Everything else you earn as you go.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <h3>Carrier before truck</h3>
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <p>Open the <strong>Motor Carrier</strong> dropdown and pick <span class="mono">AL Amin</span>.
+          Do this <em>before</em> you type the truck number — the lookup only searches inside the carrier you
+          picked, so a truck typed under the wrong carrier simply won't be found.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <p>Type <span class="mono">3318</span> into <strong>Truck Number</strong> and take your hands off the
+          keyboard for about a second. Four fields fill themselves in: Driver <span class="mono">James
+          Carter</span>, Location <span class="mono">Chicago, IL — Yard 4</span>, Model
+          <span class="mono">2021 Volvo VNL 860</span>, Fuel <span class="mono">63</span>.</p>
+          <p>Read them. If the driver's name isn't the person standing in front of you, type over it — all four
+          fields are yours to correct, and your correction is what QC sees.</p>
+          <figure>
+            <img src="img/e-03-truck-trailer-filled.jpg" alt="The New Pickup form with Motor Carrier AL Amin, Truck Number 3318, and auto-filled Driver James Carter, Location Chicago IL Yard 4, Model 2021 Volvo VNL 860 and Fuel 63. Below, the Trailer and Papers panel shows trailer TRL-4412 with a saved-papers box.">
+            <figcaption><b>After the lookup</b><span>Four fields you didn't type. Check them against the truck in the yard — don't just accept them.</span></figcaption>
+          </figure>
+          <div class="note warn">
+            <span class="lbl">Nothing filled in?</span>
+            <p>You get a small grey hint instead of the four fields. Nine times out of ten that's the wrong carrier
+            or a typo in the number. Fix it if you can; if the truck is genuinely new, type the driver and location
+            by hand and carry on. It does not block anything.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>The pop-up about last time</h3>
+      <div class="step">
+        <span class="step-n">4</span>
+        <div class="step-body">
+          <p>The moment you finish the truck number, a box appears: <strong>Still using trailer TRL-4412?</strong>
+          It is showing you what this truck pulled on its last ticket — the trailer number, the last PTI date
+          (<span class="mono">09/13/2026</span>), which papers were verified then, and whether any trailer docs are
+          on file.</p>
+          <p>The driver is on the same trailer, so click <strong>Yes, same trailer</strong>. That types
+          <span class="mono">TRL-4412</span> and the PTI date into the form for you.</p>
+          <div class="note stop">
+            <span class="lbl">It filled in two fields. It verified nothing.</span>
+            <p>Every checkbox is still empty after you click Yes, and that is deliberate. The papers and the PTI you
+            are about to tick are for <em>this</em> load, today. Last week's ticket proves nothing about the trailer
+            in front of you.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Trailer and papers</h3>
+      <div class="step">
+        <span class="step-n">5</span>
+        <div class="step-body">
+          <p>Look at the trailer's own plate and check it against the <strong>Trailer Number</strong> box. If the
+          pop-up never appeared — new truck, or a different trailer this time — type the number in yourself. It is
+          technically optional, and you should type it every single time anyway. The next step is why.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">6</span>
+        <div class="step-body">
+          <p>With a trailer number present, the <strong>Saved papers</strong> box appears. The pop-up told us
+          <span class="mono">Trailer Docs: None on file</span>, so nobody has ever uploaded this trailer's papers.
+          Do it now: <strong>Save Inspection paper</strong> and <strong>Save Registration paper</strong>, either by
+          choosing a file or by hitting <strong>Paste</strong> with a photo on your clipboard.</p>
+          <div class="note tip">
+            <span class="lbl">A minute you spend once</span>
+            <p>Those files are filed against <em>TRL-4412</em>, not against this ticket. When that trailer rolls back
+            in next month behind a different truck on somebody else's shift, the papers are already there. If the box
+            already shows files, you have nothing to do here.</p>
+          </div>
+          <p>If the Paste button seems to do nothing, click it a second time and press
+          <kbd>Ctrl</kbd>+<kbd>V</kbd> — the browser wants the keystroke before it hands over the clipboard.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">7</span>
+        <div class="step-body">
+          <p><strong>LOT Trailer</strong> stays <em>off</em>. This trailer arrived with the load. You only flip it on
+          for a trailer that was already sitting on our lot, and flipping it on makes the trailer number required and
+          brings the 7-day PTI rule into play.</p>
+        </div>
+      </div>
+
+      <h3>PTI — the step people get wrong</h3>
+      <div class="step">
+        <span class="step-n">8</span>
+        <div class="step-body">
+          <p>Watch the driver's video properly, then tick the <strong>master PTI checkbox</strong> — the one in the
+          red outline at the top of the panel. That single box is what marks PTI done, and it is the only part of
+          this panel QC's gate reads.</p>
+          <p>Now record what you saw: <strong>Select All</strong> at the top right if the video covered everything,
+          or tick rows one at a time if it didn't. The bottom of the panel writes you a receipt —
+          <span class="mono">PTI status: VERIFIED (master checkbox) · video log: 25 item(s) noted</span>. Read that
+          line before you move on.</p>
+          <figure>
+            <img src="img/e-06-pti-full.jpg" alt="The PTI Verification panel with the master verification box ticked and Select All ticked, the 25-item Trailer and Lights checklist filled in below it, and a green status line reading PTI status VERIFIED by master checkbox with 25 items noted in the video log.">
+            <figcaption><b>Both halves done</b><span>Master box ticked <em>and</em> the log filled in. The green line is your proof.</span></figcaption>
+          </figure>
+          <div class="note stop">
+            <span class="lbl">25 ticks and no master box means PTI is not verified</span>
+            <p>Going down all 25 rows and leaving the red-outlined box empty is the most common mistake on this
+            form. The list is a log. The master box is the answer. Tick the box.</p>
+          </div>
+          <p><strong>Is this a Chassis?</strong> stays off — a chassis adds two more rows about the locks, and this
+          is a dry van.</p>
+        </div>
+      </div>
+
+      <h3>Documents &amp; condition</h3>
+      <div class="step">
+        <span class="step-n">9</span>
+        <div class="step-body">
+          <p>Work down the panel. <strong>Hazmat load</strong> off — it isn't hazmat, and turning it on puts a live
+          GPS watch on the truck and alerts the whole team. Pick the <strong>KPRA destination group</strong> that
+          matches where the load is going; ours is the <span class="mono">41ft</span> group, and that is the kingpin
+          limit you remind the driver about.</p>
+          <p>Then the checkboxes, with the papers in your hand as you go:</p>
+          <ul>
+            <li><strong>Registration verified</strong> — you're holding it. Tick.</li>
+            <li><strong>Inspection paper verified</strong> — holding that too. Tick. <strong>Sticker verified</strong>
+            can stay empty: one of the two is enough.</li>
+            <li><strong>BOL present</strong> — it's in the cab. Tick.</li>
+            <li><strong>ELD mentioned</strong> and <strong>Checklist sent</strong> — tick each one once you've actually
+            done it. Neither blocks the ticket, and QC will flag you for leaving them blank anyway.</li>
+          </ul>
+          <figure>
+            <img src="img/e-08-documents-condition.jpg" alt="The Documents and Condition panel: Hazmat load off, the 41-foot KPRA group selected, Registration verified, Inspection paper verified, ELD mentioned, BOL present and Checklist sent ticked with Sticker verified left unticked, then Weight 41,250 lbs, Trailer Condition Good, empty Condition Notes and an unticked Needs scale box.">
+            <figcaption><b>How it should look</b><span>Sticker left empty because the inspection paper is ticked. Condition Good, so no notes needed.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">10</span>
+        <div class="step-body">
+          <p><strong>Weight</strong> is free text — type <span class="mono">41,250 lbs</span>, or
+          <span class="mono">CRVR</span>, or <span class="mono">pending scale</span>. Write what you actually know,
+          not a guess. Set <strong>Trailer Condition</strong> to <span class="mono">Good</span>; anything other than
+          Good needs a line in <strong>Condition Notes</strong> saying what is wrong with it.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">11</span>
+        <div class="step-body">
+          <p><strong>Needs scale</strong> stays off for this load. If it did have to cross a scale you would tick it,
+          the app would warn you that the ticket is parked on Carryover until the scale ticket arrives, and the DOT
+          Predictive Balancer would open underneath for the three axle weights.</p>
+        </div>
+      </div>
+
+      <h3>Check before you click</h3>
+      <div class="step">
+        <span class="step-n">12</span>
+        <div class="step-body">
+          <p>Five seconds, top to bottom, every time. These five are the only things that decide whether this ticket
+          goes to QC or lands on your own Carryover board:</p>
+          <ol class="gate">
+            <li>Registration verified — ticked?</li>
+            <li>Inspection paper <em>or</em> sticker — one of them ticked?</li>
+            <li>BOL present — ticked?</li>
+            <li>Needs scale off, or the scale ticket already in hand?</li>
+            <li>Master PTI box ticked?</li>
+          </ol>
+        </div>
+      </div>
+
+      <h3>Save it</h3>
+      <div class="step">
+        <span class="step-n">13</span>
+        <div class="step-body">
+          <p>Click <strong>Create Ticket</strong>. A green banner comes back and the form clears itself for your next
+          truck.</p>
+          <figure>
+            <img src="img/e-11-ticket-created.jpg" alt="The bottom of a freshly cleared New Pickup form with a green banner reading: Ticket created — complete, sent to QC review.">
+            <figcaption><b>The line that matters</b><span>“Complete, sent to QC review” means it made the gate. Read this banner every single time.</span></figcaption>
+          </figure>
+          <p>The banner is the whole answer. <span class="mono">Complete, sent to QC review</span> means you're done:
+          the ticket is <span class="chip pending">Pending QC</span> and it's QC's move. If it says the ticket went to
+          Carryover instead, one of the five checks above isn't satisfied — chapter 6 is the full list.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">14</span>
+        <div class="step-body">
+          <p>Open <strong>My Pickups</strong> if you want to see it with your own eyes: truck 3318 sits at the top of
+          the list with a <span class="chip pending">Pending QC</span> badge. That is the pickup finished from your
+          side.</p>
+        </div>
+      </div>
+
+      <h3>The same pickup when it isn't tidy</h3>
+      <p>Three things go sideways often enough to be worth knowing by heart. None of them is a reason to stop.</p>
+      <div class="cards">
+        <div class="card" style="border-left:3px solid var(--amber)">
+          <h4>The PTI video hasn't arrived</h4>
+          <p>Leave the master box empty. An amber strip appears — tick <strong>Driver called</strong> and
+          <strong>Informed carrier dispatch</strong> as you do them. Click Create Ticket anyway: it saves as
+          <span class="chip await">Awaiting Driver</span> and waits for you on Carryover. Those two ticks are your
+          proof that you chased it.</p>
+        </div>
+        <div class="card" style="border-left:3px solid #1D6FB8">
+          <h4>The phone rings halfway through</h4>
+          <p><strong>Save Draft (Still Sending)</strong>. QC never sees a draft and it doesn't touch your score. Pick
+          it back up from <strong>Active Drafts</strong> in the sidebar when you're free. If you click away without
+          saving, the Unsaved changes box offers you the same thing — take it.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--green)">
+          <h4>It's one of our own lot trailers</h4>
+          <p>Flip <strong>LOT Trailer</strong> on. The trailer number becomes required and a <strong>Last PTI
+          Date</strong> appears. Under 7 days old and you're clear; 7 days or more and the line turns amber — get a
+          fresh PTI and tick the master box.</p>
+        </div>
+      </div>
+
+      <div class="note rule">
+        <span class="lbl">The whole chapter in one breath</span>
+        <p>Carrier, truck, wait a second. Confirm the trailer. Papers on file. Watch the video, tick the master box.
+        Registration, inspection, BOL. Weight and condition. Read the green banner.</p>
+      </div>
+    </section>
+
+    <!-- ================= 6 ================= -->
+    <section class="chapter" id="c6">
+      <div class="chapter-head"><span class="num">06</span><h2>The five rules that send it to QC</h2></div>
+
+      <p class="lede">A ticket becomes <span class="chip pending">Pending QC</span> the instant all five of these
+      are true — and not one second before. Nothing else on the form matters to the gate.</p>
+
+      <ol class="gate">
+        <li><strong>Registration verified</strong> is ticked.</li>
+        <li><strong>Inspection paper verified</strong> <em>or</em> <strong>Sticker verified</strong> is ticked. Either one.</li>
+        <li><strong>BOL present</strong> is ticked.</li>
+        <li>If <strong>Needs scale</strong> is on, <strong>Scale ticket received</strong> is also ticked.</li>
+        <li><strong>PTI</strong> passes: the master PTI box is ticked — <em>or</em> it's a LOT trailer whose last PTI is under 7 days old.</li>
+      </ol>
+
+      <div class="note rule">
+        <span class="lbl">What is NOT on this list</span>
+        <p>ELD mentioned, Checklist sent, Weight, KPRA group, Trailer Condition and the 25-item PTI log do
+        <strong>not</strong> hold a ticket back. Fill them in anyway — QC can and will flag you for leaving them
+        blank, which costs you score. They just aren't what the gate reads.</p>
+      </div>
+
+      <p>The gate is re-checked <em>every single time you save anything</em>, including a single tick on the
+      Carryover board. That's why a checkbox there can make a row vanish: it just completed the gate and
+      jumped into the QC queue.</p>
+    </section>
+
+    <!-- ================= 7 ================= -->
+    <section class="chapter" id="c7">
+      <div class="chapter-head"><span class="num">07</span><h2>Carryover &amp; the scale chase</h2></div>
+
+      <p class="lede">Carryover is your to-do list. It has two halves: cards at the top for anything QC flagged,
+      and a table underneath for everything still waiting on a scale ticket.</p>
+
+      <figure>
+        <img src="img/e-15-carryover-full.jpg" alt="The Carryover / Scale Chase page. At the top, an Action Required section with three cards: truck 3077 with an URGENT — ANYONE CAN FIX badge, truck 2277 B flagged Missing sticker, and truck 1265 flagged Missing sticker and Incorrect weight. Each card has inline checkboxes and buttons for Fixed — resend to QC, Open full form, Dropped and Mark Unresolvable / Can't Fix. Below, a table lists five trucks with waiting timers, statuses and per-column checkboxes.">
+        <figcaption><b>Carryover</b><span>Action Required cards above; the scale-chase table below.</span></figcaption>
+      </figure>
+
+      <h3>The scale-chase table</h3>
+      <p>A row appears here the moment you tick <strong>Needs scale</strong>, and it leaves the instant you tick
+      <strong>Scale Tkt</strong>. That is the only way off this board. Its status — even
+      <span class="chip ok">Approved</span> — makes no difference.</p>
+
+      <h3>Reading the timers</h3>
+      <figure>
+        <img src="img/e-21-timer-tiers.png" alt="Close-up of five carryover rows. Truck 4005 has a red dot and 379 min waiting; truck 2891 has a red dot and 326 min; truck 4417 has an amber warning circle and 163 min; truck 5533 shows Approved — scale pending at 82 min; truck 6042 shows 29 min. Each truck number has a small timer-reset icon beside it.">
+        <figcaption><b>Waiting tiers</b><span>Red dot = 4h+, amber circle = 2h+, plain = under 2h. The small clock icon is “Followed up”.</span></figcaption>
+      </figure>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Tier</th><th>Waiting</th><th>What you see</th><th>Do this</th></tr></thead>
+          <tbody>
+            <tr><td>Normal</td><td class="num">under 2h</td><td>Plain row</td><td>Nothing yet.</td></tr>
+            <tr><td>Warning</td><td class="num">2h – 4h</td><td>Amber row, pulsing warning circle</td><td>Chase the driver or the scale house.</td></tr>
+            <tr><td>Critical</td><td class="num">4h+</td><td>Red row, pulsing red dot, sorted to the very top</td><td>Chase it now and put it in the shift notes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The buttons on a row</h3>
+      <div class="cards">
+        <div class="card">
+          <h4>Followed up (clock icon)</h4>
+          <p>Next to the truck number. Press it when you've chased the driver again — it restarts the waiting
+          timer and clears the overdue colour. The <em>original</em> request time stays on record permanently,
+          so this is not a way to hide a delay.</p>
+        </div>
+        <div class="card">
+          <h4>Checkbox columns</h4>
+          <p>Reg, Insp, Sticker, BOL, ELD, CklSt, PTI, Driver Called, Informed Carrier, Scale Tkt. Tick one and it
+          saves immediately — no Save button, no modal.</p>
+        </div>
+        <div class="card">
+          <h4>Trailer # and Weight cells</h4>
+          <p>Click the text, type, then press Enter or click away. It only saves if you actually changed it.</p>
+        </div>
+        <div class="card">
+          <h4>Dropped (box icon)</h4>
+          <p>The truck dropped its trailer and there's nothing left to process. It freezes the ticket and takes
+          it off every active board. It stays in the history.</p>
+        </div>
+      </div>
+
+      <div class="note warn">
+        <span class="lbl">Greyed-out rows</span>
+        <p>Rows created by another team member show with their checkboxes disabled. That's deliberate — you can
+        see their work but you can't edit it. QC and managers can.</p>
+      </div>
+    </section>
+
+    <!-- ================= 8 ================= -->
+    <section class="chapter" id="c8">
+      <div class="chapter-head"><span class="num">08</span><h2>When QC flags you</h2></div>
+
+      <p class="lede">A flag is not a telling-off. It's a list of exactly what to fix, with the QC's own words
+      attached. Fix it, resend it, move on.</p>
+
+      <h3>How you find out</h3>
+      <ul>
+        <li>A red pop-up at the bottom-right: <em>“QC flagged your ticket for truck 1265 — see Action Required.”</em></li>
+        <li>The red number on the <strong>Carryover</strong> item in the sidebar goes up and pulses.</li>
+      </ul>
+
+      <h3>Reading the card</h3>
+      <p>Each Action Required card shows the truck number, one red tag per problem (<span class="mono">Missing
+      sticker</span>, <span class="mono">Incorrect weight</span>…), and a <strong>QC notes</strong> line with the
+      reviewer's explanation. Underneath is the same row of checkboxes as Carryover, so you can fix most things
+      without leaving the page.</p>
+
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body"><p>Read the tags and the QC note. Do the real-world work — get the sticker photo, re-weigh, chase the paper.</p></div>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body"><p>Tick the boxes on the card that are now true, or press <strong>Open full form</strong> if you need the whole intake screen.</p></div>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <p>Press <strong>Fixed — resend to QC</strong>. The card disappears and you get a confirmation line.</p>
+          <figure>
+            <img src="img/e-20-resend-to-qc.jpg" alt="The Carryover page with a green confirmation banner reading: Truck 2277 B: fixes submitted — back in the QC queue. The Action Required count has dropped from 3 to 2.">
+            <figcaption><b>Resent</b><span>“Fixes submitted — back in the QC queue.” The count drops by one.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <h3>Urgent flags</h3>
+      <p>A card with a pulsing <span class="chip flag">Urgent — anyone can fix</span> badge is open to the whole
+      floor, not just whoever created it. If you fix someone else's urgent flag you earn a <strong>+5 teamwork
+      bonus</strong>. If you're free and one is sitting there, take it.</p>
+
+      <div class="note tip">
+        <span class="lbl">Mistake privacy</span>
+        <p>A normal flag is visible only to you, QC and managers. Nobody else on the floor sees it. Urgent flags
+        are the deliberate exception, because they need the whole team.</p>
+      </div>
+
+      <h3>When you genuinely can't fix it</h3>
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <p>Press <strong>Mark Unresolvable / Can't Fix</strong> on the card.</p>
+          <figure>
+            <img src="img/e-19-mark-unresolvable.jpg" alt="A dialog headed Mark Unresolvable — 1265. It explains that this escalates the ticket back to QC as an exception and removes it from your board, and that QC will decide whether to force-approve it, with the explanation on permanent record. Below is a required field, Why can't this be fixed?, a minimum-10-character note, and Cancel and Escalate to QC buttons.">
+            <figcaption><b>Escalation</b><span>A written reason is mandatory — at least 10 characters, and management reads it.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <p>Write what actually happened — <em>“Trailer left the yard before we could photograph the registration.
+          Owner-operator unreachable until Monday.”</em> Vague reasons come straight back to you.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <p>Press <strong>Escalate to QC</strong>. It leaves your board and lands in QC's queue as an
+          <strong>Exception Review</strong>. QC either force-approves it with your explanation permanently attached,
+          or flags it again and it comes back to you.</p>
+        </div>
+      </div>
+
+      <div class="note stop">
+        <span class="lbl">Use this sparingly</span>
+        <p>This is for things that are physically impossible to fix — not for things that are inconvenient or
+        that you'd rather do tomorrow. Every escalation is on permanent record with your name on it.</p>
+      </div>
+    </section>
+
+    <!-- ================= 9 ================= -->
+    <section class="chapter" id="c9">
+      <div class="chapter-head"><span class="num">09</span><h2>Shift notes &amp; handover</h2></div>
+
+      <p class="lede">The handover writes most of itself. Your job at the end of a shift is to read it, add
+      anything the app can't know, and publish.</p>
+
+      <figure>
+        <img src="img/e-13-notes-before-publish.jpg" alt="The Shift Notes page. A panel headed MY SHIFT NOTES — READY TO HAND OVER lists five auto-written lines each with a sparkle icon and an Edit Pickup button: Truck 4005 has a missing BOL, Scale Ticket; Truck 6042 has a missing Scale Ticket; Truck 4417 has a missing Scale Ticket; Truck 7730 has a missing BOL, PTI; Truck 5533 has a missing Scale Ticket. Below them two manual DRAFT notes, a text box for adding notes, and a red Publish Shift Handover button. A second panel, GLOBAL SHIFT NOTES — TEAM INBOX (0), reads The board is clear.">
+        <figcaption><b>Before publishing</b><span>Auto-written gaps (sparkle icon) and your own typed notes, all still private.</span></figcaption>
+      </figure>
+
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <p>Open <strong>Notes</strong>. The lines with a sparkle icon were written automatically from your own
+          open tickets — one line per truck, listing exactly what's missing. Nobody types these.</p>
+          <p>Each has an <strong>Edit Pickup</strong> button. If you can close the gap right now, do it — the line
+          disappears by itself.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <p>Add anything the app can't know in the text box: <em>“Scale house at Elwood closes at 22:00 tonight.”</em></p>
+          <div class="note tip">
+            <span class="lbl">One line = one note</span>
+            <p>Every non-empty line in that box becomes its own separate note. Paste a five-line list and you get
+            five notes the next shift can tick off one at a time — not one paragraph they have to read whole.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <p>Press <strong>Publish Shift Handover</strong>. Everything moves to the <strong>Global Shift Notes —
+          Team Inbox</strong>, where the next shift sees it.</p>
+          <figure>
+            <img src="img/e-14-notes-published.jpg" alt="The Shift Notes page after publishing. A green banner reads Handover published: 5 auto note(s) + 2 manual note(s). The personal panel now reads Nothing pending. The Global Shift Notes — Team Inbox now holds seven entries, each with Edit Pickup, Edit and a green Done button.">
+            <figcaption><b>After publishing</b><span>Seven notes now on the team board, each with its own Done button.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">4</span>
+        <div class="step-body">
+          <p>Coming <em>on</em> shift, read the Team Inbox first. Press <strong>Done</strong> on anything you've
+          dealt with so the board stays honest.</p>
+        </div>
+      </div>
+
+      <div class="note warn">
+        <span class="lbl">Publish once</span>
+        <p>A line that's already on the team board won't be published twice. If you delete or reword a published
+        note, it is not silently re-created — so don't delete something you still need.</p>
+      </div>
+    </section>
+
+    <!-- ================= 10 ================= -->
+    <section class="chapter" id="c10">
+      <div class="chapter-head"><span class="num">10</span><h2>Trailer issues</h2></div>
+
+      <p class="lede">When QC finds something physically wrong with a trailer that isn't a team member's mistake,
+      they file a trailer issue instead of flagging anyone.</p>
+
+      <figure>
+        <img src="img/e-16-trailer-issues.jpg" alt="The Trailer Issues page. Two amber-bordered cards: truck 5120 trailer LOT-1001, reported by qc_sarah, reading Rear passenger-side mudflap bracket is cracked — not the team member's miss, but shop needs to see it before the next load; and truck 3318 trailer TRL-4412, reading Landing gear crank handle is bent; driver had to use a bar. Each card has a green Resolved button.">
+        <figcaption><b>Trailer Issues</b><span>Broken equipment, not human error. Zero effect on anyone's score.</span></figcaption>
+      </figure>
+
+      <div class="note rule">
+        <span class="lbl">This is not a flag</span>
+        <p>A trailer issue costs nobody any points, doesn't block an approval and doesn't appear on anyone's
+        record. It's a broadcast to the whole team that a piece of equipment needs attention.</p>
+      </div>
+
+      <p>Anyone can press <strong>Resolved</strong> once it's genuinely handled — the trailer went to the shop,
+      or the part was replaced. While any issue stays open the amber badge sits on the sidebar and the app will
+      nudge the floor about it roughly every two hours.</p>
+    </section>
+
+    <!-- ================= 11 ================= -->
+    <section class="chapter" id="c11">
+      <div class="chapter-head"><span class="num">11</span><h2>Finding old pickups</h2></div>
+
+      <h3>My Pickups — your own work</h3>
+      <figure>
+        <img src="img/e-12-my-pickups.jpg" alt="The My Pickups page with tabs Active Pickups (16) and All My Pickups (17). A table lists created time, truck number, MC, driver, state, flags count and PTI tick for each ticket, with states including PENDING QC, APPROVED, AWAITING DRIVER, STILL SENDING and FLAGGED.">
+        <figcaption><b>My Pickups</b><span>Every state you can be in, on one screen. Flags column counts how many times QC flagged it.</span></figcaption>
+      </figure>
+      <ul>
+        <li><strong>Active Pickups</strong> — anything still moving.</li>
+        <li><strong>All My Pickups</strong> — everything, including dropped and approved.</li>
+        <li>Search by truck or trailer number, filter by status or by day.</li>
+      </ul>
+      <p>You can edit your own ticket here <em>even after it's been approved</em> — the pencil icon. This is the
+      one place a team member can touch a finished ticket, so use it for genuine corrections only.</p>
+
+      <h3>All Pickups — the whole floor</h3>
+      <figure>
+        <img src="img/e-18-all-pickups.jpg" alt="The All Pickups — Global Sheet page. An Active Pickups — all employees table at the top and a Full Sheet — every ticket table below, both listing created time, truck number, MC, who created it, status and tick columns for REG, INSP, STKR, BOL, PTI, SCALE, ELD and CKLST. One row, truck 9401, carries a red HAZMAT badge.">
+        <figcaption><b>All Pickups</b><span>Read-only, refreshes itself every 20 seconds. Note the red HAZMAT badge on 9401.</span></figcaption>
+      </figure>
+      <p>Use this before you start a pickup to check nobody has already done that truck today. Two sections:
+      <strong>Active Pickups</strong> (everything still moving, all employees) and the <strong>Full Sheet</strong>
+      (every ticket ever). A dash in a tick column means "not applicable"; <span class="mono">n/a</span> in the
+      SCALE column means the load never needed one.</p>
+    </section>
+
+    <!-- ================= 12 ================= -->
+    <section class="chapter" id="c12">
+      <div class="chapter-head"><span class="num">12</span><h2>Your score &amp; the leaderboard</h2></div>
+
+      <p class="lede">There are two numbers and they mean different things. Don't confuse them.</p>
+
+      <h3>1. Your score pill (top right of every page)</h3>
+      <p>A running tally. Everyone starts at <strong>100</strong> and it never drops below <strong>0</strong>.</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Event</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td>Your ticket gets approved</td><td class="num" style="color:var(--green)">+10</td></tr>
+            <tr><td>You fix an <em>urgent</em> flag somebody else created</td><td class="num" style="color:var(--green)">+5</td></tr>
+            <tr><td>Flagged — Missed PTI</td><td class="num" style="color:var(--crimson)">−20</td></tr>
+            <tr><td>Flagged — Missing BOL</td><td class="num" style="color:var(--crimson)">−15</td></tr>
+            <tr><td>Flagged — Missing Registration</td><td class="num" style="color:var(--crimson)">−15</td></tr>
+            <tr><td>Flagged — Missing Inspection</td><td class="num" style="color:var(--crimson)">−15</td></tr>
+            <tr><td>Flagged — PTI video missing the light test</td><td class="num" style="color:var(--crimson)">−15</td></tr>
+            <tr><td>Flagged — Incorrect Weight</td><td class="num" style="color:var(--crimson)">−10</td></tr>
+            <tr><td>Flagged — Missing Sticker</td><td class="num" style="color:var(--crimson)">−10</td></tr>
+            <tr><td>Flagged — Didn't remind the driver about KPRA law</td><td class="num" style="color:var(--crimson)">−10</td></tr>
+            <tr><td>Flagged — Didn't text in the group</td><td class="num" style="color:var(--crimson)">−1 to −10 (QC sets the severity)</td></tr>
+            <tr><td>Flagged — Other</td><td class="num" style="color:var(--crimson)">−5</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note warn">
+        <span class="lbl">One flag can carry several categories</span>
+        <p>QC can tick more than one box on a single flag, and <strong>each one costs you separately</strong>.
+        A flag for "missing sticker + incorrect weight" is −20, not −10.</p>
+      </div>
+
+      <h3>2. The leaderboard score</h3>
+      <figure>
+        <img src="img/e-17-leaderboard.jpg" alt="The Leaderboard page: a table of rank medals, employee names, score, accuracy, efficiency, volume and average time. jmartinez is first with 64.4, qc_sarah second with 49.5 and dispatcher_x third with 27.0. A footnote explains the score formula.">
+        <figcaption><b>Leaderboard</b><span>Recalculated live from your whole history — not the same number as your score pill.</span></figcaption>
+      </figure>
+      <p>This is worked out fresh from your record, not accumulated:</p>
+      <div class="cards">
+        <div class="card">
+          <h4>Accuracy — 70% of it</h4>
+          <p>The share of your tickets that were <strong>never</strong> flagged. One flag marks that ticket forever,
+          even after you fix it.</p>
+        </div>
+        <div class="card">
+          <h4>Efficiency — 30% of it</h4>
+          <p>How long from creating a ticket to it reaching QC. Under 15 minutes on average scores 100;
+          you lose 10 points for every extra minute.</p>
+        </div>
+        <div class="card">
+          <h4>Volume multiplier</h4>
+          <p>Scales with how many tickets you've done, reaching full weight at 50. One flawless pickup scores
+          about 17, not 100 — consistency beats a lucky single.</p>
+        </div>
+      </div>
+      <div class="note tip">
+        <span class="lbl">How to score well</span>
+        <p>Finish tickets promptly and don't get flagged. Both halves reward the same habit: do the checks
+        properly the first time, and don't leave a half-finished ticket sitting for an hour before you complete it.</p>
+      </div>
+    </section>
+
+    <!-- ================= 13 ================= -->
+    <section class="chapter" id="c13">
+      <div class="chapter-head"><span class="num">13</span><h2>Quick reference</h2></div>
+
+      <h3>Your shift, start to finish</h3>
+      <ol class="gate">
+        <li>Sign in. Read the <strong>Notes → Team Inbox</strong> the previous shift left you.</li>
+        <li>Check <strong>Carryover</strong>: clear the red badge (flags) and chase anything red or amber in the scale table.</li>
+        <li>Work pickups in <strong>New Pickup</strong>. Park what you can't finish with <strong>Save Draft</strong>.</li>
+        <li>Re-check your drafts and Carryover once an hour — the app will nudge you.</li>
+        <li>Before you leave: open <strong>Notes</strong>, read the auto-written lines, add anything else, <strong>Publish Shift Handover</strong>.</li>
+      </ol>
+
+      <h3>Common problems</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>What you see</th><th>What it means</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td>Driver/location won't auto-fill</td><td>Truck isn't in that carrier's fleet.</td><td>Check the Motor Carrier, then the truck number. Type the fields by hand if needed — it doesn't block you.</td></tr>
+            <tr><td>Green banner says it went to Carryover</td><td>One of the five gate rules isn't met.</td><td>Go to chapter 6 and work down the list.</td></tr>
+            <tr><td>“LOT Trailer tickets require a trailer number”</td><td>LOT is on with an empty trailer number.</td><td>Type the trailer number, or turn LOT off.</td></tr>
+            <tr><td>Amber “PTI is 7 day(s) old”</td><td>This LOT trailer's PTI is stale.</td><td>Get a fresh PTI and tick the master box.</td></tr>
+            <tr><td>A row vanished when I ticked a box</td><td>That tick completed the gate — it went to QC.</td><td>Nothing. That's the system working. Find it under My Pickups.</td></tr>
+            <tr><td>Paste button does nothing</td><td>The browser blocked the clipboard read.</td><td>Click Paste again, then press <kbd>Ctrl</kbd>+<kbd>V</kbd> within 20 seconds.</td></tr>
+            <tr><td>Checkboxes greyed out on Carryover</td><td>Another team member created that ticket.</td><td>Ask them, or ask QC/a manager to change it.</td></tr>
+            <tr><td>Full-width red bar at the top</td><td>A hazmat-marked truck is moving.</td><td>Tell your manager straight away.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Things that are easy to get wrong</h3>
+      <ul>
+        <li>The <strong>master PTI box</strong> is what counts. Ticking all 25 items without the master box means PTI is <em>not</em> verified.</li>
+        <li><strong>Inspection or sticker</strong> — one is enough. Neither is not.</li>
+        <li><strong>Approved ≠ off Carryover</strong> if a scale ticket is still outstanding.</li>
+        <li><strong>Confirming “same trailer”</strong> fills in the number and date. It does not verify papers or PTI.</li>
+        <li><strong>Drafts are invisible</strong> to QC. A parked draft is not a submitted ticket.</li>
+        <li><strong>Hazmat</strong> is not a routine checkbox. Turning it on alerts the entire company.</li>
+      </ul>
+
+      <hr class="divider">
+      <div class="footer">
+        <p><strong>UGL Trailer Check — Team Handbook.</strong> Screenshots taken from the live application
+        with practice data. If something in the app doesn't match this book, the app is right and this book is
+        out of date — tell your manager so it can be corrected.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc-list a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) map[id] = a;
+  });
+  if (!('IntersectionObserver' in window)) { if(links[0]) links[0].classList.add('on'); return; }
+  links[0].classList.add('on');
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting){
+        links.forEach(function(l){ l.classList.remove('on'); });
+        var a = map[e.target.id];
+        if (a) a.classList.add('on');
+      }
+    });
+  }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+  Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+})();
+</script>

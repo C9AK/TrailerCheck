@@ -1,0 +1,1082 @@
+<title>UGL QC Auditor Handbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+
+<style>
+:root{
+  --paper:#EEF1F5;
+  --surface:#FFFFFF;
+  --surface-2:#F5F7FA;
+  --ink:#131A24;
+  --ink-2:#3C4757;
+  --muted:#697586;
+  --rule:#D5DCE5;
+  --rule-strong:#B6C1CF;
+  --navy:#132743;
+  --navy-ink:#E8EEF7;
+  --crimson:#C0202F;
+  --crimson-soft:#FBE9EA;
+  --amber:#B06A00;
+  --amber-soft:#FCF1DE;
+  --green:#12694A;
+  --green-soft:#E3F3EC;
+  --violet:#5B3FA8;
+  --violet-soft:#EFEBFA;
+  --shadow:0 1px 2px rgba(19,39,67,.06), 0 8px 24px -16px rgba(19,39,67,.35);
+  --step-w:3.1rem;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0A1120;
+    --surface:#111C2E;
+    --surface-2:#16243A;
+    --ink:#E4EBF4;
+    --ink-2:#BCC9DA;
+    --muted:#8798AF;
+    --rule:#243550;
+    --rule-strong:#35486A;
+    --navy:#0B1526;
+    --navy-ink:#DCE6F4;
+    --crimson:#F0606E;
+    --crimson-soft:#2C1119;
+    --amber:#E5A94A;
+    --amber-soft:#2B2110;
+    --green:#4FC79A;
+    --green-soft:#0E2A22;
+    --violet:#A78CF0;
+    --violet-soft:#1C1733;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0A1120;
+  --surface:#111C2E;
+  --surface-2:#16243A;
+  --ink:#E4EBF4;
+  --ink-2:#BCC9DA;
+  --muted:#8798AF;
+  --rule:#243550;
+  --rule-strong:#35486A;
+  --navy:#0B1526;
+  --navy-ink:#DCE6F4;
+  --crimson:#F0606E;
+  --crimson-soft:#2C1119;
+  --amber:#E5A94A;
+  --amber-soft:#2B2110;
+  --green:#4FC79A;
+  --green-soft:#0E2A22;
+  --violet:#A78CF0;
+  --violet-soft:#1C1733;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  font-size:16px;line-height:1.62;-webkit-text-size-adjust:100%;
+}
+img{max-width:100%;display:block}
+a{color:var(--crimson);text-underline-offset:3px}
+h1,h2,h3,h4{text-wrap:balance;margin:0}
+
+.masthead{background:var(--navy);color:var(--navy-ink);border-bottom:5px solid var(--green)}
+.masthead-in{
+  max-width:1220px;margin:0 auto;
+  padding-block:2.4rem 2.1rem;padding-left:20px;padding-right:20px;
+  display:grid;gap:1.1rem;
+}
+.kicker{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.72rem;letter-spacing:.2em;
+  text-transform:uppercase;color:#9FB4D0;
+}
+.masthead h1{
+  font-family:Oswald,"Arial Narrow",sans-serif;font-weight:600;letter-spacing:.01em;
+  text-transform:uppercase;font-size:clamp(2.1rem,6vw,3.5rem);line-height:1.02;
+}
+.masthead h1 em{font-style:normal;color:#6FE0B0}
+.masthead p{margin:0;max-width:62ch;color:#C3D2E6;font-size:1.02rem}
+.mast-meta{
+  display:flex;flex-wrap:wrap;gap:.5rem .75rem;
+  font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.08em;
+  text-transform:uppercase;color:#8FA6C4;
+}
+.mast-meta span{border:1px solid rgba(159,180,208,.35);border-radius:2px;padding:.25rem .5rem}
+
+.shell{
+  max-width:1220px;margin:0 auto;
+  padding-left:20px;padding-right:20px;padding-block:0 4rem;
+  display:grid;grid-template-columns:230px minmax(0,1fr);gap:2.6rem;align-items:start;
+}
+@media (max-width:900px){.shell{grid-template-columns:minmax(0,1fr);gap:0}}
+
+.toc{
+  position:sticky;top:calc(env(safe-area-inset-top,0px) + 1rem);
+  padding-block:2rem;max-height:calc(100dvh - 2rem);overflow-y:auto;
+}
+.toc h2{
+  font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.8rem;font-weight:600;
+}
+.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:.1rem}
+.toc a{
+  display:grid;grid-template-columns:1.9rem 1fr;gap:.35rem;padding:.38rem .5rem;border-radius:3px;
+  text-decoration:none;color:var(--ink-2);font-size:.88rem;line-height:1.35;
+  border-left:2px solid transparent;
+}
+.toc a .n{font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--muted);padding-top:.12rem}
+.toc a:hover{background:var(--surface-2);color:var(--ink)}
+.toc a.on{background:var(--surface);color:var(--green);border-left-color:var(--green);font-weight:600}
+.toc a.on .n{color:var(--green)}
+@media (max-width:900px){
+  .toc{position:static;max-height:none;padding-block:1.6rem 0;overflow:visible}
+  .toc ol{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+}
+
+main{padding-block:2.4rem 0;min-width:0}
+.chapter{scroll-margin-top:1.5rem;margin-bottom:3.6rem}
+.chapter-head{
+  display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:baseline;
+  border-bottom:2px solid var(--rule-strong);padding-bottom:.7rem;margin-bottom:1.6rem;
+}
+.chapter-head .num{
+  font-family:Oswald,"Arial Narrow",sans-serif;font-weight:700;font-size:2.6rem;line-height:.85;
+  color:var(--green);font-variant-numeric:tabular-nums;
+}
+.chapter-head h2{
+  font-family:Oswald,"Arial Narrow",sans-serif;font-weight:600;text-transform:uppercase;
+  letter-spacing:.015em;font-size:clamp(1.4rem,3.4vw,1.95rem);line-height:1.1;
+}
+.lede{font-size:1.06rem;color:var(--ink-2);max-width:66ch;margin-bottom:1.4rem}
+p{margin:0 0 1rem;max-width:68ch}
+h3{font-weight:700;font-size:1.13rem;margin:2rem 0 .6rem;letter-spacing:-.005em}
+h4{font-size:.98rem;font-weight:700;margin:1.3rem 0 .4rem}
+ul,ol{margin:0 0 1rem;padding-left:1.25rem;max-width:68ch}
+li{margin-bottom:.35rem}
+strong{font-weight:600}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.88em}
+code{background:var(--surface-2);border:1px solid var(--rule);border-radius:3px;padding:.06em .32em}
+
+.step{display:grid;grid-template-columns:var(--step-w) minmax(0,1fr);gap:1.1rem;margin:1.6rem 0 2rem}
+.step-n{
+  font-family:Oswald,"Arial Narrow",sans-serif;font-weight:600;font-size:1.05rem;color:#fff;
+  background:var(--navy);border-radius:3px;height:2rem;display:flex;align-items:center;
+  justify-content:center;font-variant-numeric:tabular-nums;letter-spacing:.06em;
+}
+.step-body{min-width:0}
+.step-body > h3{margin-top:0}
+.step-body > :last-child{margin-bottom:0}
+@media (max-width:560px){.step{grid-template-columns:2.2rem 1fr;gap:.7rem}:root{--step-w:2.2rem}}
+
+figure{
+  margin:1.2rem 0 1.4rem;background:var(--surface);border:1px solid var(--rule);
+  border-radius:4px;box-shadow:var(--shadow);overflow:hidden;
+}
+figure img{width:100%;border-bottom:1px solid var(--rule);background:#0A1120}
+figcaption{
+  padding:.6rem .85rem;font-size:.83rem;line-height:1.5;color:var(--muted);
+  display:grid;grid-template-columns:auto 1fr;gap:.55rem;align-items:baseline;
+}
+figcaption b{
+  font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--green);white-space:nowrap;
+}
+
+.note{
+  border-left:4px solid var(--navy);background:var(--surface);padding:.85rem 1rem;
+  margin:1.1rem 0;border-radius:0 3px 3px 0;max-width:70ch;
+}
+.note > :last-child{margin-bottom:0}
+.note .lbl{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:600;margin-bottom:.3rem;color:var(--navy);
+}
+.note.rule .lbl{color:var(--ink)}
+.note.warn{border-color:var(--amber);background:var(--amber-soft)}
+.note.warn .lbl{color:var(--amber)}
+.note.stop{border-color:var(--crimson);background:var(--crimson-soft)}
+.note.stop .lbl{color:var(--crimson)}
+.note.tip{border-color:var(--green);background:var(--green-soft)}
+.note.tip .lbl{color:var(--green)}
+
+.chip{
+  display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.72rem;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;padding:.16rem .45rem;border-radius:3px;
+  border:1px solid;white-space:nowrap;
+}
+.chip.await{color:var(--amber);border-color:var(--amber);background:var(--amber-soft)}
+.chip.pending{color:var(--ink-2);border-color:var(--rule-strong);background:var(--surface-2)}
+.chip.flag{color:#fff;border-color:var(--crimson);background:var(--crimson)}
+.chip.resolved{color:var(--violet);border-color:var(--violet);background:var(--violet-soft)}
+.chip.ok{color:var(--green);border-color:var(--green);background:var(--green-soft)}
+
+.tw{overflow-x:auto;margin:1.1rem 0 1.4rem;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.91rem;min-width:520px}
+th,td{text-align:left;padding:.6rem .8rem;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{
+  background:var(--surface-2);font-family:"IBM Plex Mono",monospace;font-size:.68rem;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.flow{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;margin:1.4rem 0 1.6rem;padding:1.1rem;
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+}
+.flow .node{
+  font-family:"IBM Plex Mono",monospace;font-size:.76rem;font-weight:600;letter-spacing:.04em;
+  padding:.4rem .6rem;border-radius:3px;border:1px solid var(--rule-strong);
+  background:var(--surface-2);color:var(--ink);white-space:nowrap;
+}
+.flow .node.you{border-color:var(--navy);background:var(--navy);color:var(--navy-ink)}
+.flow .node.done{border-color:var(--green);color:var(--green);background:var(--green-soft)}
+.flow .node.bad{border-color:var(--crimson);color:var(--crimson);background:var(--crimson-soft)}
+.flow .arr{color:var(--muted);font-size:.9rem}
+
+.gate{counter-reset:g;list-style:none;padding:0;margin:1.2rem 0 1.4rem;max-width:70ch;display:grid;gap:.4rem}
+.gate li{
+  counter-increment:g;
+  display:block;position:relative;
+  background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--green);
+  padding:.6rem .8rem .6rem 2.5rem;border-radius:0 3px 3px 0;margin:0;
+}
+.gate li::before{
+  content:counter(g);position:absolute;left:.9rem;top:.6rem;
+  font-family:"IBM Plex Mono",monospace;font-size:.78rem;font-weight:600;color:var(--green);
+}
+
+.cards{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin:1.2rem 0 1.4rem}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:.85rem .95rem}
+.card h4{margin:0 0 .3rem;font-size:.95rem}
+.card p{margin:0;font-size:.9rem;color:var(--ink-2)}
+
+/* decision ladder */
+.ladder{display:grid;gap:.5rem;margin:1.2rem 0 1.5rem;max-width:72ch}
+.rung{
+  display:grid;grid-template-columns:auto 1fr;gap:.85rem;align-items:start;
+  background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:.8rem .95rem;
+}
+.rung .tag{
+  font-family:"IBM Plex Mono",monospace;font-size:.68rem;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;padding:.25rem .5rem;border-radius:3px;white-space:nowrap;
+}
+.rung.a .tag{background:var(--green-soft);color:var(--green);border:1px solid var(--green)}
+.rung.b .tag{background:var(--surface-2);color:var(--navy);border:1px solid var(--rule-strong)}
+.rung.c .tag{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber)}
+.rung.d .tag{background:var(--crimson-soft);color:var(--crimson);border:1px solid var(--crimson)}
+.rung p{margin:0;font-size:.93rem}
+.rung strong{display:block}
+
+.divider{height:1px;background:var(--rule);border:0;margin:2.4rem 0}
+.footer{border-top:2px solid var(--rule-strong);margin-top:2rem;padding-block:1.6rem 0;font-size:.86rem;color:var(--muted)}
+.footer p{max-width:70ch}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+@media print{
+  :root{
+    --paper:#fff;--surface:#fff;--surface-2:#F3F5F8;--ink:#101820;--ink-2:#2B3542;
+    --muted:#5A6573;--rule:#C8D0DA;--rule-strong:#9AA6B5;--navy:#132743;
+    --crimson:#A81B28;--green:#0E5C40;--shadow:none;
+  }
+  body{font-size:10.5pt;line-height:1.5;background:#fff}
+  .toc{display:none}
+  .shell{display:block;max-width:none;padding:0}
+  main{padding:0}
+  .masthead{border-bottom-width:4pt}
+  .masthead-in{padding-block:1.6rem}
+  .chapter{margin-bottom:1.6rem}
+  .chapter-head,h3,h4{break-after:avoid}
+  figure,.note,.gate li,.card,.flow,.rung{break-inside:avoid}
+  figure{box-shadow:none;border-color:#C8D0DA;margin-inline:auto}
+  figure img{max-height:155mm;width:auto;max-width:100%;margin-inline:auto}
+  p,li{orphans:2;widows:2}
+  .tw{overflow:visible}
+  thead{display:table-header-group}
+  tr{break-inside:avoid}
+  table{min-width:0}
+  a{color:#A81B28;text-decoration:none}
+  @page{margin:14mm 13mm}
+}
+</style>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="kicker">UGL Trailer Check &nbsp;·&nbsp; Quality Control &nbsp;·&nbsp; Revision R52</div>
+    <h1>QC Auditor<br><em>Handbook</em></h1>
+    <p>How to work the review queue: what every field on a card means, when to fix it yourself, when to flag,
+       when to file a trailer issue — and the rules that stop you auditing your own work.</p>
+    <div class="mast-meta">
+      <span>Role: QC</span>
+      <span>13 chapters</span>
+      <span>Read before your first shift</span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol id="toc-list">
+      <li><a href="#c1"><span class="n">01</span><span>What QC is for</span></a></li>
+      <li><a href="#c2"><span class="n">02</span><span>Your screen</span></a></li>
+      <li><a href="#c3"><span class="n">03</span><span>Working the queue</span></a></li>
+      <li><a href="#c4"><span class="n">04</span><span>Anatomy of a review card</span></a></li>
+      <li><a href="#c5"><span class="n">05</span><span>Trailer history &amp; lookup</span></a></li>
+      <li><a href="#c6"><span class="n">06</span><span>The four verdicts</span></a></li>
+      <li><a href="#c7"><span class="n">07</span><span>Fixing it yourself</span></a></li>
+      <li><a href="#c8"><span class="n">08</span><span>Approving</span></a></li>
+      <li><a href="#c9"><span class="n">09</span><span>Flagging</span></a></li>
+      <li><a href="#c10"><span class="n">10</span><span>Trailer issues</span></a></li>
+      <li><a href="#c11"><span class="n">11</span><span>Exceptions &amp; conflicts</span></a></li>
+      <li><a href="#c12"><span class="n">12</span><span>My Audits &amp; your score</span></a></li>
+      <li><a href="#c13"><span class="n">13</span><span>Quick reference</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- 1 -->
+    <section class="chapter" id="c1">
+      <div class="chapter-head"><span class="num">01</span><h2>What QC is for</h2></div>
+
+      <p class="lede">Nothing leaves this system without a human having looked at it. That human is you.
+      A team member's ticket is only "done" once you say so.</p>
+
+      <div class="flow">
+        <span class="node">TEAM MEMBER FILLS IT IN</span><span class="arr">→</span>
+        <span class="node">PENDING QC</span><span class="arr">→</span>
+        <span class="node you">YOU REVIEW IT</span><span class="arr">→</span>
+        <span class="node done">APPROVED</span>
+        <span class="arr">&nbsp;or&nbsp;</span>
+        <span class="node bad">FLAGGED</span><span class="arr">→</span>
+        <span class="node">THEY FIX IT</span><span class="arr">→</span>
+        <span class="node">RESOLVED</span><span class="arr">→</span>
+        <span class="node you">YOU AGAIN</span>
+      </div>
+
+      <h3>What lands in your queue</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Status</th><th>How it got here</th><th>What's different</th></tr></thead>
+          <tbody>
+            <tr><td><span class="chip pending">Pending QC</span></td><td>The team member satisfied all five readiness rules.</td><td>A first look.</td></tr>
+            <tr><td><span class="chip resolved">Resolved</span></td><td>You (or another QC) flagged it, the team member fixed it and resent.</td><td>The card carries a purple <strong>“Previously flagged for — verify these fixes”</strong> panel with the old flag and its note. Check <em>that</em> first.</td></tr>
+            <tr><td><span class="chip flag">Exception Review</span></td><td>The team member hit a wall and escalated instead of fixing.</td><td>Red border, their written reason at the top, and Approve is relabelled <strong>Force Approve</strong>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The five readiness rules</h3>
+      <p>These are what got the ticket to you. They are not your audit standard — they're the floor, not the
+      bar. Knowing them tells you what the system already guaranteed, so you can spend your attention on what it can't check.</p>
+      <ol class="gate">
+        <li>Registration verified.</li>
+        <li>Inspection paper verified <em>or</em> Sticker verified — either one.</li>
+        <li>BOL present.</li>
+        <li>If the load needs a scale, the scale ticket has been received.</li>
+        <li>PTI passes — the master PTI box is ticked, <em>or</em> it's a LOT trailer whose last PTI is under 7 days old.</li>
+      </ol>
+
+      <div class="note rule">
+        <span class="lbl">What the system cannot check</span>
+        <p>That the sticker photo is legible. That the weight matches what the driver actually texted. That the
+        PTI video really showed the light test. That the KPRA group matches the destination. Those are the things
+        you are here for.</p>
+      </div>
+
+      <div class="note tip">
+        <span class="lbl">About the screenshots in this book</span>
+        <p>Truck numbers, carriers and names are practice data. If your computer uses a light theme the colours
+        will be lighter than shown — every control is in the same place.</p>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="chapter" id="c2">
+      <div class="chapter-head"><span class="num">02</span><h2>Your screen</h2></div>
+
+      <p class="lede">Sign in with the username and password your manager issued. You get every page the rest
+      of the team gets, plus two of your own.</p>
+
+      <figure style="max-width:470px">
+        <img src="img/x-00-login.jpg" alt="The Trailer Check sign-in screen: UGL logo above a Username field, a Password field and a red Sign in button.">
+        <figcaption><b>Sign in</b><span>The first sign-in of the day can take 10–30 seconds while the server wakes. Don't re-click.</span></figcaption>
+      </figure>
+
+      <div class="cards">
+        <div class="card" style="border-left:3px solid var(--green)">
+          <h4>QC Review</h4>
+          <p>Your queue. Every ticket waiting on a verdict.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--green)">
+          <h4>My Audits</h4>
+          <p>Everything you've approved or flagged, dated by when you acted.</p>
+        </div>
+        <div class="card">
+          <h4>New Pickup &amp; Carryover</h4>
+          <p>You create pickups too. Everything in the Team Handbook applies to you as well.</p>
+        </div>
+        <div class="card">
+          <h4>Trailer Issues</h4>
+          <p>The equipment problems you file land here for the whole floor.</p>
+        </div>
+      </div>
+
+      <h3>Notifications you'll get</h3>
+      <ul>
+        <li><strong>Red pop-up:</strong> a team member resent a flagged ticket — <em>“jmartinez resent truck 2277 B
+        after fixes — ready to verify.”</em> It's back in your queue.</li>
+        <li><strong>Amber pop-up:</strong> a reminder about open trailer issues or missing items on your <em>own</em>
+        pickups.</li>
+        <li><strong>Full-width red bar:</strong> a hazmat-marked truck is moving. Everyone logged in sees it.
+        Escalate to a manager immediately.</li>
+      </ul>
+
+      <p>The <code>CST</code> / <code>Local</code> toggle at the bottom of the sidebar changes only how times are
+      printed. Shifts are always Central Time: First 1:00–9:00 AM, Main 9:00 AM–5:00 PM, Third 5:00 PM–1:00 AM.</p>
+    </section>
+
+    <!-- 3 -->
+    <section class="chapter" id="c3">
+      <div class="chapter-head"><span class="num">03</span><h2>Working the queue</h2></div>
+
+      <figure>
+        <img src="img/q-02-review-queue.jpg" alt="The QC Review page. A control bar holds a search box and filters for shift, employee, status and sort order, plus an Include awaiting scale ticket toggle and Refresh. Below, two review cards sit side by side: truck 2277 B, a LOT trailer marked RESOLVED with a purple Previously flagged for panel, and truck 7712 marked PENDING QC with Approve Ticket, Flag and Trailer Issue buttons.">
+        <figcaption><b>QC Review</b><span>Two cards per row on a wide screen, oldest first by default.</span></figcaption>
+      </figure>
+
+      <h3>The control bar</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Search</strong></td><td>Truck number, trailer number or driver.</td></tr>
+            <tr><td><strong>All shifts</strong></td><td>Narrow to First, Main or Third — Central Time, always.</td></tr>
+            <tr><td><strong>All employees</strong></td><td>Review one team member's work in a run. Useful when you're coaching someone.</td></tr>
+            <tr><td><strong>All statuses</strong></td><td>Separate the first looks from the re-checks.</td></tr>
+            <tr><td><strong>Oldest first</strong></td><td>Leave it here. Oldest first is what keeps the floor's turnaround honest — and your own efficiency score depends on it.</td></tr>
+            <tr><td><strong>Include awaiting scale ticket</strong></td><td>Off by default. Turn it on to pre-read tickets that are still waiting on a scale ticket. You can't usefully approve them yet, but you can spot problems early.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The order to work in</h3>
+      <ol class="gate">
+        <li><strong>Exception Reviews first</strong> — red border. Somebody is blocked and waiting on your decision.</li>
+        <li><strong>Resolved next</strong> — a team member has already done the rework. Don't leave them hanging.</li>
+        <li><strong>Pending QC, oldest first</strong> — the default order. Just work down it.</li>
+      </ol>
+
+      <div class="note warn">
+        <span class="lbl">Turnaround is measured</span>
+        <p>Your leaderboard efficiency is the average time from a ticket entering the queue to your verdict.
+        Under 15 minutes scores full marks; every extra minute costs 10 points. Cherry-picking easy cards off
+        the bottom of the list hurts you twice — it ages the hard ones and drags your average.</p>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="chapter" id="c4">
+      <div class="chapter-head"><span class="num">04</span><h2>Anatomy of a review card</h2></div>
+
+      <p class="lede">Every card is laid out identically. Learn it once and you can read one in about ten seconds.</p>
+
+      <figure>
+        <img src="img/q-03-card-anatomy.png" alt="A single QC review card for truck 7712, marked PENDING QC. It shows Created Sep 4 2026 4:00 PM, MC Adomy, Trailer # 48810 with a lookup magnifier, Created by jmartinez, Driver Marcus Webb, Location Dallas TX I-35 Mile 402, Model 2022 Kenworth T680, Fuel 68% with a refresh icon, Weight 32,900 lbs, Condition Good, Last PTI Date 08/29/2026, Last QC Approved No prior record, Last Hauled By No other truck on record. Below: a papers box reading No papers on file yet for trailer 48810, a row of status chips — Registration OK, Inspection OK, Sticker Missing, BOL OK, PTI OK, ELD Missing, Checklist Missing — a collapsed PTI video log row, and the Approve Ticket, Flag and Trailer Issue buttons.">
+        <figcaption><b>Review card</b><span>Identity and telematics at the top, history in the middle, evidence and verdict at the bottom.</span></figcaption>
+      </figure>
+
+      <h3>Top block — identity and telematics</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Field</th><th>Where it comes from</th><th>What to watch for</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Truck number</strong> + status badge</td><td>Typed by the team member.</td><td>Badges beside it: <span class="chip flag">Hazmat</span> and <span class="chip await">LOT Trailer</span>.</td></tr>
+            <tr><td><strong>Created</strong></td><td>When the ticket was opened.</td><td>A long gap between this and now means a slow ticket.</td></tr>
+            <tr><td><strong>MC</strong></td><td>Selected by the team member.</td><td>Wrong carrier is why telematics fields come back blank.</td></tr>
+            <tr><td><strong>Trailer #</strong></td><td>Typed. <strong>You can edit this inline.</strong></td><td>A magnifier next to the label opens Trailer Lookup — chapter 5.</td></tr>
+            <tr><td><strong>Created by</strong></td><td>The team member.</td><td>If it's <em>you</em>, see chapter 11.</td></tr>
+            <tr><td><strong>Driver / Location / Model</strong></td><td>Auto-filled from telematics, editable by the team member.</td><td>A dash means the truck wasn't found — usually the wrong MC.</td></tr>
+            <tr><td><strong>Fuel</strong></td><td>Captured once, at intake.</td><td>It does <strong>not</strong> update by itself. The circular arrow beside it pulls the live reading — use it before you judge anything fuel-related.</td></tr>
+            <tr><td><strong>Weight</strong></td><td>Free text. <strong>You can edit this inline.</strong></td><td><span class="mono">pending scale</span> is normal on a scale load.</td></tr>
+            <tr><td><strong>Condition</strong></td><td>Good / Fair / Damaged.</td><td>Anything but Good should have notes — and may deserve a trailer issue.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Middle block — the history trio</h3>
+      <p>Three server-computed fields so you're never auditing a returning trailer blind:</p>
+      <div class="cards">
+        <div class="card">
+          <h4>Last PTI Date</h4>
+          <p>The most recent known PTI for this trailer or truck, from any ticket. This is the field the 7-day LOT
+          rule reads.</p>
+        </div>
+        <div class="card">
+          <h4>Last QC Approved</h4>
+          <p>The last time <em>this trailer</em> passed QC on a different ticket.</p>
+        </div>
+        <div class="card">
+          <h4>Last Hauled By</h4>
+          <p>The most recent <em>other</em> truck that pulled this trailer, and when. Trailer-scoped, not truck-scoped.</p>
+        </div>
+      </div>
+
+      <h3>Evidence block</h3>
+      <h4>Saved trailer papers</h4>
+      <p>Papers are saved against the trailer and follow it between pickups. The box always tells you which state
+      it's in and never sits silently blank:</p>
+      <ul>
+        <li><span class="mono">No trailer linked</span> — no trailer number on the ticket.</li>
+        <li><span class="mono">Checking…</span> — still loading.</li>
+        <li><span class="mono">No papers on file yet for trailer X</span> — genuinely none saved.</li>
+        <li><span class="mono">Couldn't load</span> — a network problem, not an empty record. Refresh before you judge.</li>
+        <li>Links — open them and actually look at them.</li>
+      </ul>
+
+      <h4>Status chips</h4>
+      <p>One row of chips summarising the checklist: green <span class="mono">OK</span>, red
+      <span class="mono">Missing</span>, for Registration, Inspection, Sticker, BOL, PTI, ELD and Checklist,
+      plus an amber KPRA chip naming the destination group when one was chosen.</p>
+      <div class="note rule">
+        <span class="lbl">A red chip is not automatically a flag</span>
+        <p><span class="mono">Sticker: Missing</span> is fine when <span class="mono">Inspection: OK</span> —
+        only one of the two is required. <span class="mono">ELD: Missing</span> and
+        <span class="mono">Checklist: Missing</span> don't block the gate at all, which is exactly why they end up
+        in front of you: the system let them through, so it's your call whether they matter on this load.</p>
+      </div>
+
+      <h4>PTI video log</h4>
+      <figure>
+        <img src="img/q-06-pti-video-log.jpg" alt="Two QC cards. The left shows an expanded PTI video log — 25/25 items noted, listing every item as a small chip: Side DOT Tape, Rear DOT Tape, No Placards Attached, Movable Mudflap left and right, Tires and Rims, Brakes and Suspension, Airlines, the lights, and so on. The right card is truck 6688 marked EXCEPTION REVIEW with a red border, a Flag history panel and a Force Approve button.">
+        <figcaption><b>PTI video log</b><span>Click the row to expand. Read-only — it is a record of what the team member saw, nothing more.</span></figcaption>
+      </figure>
+      <div class="note warn">
+        <span class="lbl">The log never gates anything</span>
+        <p>The master PTI checkbox is what marks PTI as done. The 25-item log is context. A log reading
+        <span class="mono">0/25 items noted</span> alongside <span class="mono">PTI: OK</span> is a legitimate
+        state — but it's also worth asking about, and that's a judgement call, not a rule the system enforces.</p>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="chapter" id="c5">
+      <div class="chapter-head"><span class="num">05</span><h2>Trailer history &amp; lookup</h2></div>
+
+      <p class="lede">A trailer that's new to <em>this truck</em> may not be new to the fleet. Before you flag a
+      stale or missing PTI, check whether another truck already did one.</p>
+
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <p>Click the small magnifier next to the <strong>Trailer #</strong> label. A <strong>Trailer Lookup</strong>
+          popover opens, pre-filled with the trailer currently on the ticket.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <p>You can type <em>any</em> trailer number in the box — useful when you suspect a typo and want to see
+          what the corrected number actually belongs to. Press <strong>Check</strong>.</p>
+          <figure style="max-width:500px">
+            <img src="img/q-05-trailer-lookup-zoom.png" alt="A Trailer Lookup popover with LOT-1001 in the input and a Check button. Results read Registered Last PTI 09/20/2026 and Last hauled by 5120 (Sep 20, 12:14 PM). Below them a greyed Apply to Ticket button with the caption Manager privileges required to apply this correction.">
+            <figcaption><b>Trailer Lookup</b><span>Registered PTI date and the truck that last hauled it. Apply to Ticket is manager-only.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <p>Read the two results:</p>
+          <ul>
+            <li><strong>Registered Last PTI</strong> — the date stored against that trailer.</li>
+            <li><strong>Last hauled by</strong> — the truck and date of its most recent other pickup.</li>
+          </ul>
+          <p><strong>Apply to Ticket</strong> is greyed out for you: <em>“Manager privileges required to apply this
+          correction.”</em> If the registered date is genuinely wrong, get a manager — they can correct it in place
+          from the card, and the correction is written against the <em>trailer</em>, so it shows up everywhere that
+          trailer appears next.</p>
+        </div>
+      </div>
+
+      <div class="note tip">
+        <span class="lbl">Why this matters</span>
+        <p>Without this, a perfectly current trailer that arrived behind a different truck looks like a missing PTI,
+        and you flag a team member who did nothing wrong. Check the history before you spend somebody's points.</p>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="chapter" id="c6">
+      <div class="chapter-head"><span class="num">06</span><h2>The four verdicts</h2></div>
+
+      <p class="lede">Every card ends in one of four actions. Picking the right one is most of this job. Work down
+      this ladder and stop at the first that fits.</p>
+
+      <div class="ladder">
+        <div class="rung a">
+          <span class="tag">Approve</span>
+          <p><strong>Everything checks out.</strong> The paperwork is there, legible, and consistent with the
+          telematics and the weights. Tick the three confirmations and approve. The creator gets +10.</p>
+        </div>
+        <div class="rung b">
+          <span class="tag">Fix it yourself</span>
+          <p><strong>A small, objective typo you can see the right answer to</strong> — a mistyped trailer number,
+          a weight that's obviously a slip. Correct it inline and approve. No flag, no penalty, no round trip.</p>
+        </div>
+        <div class="rung c">
+          <span class="tag">Trailer issue</span>
+          <p><strong>The trailer is broken, but nobody made a mistake.</strong> Cracked mudflap bracket, bent
+          landing gear. File the issue and then still approve or flag the ticket on its own merits.</p>
+        </div>
+        <div class="rung d">
+          <span class="tag">Flag</span>
+          <p><strong>The team member missed something they should have caught</strong>, or you need real-world work
+          done that only they can do. Pick the categories, write what you need, send it back.</p>
+        </div>
+      </div>
+
+      <div class="note rule">
+        <span class="lbl">The test that separates a fix from a flag</span>
+        <p>Ask: <em>can I see the correct answer from here?</em> If yes, fix it. If the correction needs somebody to
+        go and look at a trailer, re-shoot a photo, re-weigh a load or post in the group — flag it. Never flag
+        something you could have fixed in four seconds; never quietly "fix" something you're actually guessing at.</p>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section class="chapter" id="c7">
+      <div class="chapter-head"><span class="num">07</span><h2>Fixing it yourself</h2></div>
+
+      <p class="lede">Two fields on every card are live inputs, not labels: <strong>Trailer #</strong> and
+      <strong>Weight</strong>.</p>
+
+      <figure style="max-width:480px">
+        <img src="img/q-19-inline-edit.png" alt="Close-up of a QC card's fields with the Weight input focused and editable, showing 29,400 lbs with a text cursor in it. Trailer # above reads LOT-1002 with a lookup magnifier.">
+        <figcaption><b>Inline edit</b><span>Click the value, type, then press Enter or click away. It saves only if you changed it.</span></figcaption>
+      </figure>
+
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body"><p>Click the value. It's already an input — no edit button to find.</p></div>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body"><p>Type the correction.</p></div>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body"><p>Press <kbd>Enter</kbd> or click away. It saves immediately, and only if the value actually changed.</p></div>
+      </div>
+
+      <div class="note warn">
+        <span class="lbl">Correcting a trailer number is not a small act</span>
+        <p>The trailer record carries the saved papers. The system is built to rename the existing trailer in place
+        so its papers follow — unless the number you typed already belongs to a <em>different</em> known trailer,
+        in which case the ticket re-links to that trailer and its papers instead. That's the right outcome for a
+        typo fix. It is the wrong outcome if you were guessing. Use Trailer Lookup first.</p>
+      </div>
+
+      <h3>Refreshing fuel</h3>
+      <p>Fuel % is captured once, when the pickup was created, and never updates on its own. The circular arrow next
+      to it pulls the live reading from telematics. Use it before you judge anything that depends on fuel — and
+      remember the team member's axle-balance plan may have assumed a full tank.</p>
+    </section>
+
+    <!-- 8 -->
+    <section class="chapter" id="c8">
+      <div class="chapter-head"><span class="num">08</span><h2>Approving</h2></div>
+
+      <p class="lede">Approval is deliberately slower than one click. Three boxes, each a separate thing you are
+      putting your name to.</p>
+
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <p>Press <strong>Approve Ticket</strong>. A confirmation box opens with all three boxes empty and
+          <strong>Confirm Approval</strong> greyed out.</p>
+          <figure>
+            <img src="img/q-08-approve-modal-empty.jpg" alt="A dialog headed Approve ticket — 9401 reading Confirm each verification before approving. All three are required. Three unticked checkboxes: Data matches Samsara/Telematics, Weights are within legal bounds, Documentation is visually confirmed. Cancel and a greyed-out Confirm Approval button.">
+            <figcaption><b>Three confirmations</b><span>Confirm Approval stays disabled until all three are ticked. There's no way around it.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <p>Tick each one only when it is actually true:</p>
+          <div class="tw">
+            <table>
+              <thead><tr><th>Confirmation</th><th>What you are asserting</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Data matches Samsara/Telematics</strong></td><td>Driver, location and model on the card match the live feed — or the team member's override is right and you know why.</td></tr>
+                <tr><td><strong>Weights are within legal bounds</strong></td><td>The recorded weight is plausible and, on a scale load, the scale ticket backs it up. Steer 12,000 / drive 34,000 / trailer 34,000.</td></tr>
+                <tr><td><strong>Documentation is visually confirmed</strong></td><td>You opened the papers and looked at them. Not "the chip is green" — you looked.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <figure>
+            <img src="img/q-09-approve-modal-checked.jpg" alt="The same Approve ticket dialog with all three checkboxes ticked in red and the Confirm Approval button now enabled in green.">
+            <figcaption><b>All three ticked</b><span>Confirm Approval goes green and becomes clickable.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <p>Press <strong>Confirm Approval</strong>. The card leaves the queue and a green line confirms who got
+          the credit.</p>
+          <figure>
+            <img src="img/q-10-approved-notice.jpg" alt="The QC Review page with a green banner reading Truck 9401 approved (+10 to dispatcher_x), and the queue now one card shorter.">
+            <figcaption><b>Approved</b><span>The +10 goes to whoever created the ticket, not to you.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="note stop">
+        <span class="lbl">The three boxes are the point</span>
+        <p>They exist to stop rubber-stamping. Ticking them without doing the checks is the one failure mode this
+        whole system can't catch — every approval is permanently logged with your name, the time and the ticket.</p>
+      </div>
+
+      <div class="note warn">
+        <span class="lbl">Approval doesn't clear the scale chase</span>
+        <p>If the load needed a scale and the scale ticket hasn't been received, the row stays on the Carryover
+        board after you approve it, marked <span class="chip ok">Approved — scale pending</span>. That's correct.
+        Somebody still has to chase the ticket.</p>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section class="chapter" id="c9">
+      <div class="chapter-head"><span class="num">09</span><h2>Flagging</h2></div>
+
+      <p class="lede">A flag sends the ticket back to the team member's Carryover board with your reasons attached,
+      and costs them score. Be specific and be fair.</p>
+
+      <figure>
+        <img src="img/q-11-flag-form.jpg" alt="A QC card with the flag form open. Error categories — select all that apply shows ten checkboxes: Missing inspection, Missing sticker, Missing registration, Didn't remind the driver about KPRA law, PTI — video wasn't with the light test (didn't inform), Didn't text in the group, Missing BOL, Incorrect weight, Missed PTI, Other (describe in notes). Below: a Describe the problem text area, an Urgent Flag (Global Visibility) toggle described as visible and fixable by ALL employees, a Proof (pictures / videos) row with an Upload file button and a paste-a-media-URL field, and a Submit Flag button.">
+        <figcaption><b>Flag form</b><span>Opens inside the card. Categories, notes, urgency and proof, then Submit.</span></figcaption>
+      </figure>
+
+      <h3>Step 1 — Pick every category that applies</h3>
+      <p>Tick all of them, not just the worst one. One flag can carry several categories, and each one is recorded
+      and penalised separately.</p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Category</th><th>Use it when</th><th>Costs them</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Missed PTI</strong></td><td>No PTI was done, or it was marked done without one.</td><td class="num">−20</td></tr>
+            <tr><td><strong>Missing BOL</strong></td><td>No bill of lading, or it was ticked without one.</td><td class="num">−15</td></tr>
+            <tr><td><strong>Missing Registration</strong></td><td>No registration on file or in hand.</td><td class="num">−15</td></tr>
+            <tr><td><strong>Missing Inspection</strong></td><td>No inspection paper <em>and</em> no sticker.</td><td class="num">−15</td></tr>
+            <tr><td><strong>PTI — video wasn't with the light test</strong></td><td>The PTI video skipped the lights.</td><td class="num">−15</td></tr>
+            <tr><td><strong>Incorrect weight</strong></td><td>The recorded weight doesn't match the scale or what the driver reported.</td><td class="num">−10</td></tr>
+            <tr><td><strong>Missing sticker</strong></td><td>Sticker claimed but not visible or not legible.</td><td class="num">−10</td></tr>
+            <tr><td><strong>Didn't remind the driver about KPRA law</strong></td><td>Destination group needed a reminder and none was given.</td><td class="num">−10</td></tr>
+            <tr><td><strong>Didn't text in the group</strong></td><td>Load moved with nothing posted in the group chat.</td><td class="num">−1 to −10 (you choose)</td></tr>
+            <tr><td><strong>Other</strong></td><td>Anything else. <strong>Notes become mandatory.</strong></td><td class="num">−5</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Step 2 — Two categories change the form</h3>
+      <div class="cards">
+        <div class="card" style="border-left:3px solid var(--crimson)">
+          <h4>“Didn't text in the group”</h4>
+          <p>A <strong>Communication failure severity</strong> slider appears, 1 to 10, defaulting to 5.
+          <strong>The number you pick is the penalty.</strong> 1 for a late post, 8–10 for a load that left with
+          nothing said at all.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--crimson)">
+          <h4>“Other”</h4>
+          <p>Notes stop being optional. Describe the problem or the form won't submit.</p>
+        </div>
+      </div>
+
+      <figure>
+        <img src="img/q-12-flag-severity.jpg" alt="The flag form with Missing sticker and Didn't text in the group both ticked. A Communication failure severity slider has appeared reading 5/10, labelled 1 — minor at the left and 10 — severe at the right. The submit button now reads Submit Flag (2 issues).">
+        <figcaption><b>Severity slider</b><span>Only appears for “Didn't text in the group”. The value is the penalty.</span></figcaption>
+      </figure>
+
+      <h3>Step 3 — Write the note</h3>
+      <p>The note is the only part of a flag the team member can act on. A category tells them <em>what</em>;
+      the note tells them <em>what to do next</em>.</p>
+      <div class="cards">
+        <div class="card" style="border-left:3px solid var(--green)">
+          <h4>Good</h4>
+          <p>“Sticker photo never came through, and nothing was posted in the group when this load left.
+          Re-shoot the sticker and post it.”</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--crimson)">
+          <h4>Useless</h4>
+          <p>“Incomplete.” / “Fix this.” / “See categories.”</p>
+        </div>
+      </div>
+
+      <h3>Step 4 — Urgent, or not</h3>
+      <figure>
+        <img src="img/q-13-flag-filled.jpg" alt="The completed flag form: Missing sticker and Didn't text in the group ticked, severity at 8/10, a written note reading Sticker photo never came through, and nothing was posted in the group when this load left. Re-shoot the sticker and post it. The Urgent Flag (Global Visibility) toggle is switched on and its row is outlined in red. Submit Flag (2 issues) sits below.">
+        <figcaption><b>Ready to submit</b><span>Urgent turned on — the row goes red to make sure you meant it.</span></figcaption>
+      </figure>
+      <div class="note warn">
+        <span class="lbl">What Urgent actually does</span>
+        <p>A normal flag is visible only to its creator, QC and managers — that's <strong>mistake privacy</strong>,
+        and it's deliberate. Turning on Urgent throws that away: the ticket appears on <em>every</em> team member's
+        Action Required board with a pulsing badge, and whoever fixes it earns a +5 teamwork bonus if they didn't
+        create it. Use it when the load is moving and it can't wait for one person — not to make a point.</p>
+      </div>
+
+      <h3>Step 5 — Attach proof</h3>
+      <p><strong>Upload file</strong> or paste a media URL and press <strong>Add URL</strong>. Images and videos are
+      detected from the file extension. A screenshot of the illegible sticker ends the argument before it starts.</p>
+
+      <h3>Step 6 — Submit</h3>
+      <figure>
+        <img src="img/q-14-flagged-notice.jpg" alt="The QC Review page with a green banner reading Truck 7712 flagged (Missing sticker, Didn't text in the group) — sent back to jmartinez's Carryover dashboard.">
+        <figcaption><b>Flagged</b><span>The confirmation names the categories and the team member it went back to.</span></figcaption>
+      </figure>
+      <p>The card leaves your queue. The team member gets a red pop-up within about fifteen seconds and a red badge
+      on their Carryover item. When they resend it, it comes back to you as
+      <span class="chip resolved">Resolved</span>, carrying a purple panel with your original flag and note so you
+      can check exactly what you asked for.</p>
+    </section>
+
+    <!-- 10 -->
+    <section class="chapter" id="c10">
+      <div class="chapter-head"><span class="num">10</span><h2>Trailer issues</h2></div>
+
+      <p class="lede">For a real problem with the equipment that isn't anybody's mistake. This is the tool that
+      stops you having to choose between blaming someone and saying nothing.</p>
+
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <p>Press <strong>Trailer Issue</strong> on the card. A box opens inside it.</p>
+          <figure>
+            <img src="img/q-15-trailer-issue-form.jpg" alt="A QC card with the trailer-issue form open. The heading reads What's wrong with the trailer? followed by the note Doesn't affect jmartinez's score — the employee did nothing wrong. A text area is prompted with e.g. Cracked frame near the rear axle, needs a shop look before its next load. Below are Report Issue and Cancel buttons.">
+            <figcaption><b>Trailer issue</b><span>The form says it plainly: this does not affect the team member's score.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <p>Describe what a mechanic would need to know — <em>“Rear passenger-side mudflap bracket is cracked —
+          not the team member's miss, but shop needs to see it before the next load.”</em> At least three characters,
+          but write a real sentence.</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <p>Press <strong>Report Issue</strong>. It goes to the whole team's Trailer Issues board and nudges the
+          floor about every two hours until someone marks it resolved.</p>
+        </div>
+      </div>
+
+      <div class="note tip">
+        <span class="lbl">It isn't an audit verdict</span>
+        <p>Because it's a report and not a judgement, a trailer issue carries no score penalty, doesn't block
+        approval, and is available even on a pickup <em>you</em> created. Filing one and then approving the same
+        ticket is a completely normal outcome.</p>
+      </div>
+
+      <div class="note rule">
+        <span class="lbl">Issue or flag?</span>
+        <p><strong>The trailer is broken</strong> → trailer issue. <strong>The team member didn't notice the trailer
+        was broken, or logged it as Good</strong> → that's a flag, and you can file the issue as well. Both, when
+        both are true.</p>
+      </div>
+    </section>
+
+    <!-- 11 -->
+    <section class="chapter" id="c11">
+      <div class="chapter-head"><span class="num">11</span><h2>Exceptions &amp; conflicts</h2></div>
+
+      <h3>Exception Review — when a team member can't fix it</h3>
+      <p>A flagged ticket the team member genuinely can't resolve comes back to you as an
+      <strong>Exception Review</strong>: red border, their mandatory written reason at the top, the flag history
+      below, and Approve relabelled <strong>Force Approve</strong>.</p>
+
+      <figure>
+        <img src="img/q-07-exception-review.jpg" alt="Two QC cards. Left: truck 9401 with a red HAZMAT badge, pending QC. Right: truck 6688 marked EXCEPTION REVIEW with a red border. A red panel reads EMPLOYEE REPORTS THIS CANNOT BE FIXED: Trailer left the yard before we could photograph the registration. Owner-operator is unreachable until Monday. Below it: Force Approve closes it with this exception on permanent record — or Flag it again to reject the escalation. A Flag history panel shows Missing registration and the note No registration paper on file for this trailer. Buttons: Force Approve, Flag, Trailer Issue.">
+        <figcaption><b>Exception Review</b><span>The team member's reason verbatim, the original flag beneath it, and your two options.</span></figcaption>
+      </figure>
+
+      <div class="cards">
+        <div class="card" style="border-left:3px solid var(--crimson)">
+          <h4>Force Approve</h4>
+          <p>You accept the exception. The ticket closes with their explanation permanently on record. Use when the
+          reason is genuine and the load can't wait.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--navy)">
+          <h4>Flag it again</h4>
+          <p>You reject the escalation. It clears the exception and restarts the normal fix loop. Use when the
+          reason is vague, or when it plainly could be fixed.</p>
+        </div>
+      </div>
+
+      <div class="note warn">
+        <span class="lbl">Read the reason, not just the fact of it</span>
+        <p>“Trailer left the yard before we could photograph the registration; owner-operator unreachable until
+        Monday” is a real constraint. “Couldn't get it” is not. Force Approve puts your name on accepting that
+        explanation, so hold it to the standard you'd want applied to your own.</p>
+      </div>
+
+      <h3>Your own pickups — conflict of interest</h3>
+      <p>QC creates pickups too. You can <strong>never</strong> approve or flag a ticket you created. Approve and
+      Flag are replaced by a plain notice.</p>
+
+      <figure>
+        <img src="img/q-16-conflict-of-interest.jpg" alt="A QC review card for truck 7205, created by qc_sarah. Where the Approve and Flag buttons would normally sit there is instead a grey notice reading Your pickup — another QC or a manager must audit it, followed by a Trailer Issue button and small icons for dropped and delete.">
+        <figcaption><b>Your own pickup</b><span>“Your pickup — another QC or a manager must audit it.” Only Trailer Issue remains.</span></figcaption>
+      </figure>
+
+      <div class="note stop">
+        <span class="lbl">This is enforced on the server, not just hidden</span>
+        <p>There is no workaround, no admin toggle, and no way to do it from another page. Another QC user or a
+        manager has to audit it. Managers are exempt from this rule; you are not. <strong>Trailer Issue</strong>
+        stays available, because a report about broken equipment isn't a verdict on yourself.</p>
+      </div>
+    </section>
+
+    <!-- 12 -->
+    <section class="chapter" id="c12">
+      <div class="chapter-head"><span class="num">12</span><h2>My Audits &amp; your score</h2></div>
+
+      <p class="lede">Everything you decide is on permanent record, and you can read it back at any time.</p>
+
+      <figure>
+        <img src="img/q-17-my-audits-approved.jpg" alt="The My Audit History page with the Approved tab selected. A table lists approved-at time, truck number, MC, employee and current state for three tickets: 9401 for dispatcher_x, 5533 and 1319 A for jmartinez, all showing APPROVED.">
+        <figcaption><b>Approved tab</b><span>What you passed, and what state each ticket is in now.</span></figcaption>
+      </figure>
+
+      <figure>
+        <img src="img/q-18-my-audits-flagged.jpg" alt="The My Audit History page with the Flagged tab selected. A table lists flagged-at time, truck number, MC, employee, current state and the categories cited: 7712 (Missing sticker, Didn't text in the group) FLAGGED; 6688 (Missing registration) PENDING QC; 3077 (Didn't text in the group) FLAGGED; 1265 (Missing sticker, Incorrect weight) FLAGGED; 2277 B (Missing sticker) RESOLVED.">
+        <figcaption><b>Flagged tab</b><span>Every category you cited, plus where that ticket ended up.</span></figcaption>
+      </figure>
+
+      <p>The <strong>Current state</strong> column is the useful one. A flag you raised that's still sitting at
+      <span class="chip flag">Flagged</span> days later is a ticket nobody has picked up — chase it, or raise it
+      in the handover.</p>
+
+      <h3>How QC is scored on the leaderboard</h3>
+      <div class="cards">
+        <div class="card">
+          <h4>Accuracy — 70%</h4>
+          <p>Fixed at 100 for QC. There is no counter-signal in the system that could fairly mark a reviewer down,
+          so it doesn't pretend to have one.</p>
+        </div>
+        <div class="card">
+          <h4>Efficiency — 30%</h4>
+          <p>Average time from a ticket entering the queue to your verdict. Under 15 minutes scores 100; every extra
+          minute costs 10 points.</p>
+        </div>
+        <div class="card">
+          <h4>Volume multiplier</h4>
+          <p>Approvals plus flags. Reaches full weight at 50 actions, so a handful of reviews can't outrank a
+          full shift's work.</p>
+        </div>
+      </div>
+
+      <div class="note rule">
+        <span class="lbl">Your score does not reward approving</span>
+        <p>Approvals and flags count identically toward volume, and accuracy is fixed. There is no mathematical
+        incentive to wave things through — only turnaround is measured. Take the time a card needs.</p>
+      </div>
+
+      <p>You also have a score pill of your own, top right, because you create pickups too. That one follows the same
+      rules as everybody else: +10 when a ticket <em>you</em> created is approved, and penalties if one gets flagged.</p>
+    </section>
+
+    <!-- 13 -->
+    <section class="chapter" id="c13">
+      <div class="chapter-head"><span class="num">13</span><h2>Quick reference</h2></div>
+
+      <h3>Reviewing one card</h3>
+      <ol class="gate">
+        <li>Read the status badge. <span class="chip resolved">Resolved</span> → read the purple “previously flagged” panel first and check only that the fixes landed.</li>
+        <li>Check the history trio — Last PTI, Last QC Approved, Last Hauled By. Open Trailer Lookup if the PTI looks stale.</li>
+        <li>Open the saved papers and actually look at them.</li>
+        <li>Read the status chips. Remember: inspection <em>or</em> sticker; ELD and Checklist never gated.</li>
+        <li>Expand the PTI video log if the load or the trailer gives you any reason to.</li>
+        <li>Refresh fuel if anything depends on it.</li>
+        <li>Fix what you can see the answer to. File a trailer issue if equipment is broken.</li>
+        <li>Approve (three boxes) or Flag (every category, a real note, proof).</li>
+      </ol>
+
+      <h3>Quick answers</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Situation</th><th>Do this</th></tr></thead>
+          <tbody>
+            <tr><td>Sticker missing but inspection OK</td><td>Fine. Only one of the two is required.</td></tr>
+            <tr><td>ELD or Checklist missing</td><td>Your call — neither blocks the gate. Flag only if it mattered on this load.</td></tr>
+            <tr><td>PTI log reads 0/25 but PTI: OK</td><td>Legitimate. The master box is what counts. Ask if the load warrants it.</td></tr>
+            <tr><td>Last PTI Date looks stale on a LOT trailer</td><td>Trailer Lookup first — another truck may have done one. Get a manager to correct the date if it's wrong.</td></tr>
+            <tr><td>Driver and location are dashes</td><td>Truck not found in that carrier's fleet — usually the wrong MC. Not automatically a flag.</td></tr>
+            <tr><td>Papers box says “couldn't load”</td><td>A network problem, not an empty record. Refresh before judging.</td></tr>
+            <tr><td>Trailer is damaged, team member logged it honestly</td><td>Trailer issue. No flag.</td></tr>
+            <tr><td>Trailer is damaged, team member logged “Good”</td><td>Trailer issue <em>and</em> a flag.</td></tr>
+            <tr><td>Weight is an obvious typo</td><td>Fix it inline and approve.</td></tr>
+            <tr><td>Weight might be wrong but you can't tell</td><td>Flag — Incorrect weight. Don't guess.</td></tr>
+            <tr><td>It's your own pickup</td><td>You can't audit it. Another QC or a manager must.</td></tr>
+            <tr><td>Exception Review with a vague reason</td><td>Flag it again and ask for specifics.</td></tr>
+            <tr><td>Full-width red hazmat bar</td><td>Escalate to a manager immediately. Don't just dismiss it.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Rules that never bend</h3>
+      <ul>
+        <li>You can never approve or flag a pickup you created.</li>
+        <li>All three confirmation boxes, every approval, with the checks actually done.</li>
+        <li>Every flag gets a note that says what to do next.</li>
+        <li>Trailer issues cost nobody any points — use them freely, they're the right tool for broken equipment.</li>
+        <li>Urgent removes mistake privacy from the whole floor. Mean it when you use it.</li>
+        <li><strong>Apply to Ticket</strong> in Trailer Lookup is manager-only. Get a manager; don't work around it.</li>
+      </ul>
+
+      <hr class="divider">
+      <div class="footer">
+        <p><strong>UGL Trailer Check — QC Auditor Handbook.</strong> Screenshots taken from the live application
+        with practice data. If the app and this book disagree, the app is right — tell your manager so this can be
+        corrected. Pickup-side pages (New Pickup, Carryover, Notes) are covered in the Team Handbook,
+        and they apply to you too.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc-list a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) map[id] = a;
+  });
+  if (!('IntersectionObserver' in window)) { if(links[0]) links[0].classList.add('on'); return; }
+  links[0].classList.add('on');
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting){
+        links.forEach(function(l){ l.classList.remove('on'); });
+        var a = map[e.target.id];
+        if (a) a.classList.add('on');
+      }
+    });
+  }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+  Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+})();
+</script>

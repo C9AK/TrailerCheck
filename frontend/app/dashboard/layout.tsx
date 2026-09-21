@@ -4,6 +4,7 @@ import {
   Activity,
   Archive,
   BarChart3,
+  BookOpen,
   ClipboardCheck,
   FileClock,
   Gauge,
@@ -66,6 +67,9 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Truck; roles: Role[
   { href: "/dashboard/manager/archive", label: "Archive", icon: Archive, roles: ["manager"] },
   { href: "/dashboard/manager/stats", label: "Stats", icon: BarChart3, roles: ["manager"] },
   { href: "/dashboard/admin", label: "Admin", icon: Users, roles: ["manager"] },
+  // R53: the handbooks. Everyone gets the entry; the page itself only
+  // lists the books the role may open (QC Handbook is qc/manager-only).
+  { href: "/dashboard/guides", label: "Guides", icon: BookOpen, roles: ["employee", "qc", "manager"] },
 ];
 
 /** R24: choose how times are displayed everywhere — dispatch CST or the
@@ -525,7 +529,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="Main navigation">
           {items.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
+            // R53: sub-routes (e.g. /dashboard/guides/qc-handbook) keep their
+            // parent entry highlighted.
+            const active = pathname === href || pathname.startsWith(`${href}/`);
             const showFlagBadge = href === "/dashboard/carryover" && flagCount > 0;
             // R44: calmer, non-pulsing badge — a follow-up nudge, not an
             // urgent "needs action" flag.
@@ -649,7 +655,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               key={href}
               href={href}
               className={`whitespace-nowrap rounded px-3 py-2 text-sm font-medium ${
-                pathname === href
+                pathname === href || pathname.startsWith(`${href}/`)
                   ? "bg-blue-800 text-white"
                   : "text-slate-700 dark:text-slate-300"
               }`}
